@@ -60,16 +60,6 @@ def client(db_session):
     app.dependency_overrides.clear()
 
 
-@pytest.fixture(autouse=True)
-def debug_override():
-    """Debug: print dependency_overrides before each test."""
-    import sys
-    from src.main import app
-    from src.database import get_db
-    print(f"DEBUG: get_db in overrides: {get_db in app.dependency_overrides}", file=sys.stderr)
-    yield
-
-
 @pytest.fixture
 def negocio_id(db_session):
     """Create a test negocio and return its ID."""

@@ -125,7 +125,7 @@ class CreditoResponse(BaseModel):
 
 class PagoCreate(BaseModel):
     credito_id: UUID
-    jornada_id: UUID
+    jornada_id: Optional[UUID] = None
     monto: int = Field(..., gt=0)
     clave_idempotencia: str = Field(..., min_length=1)
     nota: Optional[str] = None
