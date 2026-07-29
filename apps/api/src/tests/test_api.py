@@ -12,7 +12,7 @@ class TestHealthCheck:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
-        assert data["service"] == "cobro-colombia-api"
+        assert data["service"] == "daily-system-api"
 
 
 class TestNegocioAPI:

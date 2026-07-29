@@ -1,4 +1,8 @@
-# Documento Maestro — Daily System v1.3
+# Documento Maestro — Daily System v1.3 (resumen operativo)
+
+> ⚠️ **Este es un resumen derivado.** La fuente de verdad es:
+> `docs/DOCUMENTO-MAESTRO-Plataforma-Cobro-Colombia-v1.3-CERRADO.md`
+> (22 partes + 3 apéndices, ~1,400 líneas).
 
 **Proyecto:** Daily System
 **Identificador:** daily-system

@@ -1,5 +1,5 @@
 -- init.sql
--- Configuración inicial de PostgreSQL para Cobro Colombia
+-- Configuración inicial de PostgreSQL para Daily System
 
 SELECT 'CREATE DATABASE cobro' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'cobro')\gexec
 

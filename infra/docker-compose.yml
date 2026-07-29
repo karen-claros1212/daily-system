@@ -1,5 +1,5 @@
 version: "3.9"
-name: cobrocolombia
+name: daily-system
 
 services:
   postgres:
@@ -8,9 +8,9 @@ services:
     ports:
       - "7103:5432"
     environment:
-      POSTGRES_USER: cobro
-      POSTGRES_PASSWORD: cobro_secret
-      POSTGRES_DB: cobro
+      POSTGRES_USER: ${POSTGRES_USER:-daily}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-daily_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-daily}
     volumes:
       - cobro-pgdata:/var/lib/postgresql
       - ./init.sql:/docker-entrypoint-initdb.d/00-init.sql

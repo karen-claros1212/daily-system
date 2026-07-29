@@ -1,4 +1,4 @@
-"""FastAPI application for Cobro Colombia."""
+"""FastAPI application for Daily System."""
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,14 +11,14 @@ from src.routes.pago import router as pago_router
 from src.routes.hoja_viva import router as hoja_viva_router
 
 app = FastAPI(
-    title="Cobro Colombia API",
-    description="Plataforma de cobro diario — API",
+    title="Daily System API",
+    description="Plataforma local-first para crédito diario, cobranza de campo, rutas, caja y riesgo en Colombia",
     version="0.1.0",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:7101", "http://localhost:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -35,4 +35,4 @@ app.include_router(hoja_viva_router)
 @app.get("/api/health")
 def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "service": "cobro-colombia-api"}
+    return {"status": "ok", "service": "daily-system-api"}

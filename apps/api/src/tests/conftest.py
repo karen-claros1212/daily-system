@@ -1,4 +1,4 @@
-"""Pytest configuration for Cobro Colombia API."""
+"""Pytest configuration for Daily System API."""
 
 import pytest
 from sqlalchemy import create_engine
