@@ -645,9 +645,13 @@ Este proyecto es **independiente**. No comparte código, base de datos ni domini
 
 Si durante desarrollo/piloto utiliza el mismo Mac Mini, la única relación es de **convivencia física del host**. Nada de los otros proyectos puede tocarse y esta aplicación no depende de ellos.
 
-## 6.1 Perfil de Colima aparte
+## 6.1 Colima y Mac Mini: decisión pendiente
 
-En macOS, Docker corre dentro de una máquina virtual con techo fijo. Un perfil propio de Colima garantiza que la pila **físicamente no pueda** pasar de su límite:
+La Mac Mini M4 de 24 GB es candidata para desarrollo, pruebas o piloto ligero. Su capacidad real se evaluará cuando llegue la fase de despliegue: se revisarán servicios existentes, memoria, CPU, almacenamiento y runtime actual.
+
+Colima, Docker Desktop u otro runtime no se seleccionan todavía. No se creará un perfil adicional sin auditoría. Producción comercial no dependerá obligatoriamente de la Mac Mini.
+
+Si durante desarrollo se usa Colima, debe contar con recursos explícitos:
 
 ```bash
 colima start --profile cobro \
@@ -949,7 +953,26 @@ Si la diferencia no es cero, exige motivo y avisa al administrador. No cierra en
 
 ## 10.7 PDF desde el teléfono
 
-Dos documentos generados en el dispositivo con el paquete `pdf` de Dart: la planilla de la ruta y el cierre del día. Los informes oficiales los genera el servidor con WeasyPrint.
+La aplicación móvil genera localmente los PDF operativos usando los recursos normales del teléfono, sin conexión:
+
+- PDF de `TERMINAR JORNADA`;
+- comprobante o recibo de pago;
+- hoja o resumen de ruta;
+- estado de cuenta del cliente;
+- reportes operativos que se definan para el cobrador.
+
+Generación con paquete `pdf` de Dart:
+
+- funciona sin conexión;
+- se construye desde datos estructurados y snapshots locales;
+- permite vista previa, guardar, compartir e imprimir;
+- se conserva pendiente de sincronización cuando no hay internet.
+
+El PDF de `TERMINAR JORNADA` se genera desde el mismo snapshot inmutable usado para cerrar la jornada, incluyendo: negocio, ruta, cobrador, fecha y hora, identificador de jornada, base de apertura, arrastre, cobrado real, desembolsos, dinero nuevo entregado, gastos, ahorro, vales, transferencias, efectivo esperado, efectivo contado, diferencia, motivo de diferencia, sobrante para el día siguiente, resumen de pagos, resumen de movimientos, resumen de renovaciones, versión y hash del cierre, estado de sincronización.
+
+No debe recalcular cifras con una fórmula distinta a la del snapshot. Nunca debe existir PDF móvil con un total y servidor con otro total.
+
+El servidor almacena o regenera posteriormente una copia canónica del PDF usando un motor open source de generación documental y CPU normal. No usa inteligencia artificial, modelos de lenguaje, visión por computadora ni OCR. No requiere GPU. Sirve para archivo, descarga web, Telegram, recuperación y auditoría. La selección concreta del motor se realizará en la fase de reportes.
 
 ## 10.8 El botón TERMINAR JORNADA
 
@@ -1115,7 +1138,11 @@ Si el teléfono se dañó o usó papel, se fotografía la planilla trabajada y s
 
 ## 15.3 Tecnología
 
-Local sobre RTX 5090: PaddleOCR para estructura de tabla, modelo visión-lenguaje local para escritura a mano.
+La RTX 5090 **no es servidor de Daily System**. No se usa para producción, piloto, generar PDF, OCR operativo, visión 24/7 ni recibe automáticamente documentos de clientes. Daily System debe funcionar con la torre apagada.
+
+La RTX 5090 queda fuera de la arquitectura operativa. Su uso se limita a programación, compilación, pruebas manuales y experimentos autorizados expresamente por el dueño.
+
+La importación de planillas (fotografía → OCR → validación) se ejecuta en fase posterior. Se seleccionará motor de OCR cuando se diseñe el flujo de importación.
 
 ## 15.4 La regla que protege al producto
 
@@ -1135,7 +1162,16 @@ Telegram: gratis, sin trámite, archivos sin restricción, Mini App. WhatsApp cu
 
 ## 16.3 Generación
 
-Servidor: WeasyPrint. Dispositivo: paquete `pdf` de Dart. El PDF debe verse impreso, no como página web.
+```text
+Generar PDF: datos estructurados → plantilla → PDF
+  - Dispositivo: paquete `pdf` de Dart, offline
+  - Servidor: motor open source con CPU (no GPU, no IA, no LLM)
+
+Leer documentos externos: PDF escaneado o fotografía → OCR → reconstrucción de datos → revisión humana → importación
+  - PaddleOCR u otro motor: se selecciona en fase posterior
+```
+
+El PDF debe verse impreso, no como página web. La generación de PDF está separada de la lectura con OCR.
 
 ## 16.4 Reporte automático al terminar jornada
 
@@ -1165,11 +1201,11 @@ Validado con: brillo alto, una mano, dedos grandes, conectividad mala, 50-150 fi
 
 ## 18.1 Dónde corre qué
 
-Desarrollo/piloto: Mac Mini + Colima perfil cobro + Cloudflare Tunnel. Producción: VPS/hosting después de revisión de privacidad, ubicación y benchmark.
+Desarrollo/piloto: Mac Mini candidata + Colima o Docker Desktop por evaluar + Cloudflare Tunnel. Producción: VPS/hosting después de revisión de privacidad, ubicación y benchmark. Producción comercial no dependerá obligatoriamente de la Mac Mini.
 
 ## 18.2 Costos
 
-Arranque y piloto: Mac Mini existente, Cloudflare según plan, dominio pago anual, PowerSync Open Edition sin tarifa, Telegram sin tarifa del bot, Play Store tarifa de registro.
+Arranque y piloto: Mac Mini M4 candidata por evaluar, Cloudflare según plan, dominio pago anual, PowerSync Open Edition sin tarifa, Telegram sin tarifa del bot, Play Store tarifa de registro.
 
 Referencia Hetzner (jul-2026, sin IPv4/impuestos): CX23 $6.49/mes, CAX11 $6.99/mes, CX33 $9.99/mes. Decisión de producción exige región jurídicamente aprobada, benchmark, precio visible en orden.
 
@@ -1366,7 +1402,7 @@ Impacto presupuestario: un repositorio web, un pipeline de build, un contenedor 
 
 nombre y dominio, métrica/precio de suscripción, precio de instalación, plan anual, prueba gratis, uno o varios inversionistas con participaciones, activación inmediata o aprobación de créditos originados en calle, umbral definitivo para conciliación manual de suscripciones.
 
-Decisiones ya expresamente cerradas: Colombia, Nequi, Bancolombia, administrador, cobrador, inversionista, bot de Telegram con PDF, Mini App de Telegram, Cloudflare, Mac Mini aislado con Colima para desarrollo/piloto, TERMINAR JORNADA, rutas sin cruce, hoja viva.
+Decisiones ya expresamente cerradas: Colombia, Nequi, Bancolombia, administrador, cobrador, inversionista, bot de Telegram con PDF, Mini App de Telegram, Cloudflare, PDF móvil obligatorio y offline con `pdf` de Dart, snapshot inmutable para cierre, RTX 5090 fuera de arquitectura operativa, OCR pendiente para fase posterior, Mac Mini y Colima pendientes de evaluación, TERMINAR JORNADA, rutas sin cruce, hoja viva.
 
 
 *Fin del documento maestro.*
