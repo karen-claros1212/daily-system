@@ -46,11 +46,11 @@ TIPO_A_NATURALEZA = {
     "OFICINA": "GASTO",
     "AHORRO": "CUSTODIA",
     "VALE": "CUENTA_POR_COBRAR",
-    "ENTREGA": "DESEMBOLSO",
+    "ENTREGA": "TRASLADO_SALIDA",
     "RECIBIDO": "TRASLADO_ENTRADA",
     "DESEMBOLSO": "DESEMBOLSO",
     "AJUSTE": "AJUSTE",
-    "OTRO": "GASTO",
+    "OTRO": None,  # requiere naturaleza explícita + nota obligatoria
 }
 
 
@@ -125,25 +125,37 @@ def register_movimiento(
     validate_tipo(tipo)
     validate_naturaleza(naturaleza)
 
+    # OTRO requires explicit naturaleza and nota
+    if tipo == "OTRO":
+        if not naturaleza or naturaleza == "GASTO":
+            raise MovimientoNaturalezaInvalida(
+                "Tipo OTRO exige naturaleza explícita (no GASTO por defecto)"
+            )
+        if not monto:
+            raise MovimientoError("Tipo OTRO requiere monto")
+
     # Get or validate jornada
     if jornada_id:
         from src.models import Jornada
         jornada = (
             db.query(Jornada)
-            .filter(_uuid_eq(Jornada.id, jornada_id))
+            .filter(
+                _uuid_eq(Jornada.id, jornada_id),
+                _uuid_eq(Jornada.negocio_id, ctx.negocio_id),
+            )
             .first()
         )
         if not jornada:
             raise MovimientoJornadaError("Jornada no encontrada")
 
+        # Cobrador route isolation
+        if ctx.is_cobrador() and jornada.ruta_id != ctx.route_id:
+                raise MovimientoJornadaError(
+                    "Movimiento pertenece a otra ruta"
+                )
+
         # Check if jornada is closed (append-only: can still add to open jornadas)
-        from src.models import Jornada
-        jornada_data = (
-            db.query(Jornada)
-            .filter(_uuid_eq(Jornada.id, jornada_id))
-            .first()
-        )
-        if jornada_data and jornada_data.estado in {
+        if jornada.estado in {
             "CLOSED_LOCAL_PENDING_SYNC",
             "CLOSED_SYNCED",
         }:

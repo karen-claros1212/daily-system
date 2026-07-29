@@ -7,6 +7,7 @@ The server is the authority. The device may close locally (pending sync),
 then the server validates and marks CLOSED_SYNCED.
 """
 
+import json
 from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
@@ -39,6 +40,13 @@ class JornadaClosedError(JornadaError):
 
 class JornadaAlreadyClosed(JornadaError):
     """Jornada already closed with same idempotency key."""
+
+
+def _canonical_json_hash(obj: dict) -> str:
+    """Compute SHA-256 hash of a dict using canonical JSON (sorted keys, no whitespace)."""
+    import hashlib
+    canonical = json.dumps(obj, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 def _uuid_eq(column, val):
@@ -212,6 +220,10 @@ def cerrar_jornada(
     if not jornada:
         raise JornadaNotFoundError("Jornada no encontrada")
 
+    # Cobrador route isolation
+    if ctx.is_cobrador() and jornada.ruta_id != ctx.route_id:
+        raise JornadaNotFoundError("Jornada no encontrada")
+
     idempotency_key = data.get("idempotencia_cierre", "")
 
     # Idempotency check first — if same key already used for this jornada, return
@@ -225,9 +237,44 @@ def cerrar_jornada(
             .first()
         )
         if existing and existing.id == jornada_id:
-            # Same close, return existing snapshot
-            caja = calcular_cadena_caja(db, jornada_id)
-            return _build_cierre_response(jornada, caja, 0, 0, "")
+            # Compare payload: efectivo_contado and motivo must match
+            stored_snapshot = existing.cierre_snapshot_json or {}
+            payload_contado = data.get("efectivo_contado", 0)
+            payload_motivo = data.get("motivo", "")
+            stored_contado = stored_snapshot.get("efectivo_contado", 0)
+            stored_motivo = stored_snapshot.get("diferencia_motivo", "") or ""
+            if payload_contado != stored_contado:
+                raise JornadaAlreadyClosed(
+                    "Misma clave de idempotencia con payload diferente"
+                )
+            if payload_motivo != stored_motivo:
+                raise JornadaAlreadyClosed(
+                    "Misma clave de idempotencia con payload diferente"
+                )
+            # Return stored cierre values from snapshot
+            return {
+                "jornada_id": str(existing.id),
+                "estado": existing.estado,
+                "fecha": str(existing.fecha),
+                "opening_base": existing.opening_base,
+                "opening_carry": existing.opening_carry,
+                "recaudo_real": stored_snapshot.get("recaudo_real", 0),
+                "desembolsos": stored_snapshot.get("desembolsos", 0),
+                "vales": stored_snapshot.get("vales", 0),
+                "gastos": stored_snapshot.get("gastos", 0),
+                "ahorro": stored_snapshot.get("ahorro", 0),
+                "efectivo_esperado": stored_snapshot.get("efectivo_esperado", 0),
+                "efectivo_contado": stored_contado,
+                "diferencia": stored_snapshot.get("diferencia", 0),
+                "diferencia_motivo": stored_motivo if stored_motivo else None,
+                "sobrante_manana": existing.sobrante_manana,
+                "cierre_idempotency_key": existing.cierre_idempotency_key,
+                "cierre_version": existing.cierre_version,
+                "cerrada_local_el": (
+                    existing.cerrada_local_el.isoformat() if existing.cerrada_local_el else None
+                ),
+                "snapshot_hash": existing.cierre_snapshot_hash,
+            }
 
     if jornada.estado in JORNADA_ESTADO_CERRADAS:
         raise JornadaAlreadyClosed("Jornada ya cerrada")
@@ -293,9 +340,7 @@ def cerrar_jornada(
         "version": 1,
     }
     jornada.cierre_snapshot_json = snapshot
-    jornada.cierre_snapshot_hash = __import__("hashlib").sha256(
-        str(snapshot).encode()
-    ).hexdigest()
+    jornada.cierre_snapshot_hash = _canonical_json_hash(snapshot)
 
     db.flush()
 
@@ -353,16 +398,36 @@ def sincronizar_cierre(
     if not jornada:
         raise JornadaNotFoundError("Jornada no encontrada")
 
+    # Cobrador route isolation
+    if ctx.is_cobrador() and jornada.ruta_id != ctx.route_id:
+        raise JornadaNotFoundError("Jornada no encontrada")
+
     if jornada.estado != "CLOSED_LOCAL_PENDING_SYNC":
         raise JornadaError(
             f"Jornada está en estado {jornada.estado}, se requiere CLOSED_LOCAL_PENDING_SYNC"
         )
 
     # Validate snapshot hash
-    import hashlib
-    computed_hash = hashlib.sha256(str(snapshot).encode()).hexdigest()
+    computed_hash = _canonical_json_hash(snapshot)
     if computed_hash != snapshot_hash:
         raise JornadaError("Snapshot hash no coincide — posible manipulación")
+
+    # Validate server-calculated caja matches client snapshot
+    server_caja = calcular_cadena_caja(db, jornada_id)
+    client_esperado = snapshot.get("efectivo_esperado", 0)
+    client_contado = snapshot.get("efectivo_contado", 0)
+    client_diferencia = snapshot.get("diferencia", 0)
+
+    if client_esperado != server_caja["efectivo_esperado"]:
+        raise JornadaError(
+            f"Snapshot efectivo_esperado ({client_esperado}) no coincide con "
+            f"server ({server_caja['efectivo_esperado']})"
+        )
+    if client_contado != server_caja["opening_base"] + server_caja["opening_carry"] + server_caja["recaudo_real"] - server_caja["desembolsos"] - server_caja["vales"] - server_caja["gastos"] - server_caja["ahorro"] - server_caja["entregas"]:
+        raise JornadaError(
+            f"Snapshot efectivo_contado ({client_contado}) no coincide con "
+            f"server ({client_esperado + client_diferencia})"
+        )
 
     # Update server-side timestamps
     jornada.recibida_servidor_el = datetime.now(BOGOTA_TZ)

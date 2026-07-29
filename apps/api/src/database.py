@@ -1,10 +1,11 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
 import os
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 DATABASE_URL = os.getenv(
     "API_DATABASE_URL",
-    "postgresql://daily:daily_dev@localhost:7103/daily",
+    "postgresql://daily:PLACEHOLDER@localhost:7103/daily",
 )
 
 engine = create_engine(DATABASE_URL)
@@ -16,5 +17,9 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()

@@ -5,14 +5,14 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.routes.negocio import router as negocio_router
-from src.routes.ruta import router as ruta_router
 from src.routes.cliente import router as cliente_router
 from src.routes.credito import router as credito_router
-from src.routes.pago import router as pago_router
 from src.routes.hoja_viva import router as hoja_viva_router
 from src.routes.jornada import router as jornada_router
 from src.routes.movimiento import router as movimiento_router
+from src.routes.negocio import router as negocio_router
+from src.routes.pago import router as pago_router
+from src.routes.ruta import router as ruta_router
 
 app = FastAPI(
     title="Daily System API",
@@ -32,7 +32,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register routers
 app.include_router(negocio_router)
 app.include_router(ruta_router)
 app.include_router(cliente_router)

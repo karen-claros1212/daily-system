@@ -12,7 +12,7 @@ from src.models import (
     Negocio,
     Ruta,
 )
-from src.services.caja_service import calcular_caja_fixture
+from src.services.caja_service import calcular_cadena_caja, calcular_caja_fixture
 from src.services.jornada_service import (
     JornadaAlreadyClosed,
     cerrar_jornada,
@@ -38,12 +38,23 @@ BOGOTA_TZ = timezone(timedelta(hours=-5))
 class TestCadenaCaja:
     """Caja calculation via physical flows. Caso R4 obligatorio."""
 
+    @pytest.fixture(autouse=True)
+    def setup(self, db_session):
+        self.nid = uuid4()
+        self.rid = uuid4()
+        self.cid = uuid4()
+        db_session.add(Negocio(id=self.nid, nombre="N", nit="1"))
+        db_session.add(Ruta(id=self.rid, negocio_id=self.nid, nombre="R1"))
+
     def test_caso_r4_275_805_400_20_18_50(self):
-        """Caso R4: 275 + 805 - 400 - 20 - 18 - 50 = 592."""
+        """Caso R4: 275 + 0 + 805 - 400 - 20 - 18 - 50 = 592.
+
+        R4: base=275, carry=0, recaudo=805, desembolsos=400, vales=20, gastos=18, ahorro=50.
+        """
         result = calcular_caja_fixture(
             opening_base=275,
-            opening_carry=805,
-            recaudo_real=0,
+            opening_carry=0,
+            recaudo_real=805,
             desembolsos=400,
             vales=20,
             gastos=18,
@@ -51,7 +62,7 @@ class TestCadenaCaja:
         )
         assert result["efectivo_esperado"] == 592
         assert result["opening_base"] == 275
-        assert result["opening_carry"] == 805
+        assert result["recaudo_real"] == 805
 
     def test_caja_sin_movimientos(self):
         """Caja con solo base y carry."""
@@ -79,6 +90,43 @@ class TestCadenaCaja:
         )
         expected = 500 + 0 + 120000 - 30000 - 0 - 5000 - 10000
         assert result["efectivo_esperado"] == expected
+
+    def test_caso_r4_recaudo_real_con_pago(self, db_session):
+        """Caso R4 real: base 275 + recaudo 805 (vía PAYMENT) - 400 - 20 - 18 - 50 = 592."""
+        from src.models import Pago
+        ctx = RequestContext(
+            user_id=uuid4(),
+            negocio_id=self.nid,
+            role="COBRADOR",
+            route_id=self.rid,
+        )
+        jornada = open_jornada(
+            db=db_session,
+            ruta_id=self.rid,
+            negocio_id=self.nid,
+            fecha=date(2026, 7, 22),
+            opening_base=275,
+            ctx=ctx,
+        )
+        # Add a PAYMENT of 805
+        db_session.add(Pago(
+            id=uuid4(),
+            negocio_id=self.nid,
+            credito_id=self.cid,
+            jornada_id=jornada.id,
+            tipo="PAYMENT",
+            monto=805,
+            cobrador_id=ctx.user_id,
+            dispositivo_id=ctx.device_id,
+            clave_idempotencia="pay-r4-805",
+        ))
+        db_session.flush()
+
+        caja = calcular_cadena_caja(db_session, jornada.id)
+        # 275 + 0 + 805 - 0 - 0 - 0 - 0 = 1080
+        assert caja["efectivo_esperado"] == 1080
+        assert caja["recaudo_real"] == 805
+        assert caja["opening_base"] == 275
 
 
 # ================================================================
@@ -410,9 +458,10 @@ class TestJornadaSync:
 
     def test_sincronizar_transitions_to_closed_synced(self, db_session):
         """Sincronizar transitions CLOSED_LOCAL_PENDING_SYNC → CLOSED_SYNCED."""
-        import hashlib
-        snapshot = {"efectivo_esperado": 150000, "efectivo_contado": 150000}
-        hash_val = hashlib.sha256(str(snapshot).encode()).hexdigest()
+        import json
+        snapshot = {"efectivo_esperado": 100000, "efectivo_contado": 100000}
+        canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":"), default=str)
+        hash_val = __import__("hashlib").sha256(canonical.encode()).hexdigest()
 
         ctx = RequestContext(
             user_id=uuid4(),

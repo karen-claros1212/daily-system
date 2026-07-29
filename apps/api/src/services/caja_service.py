@@ -76,8 +76,24 @@ def calcular_cadena_caja(
         )
         .first()
     )
-    recaudo_real = pagos_agg[0] or 0 if pagos_agg else 0
+    pagos_total = pagos_agg[0] or 0 if pagos_agg else 0
     pagos_count = pagos_agg[1] or 0 if pagos_agg else 0
+
+    # SUM of REVERSAL montos — restan del recaudo real
+    reversales_agg = (
+        db.query(
+            func.sum(Pago.monto).label("total"),
+        )
+        .filter(
+            Pago.jornada_id == jornada_id,
+            Pago.tipo == "REVERSAL",
+        )
+        .first()
+    )
+    reversales_total = reversales_agg[0] or 0 if reversales_agg else 0
+
+    # recaudo_real = pagos - reversales
+    recaudo_real = pagos_total - reversales_total
 
     # SUM of movements by type
     movimientos = (
@@ -128,7 +144,7 @@ def calcular_cadena_caja(
         .scalar()
     ) or 0
 
-    # efectivo_esperado = base + carry + recaudo - desembolsos - vales - gastos - ahorro
+    # efectivo_esperado = base + carry + recaudo - desembolsos - vales - gastos - ahorro - entregas
     efectivo_esperado = (
         opening_base
         + opening_carry
@@ -138,6 +154,7 @@ def calcular_cadena_caja(
         - vales
         - gastos
         - ahorro
+        - entregas
     )
 
     return {
