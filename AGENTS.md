@@ -11,6 +11,18 @@ Siempre confirmar con `pwd` y `git rev-parse --show-toplevel`.
 
 ---
 
+## Jerarquía del proyecto
+
+| Capa | Responsable | Propósito |
+|---|---|---|
+| **Documento maestro** | Requisitos | Especificaciones, arquitectura, decisiones |
+| **Git** | Historial | Evidencia verificable, diffs, commits |
+| **Engram** | Memoria | Decisiones, avances, continuidad entre sesiones |
+| **Graphify** | Estructura | Relaciones entre archivos, grafo de conocimiento |
+| **OpenCode** | Ejecución | Herramienta de trabajo principal |
+
+---
+
 ## Engram — Memoria Persistente
 
 **Project obligatorio:** `daily-system`
@@ -57,6 +69,47 @@ Después de compactación: `mem_context` → `AGENTS.md` → `docs/ENGRAM-PROTOC
 ### No guardar
 
 tokens, API keys, contraseñas, secretos硬coded, datos sensibles.
+
+---
+
+## Graphify — Grafo de Conocimiento
+
+**Ruta del grafo:** `graphify-out/`
+
+Graphify indexa la estructura y relaciones del código. Solo puede indexar Daily System.
+
+### Antes de ejecutar
+
+Verificar la raíz Git:
+```bash
+cd /home/jesus/proyectos/daily-system
+pwd
+git rev-parse --show-toplevel
+```
+
+### Comandos
+
+- `graphify .` → indexación completa
+- `graphify . --update` → indexación incremental (después de cambios)
+- `graphify cluster-only .` → re-clustering sin LLM
+- `graphify query "pregunta"` → consultar el grafo
+
+### Cuándo ejecutar
+
+- Después de cerrar un hito
+- Después de añadir o eliminar módulos
+- Después de modificar el schema
+- Después de cambiar contratos API
+- Después de refactorización estructural
+- Antes de auditoría de arquitectura
+
+### Archivos regenerables
+
+`graphify-out/` es regenerable y debe excluirse de Git:
+
+```
+graphify-out/
+```
 
 ---
 

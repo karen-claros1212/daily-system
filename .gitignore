@@ -46,3 +46,11 @@ logs/
 
 # Docker
 docker-compose.override.yml
+
+# Graphify (regenerable)
+graphify-out/
+
+# Secrets
+*.pem
+*.key
+*.p12

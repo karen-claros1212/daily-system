@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "graphify": {
+      "type": "local",
+      "command": [
+        "/home/jesus/.local/share/uv/tools/graphifyy/bin/python3",
+        "-m",
+        "graphify.serve",
+        "graphify-out/graph.json"
+      ],
+      "enabled": true
+    }
+  }
+}
