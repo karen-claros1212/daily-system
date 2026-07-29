@@ -38,17 +38,19 @@ def calcular_credito(cuota: int, n_cuotas: int, abo: int) -> CalculoCredito:
     )
 
 
-def calcular_mora_legacy(fecha_reporte, inicia) -> int:
+def calcular_mora_legacy(fecha_reporte, inicia, cuotas_pagadas: int = 0) -> int:
     """
-    Mora legacy: (fecha_reporte - 1 día) - inicia en días calendario.
+    Mora legacy: (fecha_reporte - 1 día - inicia).days - cuotas_pagadas.
 
     La ancla es la fecha del reporte menos un día, no el campo Ultimo.
     Cuenta días calendario corridos, sin excluir domingos ni festivos.
+    Descuenta cuotas_pagadas como se define en el documento (Parte 4.1).
     """
     from datetime import timedelta
     ancla = fecha_reporte - timedelta(days=1)
     dias_corridos = (ancla - inicia).days
-    return dias_corridos
+    mora = dias_corridos - cuotas_pagadas
+    return max(mora, 0)
 
 
 def calcular_caja(
@@ -88,6 +90,7 @@ def calcular_renovacion(
     Renovación probada (Parte 4.4 + fixtures).
 
     saldo_anterior = pago_efectivo + saldo_refinanciado
+    monto_final_con_recargo = monto_nuevo + (monto_nuevo * recargo_pct // 100)
     dinero_nuevo_entregado = monto_nuevo - saldo_refinanciado
 
     Fixture:
@@ -97,10 +100,12 @@ def calcular_renovacion(
     """
     saldo_refinanciado = saldo_anterior - pago_efectivo
     dinero_nuevo_entregado = monto_nuevo - saldo_refinanciado
+    monto_final_con_recargo = monto_nuevo + (monto_nuevo * recargo_pct // 100)
     return {
         "saldo_anterior": saldo_anterior,
         "pago_efectivo": pago_efectivo,
         "saldo_refinanciado": saldo_refinanciado,
         "monto_nuevo": monto_nuevo,
+        "monto_final_con_recargo": monto_final_con_recargo,
         "dinero_nuevo_entregado": dinero_nuevo_entregado,
     }

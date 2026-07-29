@@ -187,5 +187,7 @@ class HojaVivaResponse(BaseModel):
     fecha: date
     clientes: list[HojaVivaCliente]
     vence_hoy: int
+    vence_hoy_monto: int = 0
+    cuotas_que_vencen_hoy: int = 0
     dc_legacy: int  # PROMEDIO/DC legado
     efectivo_esperado: int

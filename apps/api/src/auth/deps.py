@@ -1,8 +1,10 @@
 """Authorization dependencies for Daily System.
 
-M1: Stub implementation — derives context from query parameters.
-Future: JWT claims from signed tokens.
+M1: Stub implementation — query parameters, RESTRICTED TO DEV/TEST ONLY.
+Production: must use JWT claims from signed tokens. Do NOT deploy with query auth.
 """
+
+import os
 
 from fastapi import Depends, HTTPException, Query
 from uuid import UUID
@@ -11,12 +13,18 @@ from src.auth.context import RequestContext
 
 
 def get_request_context(
-    negocio_id: UUID = Query(..., description="Negocio ID (will come from JWT)"),
-    role: str = Query(default="ADMINISTRADOR", description="Role (will come from JWT)"),
-    route_id: UUID | None = Query(default=None, description="Route ID (will come from JWT)"),
-    user_id: UUID | None = Query(default=None, description="User ID (will come from JWT)"),
-    device_id: UUID | None = Query(default=None, description="Device ID (will come from JWT)"),
+    negocio_id: UUID = Query(..., description="DEV ONLY: Negocio ID (will come from JWT)"),
+    role: str = Query(default="ADMINISTRADOR", description="DEV ONLY: Role (will come from JWT)"),
+    route_id: UUID | None = Query(default=None, description="DEV ONLY: Route ID (will come from JWT)"),
+    user_id: UUID | None = Query(default=None, description="DEV ONLY: User ID (will come from JWT)"),
+    device_id: UUID | None = Query(default=None, description="DEV ONLY: Device ID (will come from JWT)"),
 ) -> RequestContext:
+    if os.getenv("DAILY_ENV", "dev") == "production":
+        raise HTTPException(
+            status_code=500,
+            detail="query-param auth disabled in production — use JWT",
+        )
+
     if role not in ("ADMINISTRADOR", "COBRADOR", "INVERSIONISTA"):
         raise HTTPException(status_code=400, detail=f"Rol no válido: {role}")
     if role == "COBRADOR" and route_id is None:

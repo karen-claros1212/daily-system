@@ -37,7 +37,7 @@ def registrar_pago(
     if not credito:
         raise HTTPException(status_code=404, detail="Crédito no encontrado")
 
-    if ctx.is_cobrador() and not _uuid_eq(Credito.ruta_id, ctx.route_id):
+    if ctx.is_cobrador() and credito.ruta_id != ctx.route_id:
         raise HTTPException(status_code=403, detail="El crédito no pertenece a tu ruta")
 
     existing = db.query(Pago).filter(
