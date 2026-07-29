@@ -6,7 +6,8 @@ from sqlalchemy import (
     Column, String, Integer, Numeric, Date, DateTime, ForeignKey,
     Enum, Text, CheckConstraint, UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import JSON as PostgreSQLJSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -286,6 +287,12 @@ class Jornada(Base):
     recibida_servidor_el = Column(DateTime(timezone=True))
     sincronizada_el = Column(DateTime(timezone=True))
     creado_el = Column(DateTime(timezone=True), server_default=func.now())
+    actualizado_el = Column(DateTime(timezone=True), onupdate=func.now())
+    cierre_idempotency_key = Column(String(100))
+    cierre_snapshot_json = Column(PostgreSQLJSON)
+    cierre_snapshot_hash = Column(String(64))
+    cierre_version = Column(Integer, nullable=False, default=1)
+    cerrada_por = Column(UUID(as_uuid=True))
 
     movimientos = relationship("MovimientoCaja", back_populates="jornada")
 
@@ -299,6 +306,7 @@ class Jornada(Base):
             name="check_jornada_estado",
         ),
         UniqueConstraint("negocio_id", "ruta_id", "fecha", name="uq_jornada_fecha"),
+        UniqueConstraint("negocio_id", "cierre_idempotency_key", name="uq_jornada_cierre_key"),
     )
 
 
@@ -370,8 +378,24 @@ class MovimientoCaja(Base):
     nota = Column(Text)
     creado_por = Column(UUID(as_uuid=True))
     creado_el = Column(DateTime(timezone=True), server_default=func.now())
+    clave_idempotencia = Column(String(100))
+    registrado_el_dispositivo = Column(DateTime(timezone=True))
+    recibido_el_servidor = Column(DateTime(timezone=True))
+    dispositivo_id = Column(UUID(as_uuid=True))
+    credito_id = Column(UUID(as_uuid=True), ForeignKey("credito.id"))
+    renovacion_id = Column(UUID(as_uuid=True), ForeignKey("renovacion.id"))
+    ajuste_de_movimiento_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("movimiento_caja.id"),
+    )
 
     jornada = relationship("Jornada", back_populates="movimientos")
+    credito = relationship("Credito")
+    renovacion = relationship("Renovacion")
+    ajuste_de = relationship(
+        "MovimientoCaja",
+        remote_side=[id],
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -389,6 +413,7 @@ class MovimientoCaja(Base):
             ")",
             name="check_movimiento_naturaleza",
         ),
+        UniqueConstraint("negocio_id", "clave_idempotencia", name="uq_movimiento_idempotencia"),
     )
 
 

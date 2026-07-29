@@ -195,3 +195,123 @@ class HojaVivaResponse(BaseModel):
     cuotas_que_vencen_hoy: int = 0
     dc_legacy: int  # PROMEDIO/DC legado
     efectivo_esperado: int
+
+
+# === Jornada ===
+
+class JornadaCreate(BaseModel):
+    ruta_id: UUID
+    opening_base: int = Field(default=0, ge=0)
+
+
+class JornadaCierreCreate(BaseModel):
+    efectivo_contado: int = Field(default=0, ge=0)
+    idempotencia_cierre: str = Field(default="", max_length=100)
+    motivo: str = Field(default="", max_length=500)
+
+
+class JornadaCierreResponse(BaseModel):
+    jornada_id: UUID
+    estado: str
+    fecha: date
+    opening_base: int
+    opening_carry: int
+    recaudo_real: int
+    desembolsos: int
+    vales: int
+    gastos: int
+    ahorro: int
+    efectivo_esperado: int
+    efectivo_contado: int
+    diferencia: int
+    diferencia_motivo: Optional[str]
+    sobrante_manana: int
+    cierre_idempotency_key: Optional[str]
+    cierre_version: int
+    cerrada_local_el: Optional[datetime]
+    snapshot_hash: Optional[str]
+
+    model_config = {"from_attributes": True}
+
+
+class JornadaSyncResponse(BaseModel):
+    jornada_id: UUID
+    estado: str
+    sincronizada_el: Optional[datetime]
+    snapshot_valido: bool
+
+
+class JornadaResponse(BaseModel):
+    id: UUID
+    negocio_id: UUID
+    ruta_id: UUID
+    fecha: date
+    estado: str
+    opening_base: int
+    opening_carry: int
+    esperado: int
+    contado: int
+    diferencia: int
+    diferencia_motivo: Optional[str]
+    sobrante_manana: int
+    cierre_idempotency_key: Optional[str]
+    cierre_version: int
+    cerrada_por: Optional[UUID]
+    cerrada_local_el: Optional[datetime]
+    recibida_servidor_el: Optional[datetime]
+    sincronizada_el: Optional[datetime]
+    creado_el: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# === Movimiento Caja ===
+
+class MovimientoCreate(BaseModel):
+    jornada_id: UUID
+    tipo: str = Field(..., pattern="^(GASOLINA|OFICINA|AHORRO|VALE|ENTREGA|RECIBIDO|DESEMBOLSO|AJUSTE|OTRO)$")
+    naturaleza: str = Field(..., pattern="^(GASTO|CUSTODIA|CUENTA_POR_COBRAR|TRASLADO_ENTRADA|TRASLADO_SALIDA|DESEMBOLSO|AJUSTE)$")
+    monto: int = Field(..., gt=0)
+    nota: Optional[str] = None
+    clave_idempotencia: Optional[str] = Field(default=None, max_length=100)
+    credito_id: Optional[UUID] = None
+    renovacion_id: Optional[UUID] = None
+    ajuste_de_movimiento_id: Optional[UUID] = None
+
+
+class MovimientoResponse(BaseModel):
+    id: UUID
+    negocio_id: UUID
+    jornada_id: UUID
+    tipo: str
+    naturaleza: str
+    monto: int
+    nota: Optional[str]
+    clave_idempotencia: Optional[str]
+    registrado_el_dispositivo: Optional[datetime]
+    recibido_el_servidor: Optional[datetime]
+    dispositivo_id: Optional[UUID]
+    credito_id: Optional[UUID]
+    renovacion_id: Optional[UUID]
+    creado_por: Optional[UUID]
+    creado_el: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# === Caja ===
+
+class CadenaCajaResponse(BaseModel):
+    opening_base: int
+    opening_carry: int
+    recaudo_real: int
+    desembolsos: int
+    vales: int
+    gastos: int
+    ahorro: int
+    entregas: int
+    otros_entrada: int
+    efectivo_esperado: int
+    movimientos_count: int
+    pagos_count: int
+    renovaciones_count: int

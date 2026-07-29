@@ -11,6 +11,8 @@ from src.routes.cliente import router as cliente_router
 from src.routes.credito import router as credito_router
 from src.routes.pago import router as pago_router
 from src.routes.hoja_viva import router as hoja_viva_router
+from src.routes.jornada import router as jornada_router
+from src.routes.movimiento import router as movimiento_router
 
 app = FastAPI(
     title="Daily System API",
@@ -37,6 +39,8 @@ app.include_router(cliente_router)
 app.include_router(credito_router)
 app.include_router(pago_router)
 app.include_router(hoja_viva_router)
+app.include_router(jornada_router)
+app.include_router(movimiento_router)
 
 
 @app.get("/api/health")
