@@ -8,7 +8,7 @@
 
 ## Configuración
 
-- **Paquete:** graphifyy v0.9.26 (uv tool)
+- **Paquete:** graphifyy v0.9.29 (uv tool)
 - **CLI:** `/home/jesus/.local/bin/graphify`
 - **MCP:** `/home/jesus/.local/bin/graphify-mcp`
 - **Skill:** `/home/jesus/.config/opencode/skills/graphify/SKILL.md`
