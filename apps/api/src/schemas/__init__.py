@@ -344,3 +344,57 @@ class CadenaCajaResponse(BaseModel):
     movimientos_count: int
     pagos_count: int
     renovaciones_count: int
+
+
+# === Dispositivo ===
+
+class DispositivoCreate(BaseModel):
+    huella: str = Field(..., min_length=1, max_length=64)
+    modelo: Optional[str] = None
+    plataforma: Optional[str] = None
+
+
+class DispositivoResponse(BaseModel):
+    id: UUID
+    negocio_id: UUID
+    usuario_id: Optional[UUID]
+    huella: str
+    modelo: Optional[str]
+    plataforma: Optional[str]
+    autorizado_por: Optional[UUID]
+    autorizado_el: Optional[datetime]
+    revocado_el: Optional[datetime]
+    ultima_validacion_servidor: Optional[datetime]
+    activo: int
+    creado_el: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# === Suscripcion ===
+
+class SuscripcionStatusResponse(BaseModel):
+    negocio_id: UUID
+    estado_suscripcion: str
+    plan: str
+    paid_through_at: Optional[datetime]
+    activa: bool
+
+
+# === Inversionista — Aggregates ===
+
+class InversionistaPortfolioResponse(BaseModel):
+    total_creditos_activos: int
+    cartera_neta: int
+    recaudo_hoy: int
+    jornada_cerrada_hoy: bool
+    cobradores_activos: int
+    rutas_activas: int
+
+
+class InversionistaSummaryResponse(BaseModel):
+    portfolio: InversionistaPortfolioResponse
+    negocio_nombre: str
+    plan: str
+    moneda: str
+    zona_horaria: str

@@ -12,7 +12,7 @@ os.environ.setdefault("API_DATABASE_URL", "sqlite:///:memory:")
 from src.database import Base, get_db, get_db_transaction
 
 # Import models so they register with Base before tables are created
-from src.models import Negocio, Ruta, Cliente, Credito, CuotaProgramada, Jornada, Pago, MovimientoCaja  # noqa: F401
+from src.models import Negocio, Ruta, Cliente, Credito, CuotaProgramada, Jornada, Pago, MovimientoCaja, Dispositivo  # noqa: F401
 
 # Use in-memory SQLite for tests (no Docker needed)
 TEST_DATABASE_URL = "sqlite:///:memory:"

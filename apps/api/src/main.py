@@ -7,7 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.routes.cliente import router as cliente_router
 from src.routes.credito import router as credito_router
+from src.routes.dispositivo import router as dispositivo_router
 from src.routes.hoja_viva import router as hoja_viva_router
+from src.routes.inversionista import router as inversionista_router
 from src.routes.jornada import router as jornada_router
 from src.routes.movimiento import router as movimiento_router
 from src.routes.negocio import router as negocio_router
@@ -40,6 +42,8 @@ app.include_router(pago_router)
 app.include_router(hoja_viva_router)
 app.include_router(jornada_router)
 app.include_router(movimiento_router)
+app.include_router(dispositivo_router)
+app.include_router(inversionista_router)
 
 
 @app.get("/api/health")

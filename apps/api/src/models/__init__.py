@@ -36,6 +36,7 @@ class Negocio(Base):
     rutas = relationship("Ruta", back_populates="negocio")
     clientes = relationship("Cliente", back_populates="negocio")
     creditos = relationship("Credito", back_populates="negocio")
+    dispositivos = relationship("Dispositivo", back_populates="negocio")
 
 
 class Usuario(Base):
@@ -459,5 +460,39 @@ class Renovacion(Base):
         CheckConstraint(
             "saldo_anterior = pago_efectivo + saldo_refinanciado",
             name="check_renovacion_saldo",
+        ),
+    )
+
+
+class Dispositivo(Base):
+    __tablename__ = "dispositivo"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    negocio_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("negocio.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    usuario_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("usuario.id"),
+    )
+    huella = Column(String(64), nullable=False)
+    modelo = Column(String(200))
+    plataforma = Column(String(20))
+    autorizado_por = Column(UUID(as_uuid=True))
+    autorizado_el = Column(DateTime(timezone=True))
+    revocado_el = Column(DateTime(timezone=True))
+    ultima_validacion_servidor = Column(DateTime(timezone=True))
+    activo = Column(Integer, nullable=False, default=1)
+    creado_el = Column(DateTime(timezone=True), server_default=func.now())
+
+    negocio = relationship("Negocio", back_populates="dispositivos")
+
+    __table_args__ = (
+        UniqueConstraint("negocio_id", "huella", name="uq_dispositivo_huella"),
+        CheckConstraint(
+            "plataforma IN ('android', 'ios', 'web', 'linux', 'windows', 'macos', 'other')",
+            name="check_dispositivo_plataforma",
         ),
     )
