@@ -1,7 +1,10 @@
+"""Database configuration for Daily System."""
+
 import os
+from collections.abc import Generator
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 DATABASE_URL = os.getenv(
     "API_DATABASE_URL",
@@ -13,7 +16,22 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
-def get_db():
+def get_db() -> Generator[Session, None, None]:
+    """Read-only session. No commit/rollback — caller owns the transaction."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def get_db_transaction() -> Generator[Session, None, None]:
+    """Write session with single transaction boundary.
+
+    - commit on success
+    - rollback on any exception
+    - close always
+    """
     db = SessionLocal()
     try:
         yield db

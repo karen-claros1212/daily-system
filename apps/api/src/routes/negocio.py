@@ -1,8 +1,10 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from uuid import UUID
 
-from src.database import get_db
+from src.database import get_db, get_db_transaction
 from src.models import Negocio
 from src.schemas import NegocioCreate, NegocioResponse
 
@@ -15,12 +17,20 @@ def _uuid_eq(column, val: str | UUID):
 
 router = APIRouter(prefix="/api/negocios", tags=["negocios"])
 
+WriteSession = Annotated[
+    Session,
+    Depends(get_db_transaction, scope="function"),
+]
+
 
 @router.post("", response_model=NegocioResponse, status_code=201)
-def crear_negocio(data: NegocioCreate, db: Session = Depends(get_db)):
+def crear_negocio(
+    data: NegocioCreate,
+    db: WriteSession,
+):
     negocio = Negocio(nombre=data.nombre, nit=data.nit)
     db.add(negocio)
-    db.commit()
+    db.flush()
     db.refresh(negocio)
     return NegocioResponse.model_validate(negocio)
 
@@ -32,7 +42,10 @@ def listar_negocios(db: Session = Depends(get_db)):
 
 
 @router.get("/{negocio_id}", response_model=NegocioResponse)
-def obtener_negocio(negocio_id: UUID, db: Session = Depends(get_db)):
+def obtener_negocio(
+    negocio_id: UUID,
+    db: Session = Depends(get_db),
+):
     negocio = db.query(Negocio).filter(_uuid_eq(Negocio.id, negocio_id)).first()
     if not negocio:
         raise HTTPException(status_code=404, detail="Negocio no encontrado")

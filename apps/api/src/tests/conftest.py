@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 # Ensure query-param auth works in tests
 os.environ.setdefault("DAILY_ENV", "test")
 
-from src.database import Base, get_db
+from src.database import Base, get_db, get_db_transaction
 
 # Import models so they register with Base before tables are created
 from src.models import Negocio, Ruta, Cliente, Credito, CuotaProgramada, Jornada, Pago, MovimientoCaja  # noqa: F401
@@ -31,7 +31,7 @@ def test_db():
     Base.metadata.drop_all(bind=engine)
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def db_session(test_db):
     """Provide a transactional database session."""
     connection = engine.connect()
@@ -59,6 +59,7 @@ def client(db_session):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_db_transaction] = override_get_db
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()

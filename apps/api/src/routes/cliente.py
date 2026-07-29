@@ -1,8 +1,10 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from uuid import UUID
 
-from src.database import get_db
+from src.database import get_db, get_db_transaction
 from src.models import Cliente
 from src.schemas import ClienteCreate, ClienteResponse
 from src.auth.deps import get_request_context
@@ -17,12 +19,17 @@ def _uuid_eq(column, val: str | UUID):
 
 router = APIRouter(prefix="/api/clientes", tags=["clientes"])
 
+WriteSession = Annotated[
+    Session,
+    Depends(get_db_transaction, scope="function"),
+]
+
 
 @router.post("", response_model=ClienteResponse, status_code=201)
 def crear_cliente(
     data: ClienteCreate,
+    db: WriteSession,
     ctx: RequestContext = Depends(get_request_context),
-    db: Session = Depends(get_db),
 ):
     cliente = Cliente(
         negocio_id=ctx.negocio_id,
@@ -35,7 +42,7 @@ def crear_cliente(
         identity_status="PROVISIONAL",
     )
     db.add(cliente)
-    db.commit()
+    db.flush()
     db.refresh(cliente)
     return ClienteResponse.model_validate(cliente)
 

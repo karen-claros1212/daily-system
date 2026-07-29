@@ -1,8 +1,10 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from uuid import UUID
 
-from src.database import get_db
+from src.database import get_db, get_db_transaction
 from src.models import Credito, Ruta, Cliente, Negocio
 from src.schemas import CreditoCreate, CreditoResponse
 from src.auth.deps import get_request_context
@@ -18,12 +20,17 @@ def _uuid_eq(column, val: str | UUID):
 
 router = APIRouter(prefix="/api/creditos", tags=["creditos"])
 
+WriteSession = Annotated[
+    Session,
+    Depends(get_db_transaction, scope="function"),
+]
+
 
 @router.post("", response_model=CreditoResponse, status_code=201)
 def crear_credito(
     data: CreditoCreate,
+    db: WriteSession,
     ctx: RequestContext = Depends(get_request_context),
-    db: Session = Depends(get_db),
 ):
     negocio = db.query(Negocio).filter(_uuid_eq(Negocio.id, ctx.negocio_id)).first()
     if not negocio:
@@ -67,7 +74,6 @@ def crear_credito(
     # Auto-generate contractual schedule for the credit
     generate_schedule(db, credito)
 
-    db.commit()
     db.refresh(credito)
     return CreditoResponse.model_validate(credito)
 

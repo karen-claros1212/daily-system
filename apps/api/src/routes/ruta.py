@@ -1,8 +1,10 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from uuid import UUID
 
-from src.database import get_db
+from src.database import get_db, get_db_transaction
 from src.models import Ruta, Negocio
 from src.schemas import RutaCreate, RutaResponse
 from src.auth.deps import get_request_context
@@ -17,12 +19,17 @@ def _uuid_eq(column, val: str | UUID):
 
 router = APIRouter(prefix="/api/rutas", tags=["rutas"])
 
+WriteSession = Annotated[
+    Session,
+    Depends(get_db_transaction, scope="function"),
+]
+
 
 @router.post("", response_model=RutaResponse, status_code=201)
 def crear_ruta(
     data: RutaCreate,
+    db: WriteSession,
     ctx: RequestContext = Depends(get_request_context),
-    db: Session = Depends(get_db),
 ):
     negocio = db.query(Negocio).filter(_uuid_eq(Negocio.id, ctx.negocio_id)).first()
     if not negocio:
@@ -34,7 +41,7 @@ def crear_ruta(
         cobrador_id=data.cobrador_id,
     )
     db.add(ruta)
-    db.commit()
+    db.flush()
     db.refresh(ruta)
     return RutaResponse.model_validate(ruta)
 

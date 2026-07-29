@@ -1,11 +1,13 @@
 """Jornada routes — open, close, sync, caja calculation."""
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from uuid import UUID
 from datetime import date
 
-from src.database import get_db
+from src.database import get_db, get_db_transaction
 from src.schemas import (
     JornadaCreate,
     JornadaResponse,
@@ -34,12 +36,17 @@ from src.services.caja_service import calcular_cadena_caja
 
 router = APIRouter(prefix="/api/jornadas", tags=["jornadas"])
 
+WriteSession = Annotated[
+    Session,
+    Depends(get_db_transaction, scope="function"),
+]
+
 
 @router.post("", response_model=JornadaResponse, status_code=201)
 def abrir_jornada(
     data: JornadaCreate,
+    db: WriteSession,
     ctx: RequestContext = Depends(get_request_context),
-    db: Session = Depends(get_db),
 ):
     try:
         jornada = open_jornada(
@@ -51,7 +58,7 @@ def abrir_jornada(
         )
         return JornadaResponse.model_validate(jornada)
     except JornadaClosedError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
 
 
 @router.get("", response_model=list[JornadaResponse])
@@ -99,42 +106,42 @@ def obtener_jornada(
         jornada = get_jornada(db, jornada_id, ctx)
         return JornadaResponse.model_validate(jornada)
     except JornadaNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/{jornada_id}/cerrar", response_model=JornadaCierreResponse)
 def cerrar_jornada_endpoint(
     jornada_id: UUID,
     data: JornadaCierreCreate,
+    db: WriteSession,
     ctx: RequestContext = Depends(get_request_context),
-    db: Session = Depends(get_db),
 ):
     try:
         result = cerrar_jornada(db, jornada_id, data.model_dump(), ctx)
         return result
     except JornadaNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except (JornadaClosedError, JornadaAlreadyClosed) as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except JornadaError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/{jornada_id}/sincronizar", response_model=JornadaSyncResponse)
 def sincronizar_cierre_endpoint(
     jornada_id: UUID,
+    db: WriteSession,
     snapshot: dict,
     snapshot_hash: str,
     ctx: RequestContext = Depends(get_request_context),
-    db: Session = Depends(get_db),
 ):
     try:
         result = sincronizar_cierre(db, jornada_id, snapshot, snapshot_hash, ctx)
         return result
     except JornadaNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except JornadaError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/{jornada_id}/caja", response_model=CadenaCajaResponse)
@@ -145,8 +152,8 @@ def obtener_caja(
 ):
     try:
         jornada = get_jornada(db, jornada_id, ctx)
-    except JornadaNotFoundError:
-        raise HTTPException(status_code=404, detail="Jornada no encontrada")
+    except JornadaNotFoundError as e:
+        raise HTTPException(status_code=404, detail="Jornada no encontrada") from e
 
     caja = calcular_cadena_caja(db, jornada_id)
     return CadenaCajaResponse(**caja)
@@ -160,8 +167,8 @@ def preparar_siguiente(
 ):
     try:
         jornada = get_jornada(db, jornada_id, ctx)
-    except JornadaNotFoundError:
-        raise HTTPException(status_code=404, detail="Jornada no encontrada")
+    except JornadaNotFoundError as e:
+        raise HTTPException(status_code=404, detail="Jornada no encontrada") from e
 
     result = preparar_siguiente_jornada(
         db,
