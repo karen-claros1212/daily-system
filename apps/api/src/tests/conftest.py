@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 # Ensure query-param auth works in tests
 os.environ.setdefault("DAILY_ENV", "test")
+os.environ.setdefault("API_DATABASE_URL", "sqlite:///:memory:")
 
 from src.database import Base, get_db, get_db_transaction
 

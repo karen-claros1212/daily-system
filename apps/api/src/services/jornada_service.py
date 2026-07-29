@@ -133,11 +133,11 @@ def open_jornada(
 
     # Idempotencia: check if same key + same payload exists
     # Uses apertura_idempotency_key column (separate from cierre)
-    # Strip whitespace — empty after strip is treated as no key
+    # Strip whitespace — empty after strip raises error
     if clave_idempotencia:
         clave_idempotencia = clave_idempotencia.strip()
         if not clave_idempotencia:
-            clave_idempotencia = None
+            raise JornadaError("clave_idempotencia no puede estar vacío ni ser solo espacios")
         existing = db.query(Jornada).filter(
             _uuid_eq(Jornada.negocio_id, negocio_id),
             Jornada.apertura_idempotency_key == clave_idempotencia,
@@ -288,6 +288,8 @@ def cerrar_jornada(
     idempotency_key = data.get("idempotencia_cierre", "")
     if idempotency_key:
         idempotency_key = idempotency_key.strip()
+        if not idempotency_key:
+            raise JornadaError("idempotencia_cierre no puede estar vacío ni ser solo espacios")
 
     # Idempotency check — compare full payload
     if idempotency_key:
@@ -576,6 +578,67 @@ def sincronizar_cierre(
             raise JornadaError("Snapshot movimientos_ids no coinciden")
         if snapshot.get("renovaciones_ids") != stored_snapshot.get("renovaciones_ids"):
             raise JornadaError("Snapshot renovaciones_ids no coinciden")
+    else:
+        # CLOSED_LOCAL_PENDING_SYNC sin snapshot oficial — reconstruir y validar desde eventos
+        # Validar identifiers
+        if snapshot.get("jornada_id") != str(jornada.id):
+            raise JornadaError("Snapshot jornada_id no coincide")
+        if snapshot.get("negocio_id") != str(jornada.negocio_id):
+            raise JornadaError("Snapshot negocio_id no coincide")
+        if snapshot.get("ruta_id") != str(jornada.ruta_id):
+            raise JornadaError("Snapshot ruta_id no coincide")
+        if snapshot.get("cobrador_id") != str(jornada.cobrador_id):
+            raise JornadaError("Snapshot cobrador_id no coincide")
+        if snapshot.get("version") != 1:
+            raise JornadaError("Snapshot version no coincide")
+
+        # Reconstruir IDs desde eventos del servidor
+        pagos_agg = db.query(Pago).filter(
+            _uuid_eq(Pago.jornada_id, jornada_id),
+            Pago.tipo == "PAYMENT",
+        ).all()
+        pagos_ids = sorted([str(p.id) for p in pagos_agg])
+
+        reversales_agg = db.query(Pago).filter(
+            _uuid_eq(Pago.jornada_id, jornada_id),
+            Pago.tipo == "REVERSAL",
+        ).all()
+        reversales_ids = sorted([str(r.id) for r in reversales_agg])
+
+        movimientos_agg = db.query(MovimientoCaja).filter(
+            _uuid_eq(MovimientoCaja.jornada_id, jornada_id),
+        ).all()
+        movimientos_ids = sorted([str(m.id) for m in movimientos_agg])
+
+        renovaciones_agg = (
+            db.query(Renovacion.id)
+            .join(MovimientoCaja, MovimientoCaja.renovacion_id == Renovacion.id)
+            .filter(MovimientoCaja.jornada_id == jornada_id)
+            .all()
+        )
+        renovaciones_ids = sorted([str(r[0]) for r in renovaciones_agg])
+
+        # Validar IDs reconstruidos vs snapshot
+        if sorted(snapshot.get("pagos_ids", [])) != pagos_ids:
+            raise JornadaError("Snapshot pagos_ids no coinciden con eventos del servidor")
+        if sorted(snapshot.get("reversales_ids", [])) != reversales_ids:
+            raise JornadaError("Snapshot reversales_ids no coinciden con eventos del servidor")
+        if sorted(snapshot.get("movimientos_ids", [])) != movimientos_ids:
+            raise JornadaError("Snapshot movimientos_ids no coinciden con eventos del servidor")
+        if sorted(snapshot.get("renovaciones_ids", [])) != renovaciones_ids:
+            raise JornadaError("Snapshot renovaciones_ids no coinciden con eventos del servidor")
+
+        # Guardar snapshot reconstruido como canónico
+        snapshot["pagos_ids"] = pagos_ids
+        snapshot["reversales_ids"] = reversales_ids
+        snapshot["movimientos_ids"] = movimientos_ids
+        snapshot["renovaciones_ids"] = renovaciones_ids
+        snapshot["cerrada_el"] = jornada.cerrada_local_el.isoformat() if jornada.cerrada_local_el else None
+        snapshot["version"] = 1
+
+        jornada.cierre_snapshot_json = snapshot
+        jornada.cierre_snapshot_hash = _canonical_json_hash(snapshot)
+        jornada.recibida_servidor_el = datetime.now(BOGOTA_TZ)
 
     # Validate server-calculated caja matches client snapshot
     # Correct relation: efectivo_contado = efectivo_esperado + diferencia

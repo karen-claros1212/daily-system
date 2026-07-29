@@ -9,6 +9,9 @@ from sqlalchemy import pool
 
 from alembic import context
 
+# Set default API_DATABASE_URL for alembic if not set
+os.environ.setdefault("API_DATABASE_URL", os.getenv("DATABASE_URL", "postgresql://placeholder:placeholder@localhost:5432/placeholder"))
+
 # Add the api directory to the path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

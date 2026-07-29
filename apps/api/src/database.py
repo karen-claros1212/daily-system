@@ -6,10 +6,12 @@ from collections.abc import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
-DATABASE_URL = os.getenv(
-    "API_DATABASE_URL",
-    "postgresql://cobro:cobro_secret@localhost:7103/cobro",
-)
+DATABASE_URL = os.getenv("API_DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError(
+        "API_DATABASE_URL environment variable is required. "
+        "Example: postgresql://user:password@host:port/dbname"
+    )
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

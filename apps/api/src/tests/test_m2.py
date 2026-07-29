@@ -1530,6 +1530,14 @@ class TestNaturalezaOpcional:
 class TestSchemasClavesNoVacias:
     """Claves obligatorias rechazan "" y whitespace."""
 
+    @pytest.fixture(autouse=True)
+    def setup(self, db_session):
+        self.nid = uuid4()
+        self.rid = uuid4()
+        db_session.add(Negocio(id=self.nid, nombre="N", nit="1"))
+        db_session.add(Ruta(id=self.rid, negocio_id=self.nid, nombre="R1"))
+        db_session.commit()
+
     def test_jornada_create_clave_vacia(self):
         """JornadaCreate con clave_idempotencia vacía produce error."""
         from src.schemas import JornadaCreate
@@ -1542,46 +1550,38 @@ class TestSchemasClavesNoVacias:
             )
 
     def test_jornada_create_clave_whitespace(self):
-        """JornadaCreate con clave_idempotencia whitespace produce error."""
+        """JornadaCreate con clave_idempotencia whitespace produce error en schema."""
         from src.schemas import JornadaCreate
         from pydantic import ValidationError
-        try:
+        with pytest.raises(ValidationError):
             JornadaCreate(
                 ruta_id=uuid4(),
                 opening_base=100000,
                 clave_idempotencia="   ",
             )
-        except ValidationError:
-            pass  # min_length=1 no aplica a whitespace
-        # El servicio debe hacer strip() y rechazar
-        from src.services.jornada_service import open_jornada
-        from src.models import Negocio, Ruta
-        from src.tests.conftest import TestingSessionLocal
-        db = TestingSessionLocal()
+
+    def test_open_jornada_rechaza_clave_whitespace(self, db_session):
+        """open_jornada rechaza clave solo espacios (no la convierte a None)."""
+        from src.services.jornada_service import open_jornada, JornadaError
+        ctx = RequestContext(
+            user_id=uuid4(),
+            negocio_id=self.nid,
+            role="COBRADOR",
+            route_id=self.rid,
+        )
         try:
-            n = Negocio(id=uuid4(), nombre="N", nit="1")
-            r = Ruta(id=uuid4(), negocio_id=n.id, nombre="R1")
-            db.add(n)
-            db.add(r)
-            db.commit()
-            ctx = RequestContext(
-                user_id=uuid4(),
-                negocio_id=n.id,
-                role="COBRADOR",
-                route_id=r.id,
-            )
-            j = open_jornada(
-                db=db,
-                ruta_id=r.id,
-                negocio_id=n.id,
+            open_jornada(
+                db=db_session,
+                ruta_id=self.rid,
+                negocio_id=self.nid,
                 fecha=date(2026, 7, 27),
                 opening_base=100000,
                 ctx=ctx,
                 clave_idempotencia="   ",
             )
-            assert j.apertura_idempotency_key is None
-        finally:
-            db.rollback()
+            assert False, "Expected JornadaError"
+        except JornadaError as e:
+            assert "espacios" in str(e).lower() or "vacío" in str(e)
 
     def test_jornada_cierre_create_clave_vacia(self):
         """JornadaCierreCreate con idempotencia_cierre vacía produce error."""

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, field_validator
 from typing import Optional
 from datetime import datetime, date
 from uuid import UUID
@@ -204,20 +204,29 @@ class JornadaCreate(BaseModel):
     opening_base: int = Field(default=0, ge=0)
     clave_idempotencia: str = Field(..., min_length=1, max_length=100)
 
-    @model_validator(mode="before")
+    @field_validator("clave_idempotencia", mode="before")
     @classmethod
-    def strip_clave_idempotencia(cls, data):
-        if isinstance(data, dict):
-            clave = data.get("clave_idempotencia")
-            if isinstance(clave, str) and clave.strip() == "":
-                data["clave_idempotencia"] = clave.strip()
-        return data
+    def strip_clave_idempotencia(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+        if not v:
+            raise ValueError("clave_idempotencia no puede estar vacío ni ser solo espacios")
+        return v
 
 
 class JornadaCierreCreate(BaseModel):
     efectivo_contado: int = Field(default=0, ge=0)
     idempotencia_cierre: str = Field(..., min_length=1, max_length=100)
     motivo: str = Field(default="", max_length=500)
+
+    @field_validator("idempotencia_cierre", mode="before")
+    @classmethod
+    def strip_idempotencia_cierre(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+        if not v:
+            raise ValueError("idempotencia_cierre no puede estar vacío ni ser solo espacios")
+        return v
 
 
 class JornadaCierreResponse(BaseModel):
@@ -288,6 +297,15 @@ class MovimientoCreate(BaseModel):
     renovacion_id: Optional[UUID] = None
     ajuste_de_movimiento_id: Optional[UUID] = None
     motivo: Optional[str] = None
+
+    @field_validator("clave_idempotencia", mode="before")
+    @classmethod
+    def strip_movimiento_clave(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+        if not v:
+            raise ValueError("clave_idempotencia no puede estar vacío ni ser solo espacios")
+        return v
 
 
 class MovimientoResponse(BaseModel):

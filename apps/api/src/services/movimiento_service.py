@@ -146,7 +146,7 @@ def register_movimiento(
     if clave_idempotencia:
         clave_idempotencia = clave_idempotencia.strip()
         if not clave_idempotencia:
-            clave_idempotencia = None
+            raise MovimientoIdempotencyError("clave_idempotencia no puede estar vacío ni ser solo espacios")
 
     # Validate tipo
     validate_tipo(tipo)
@@ -184,13 +184,22 @@ def register_movimiento(
         ).first()
         if not ajuste_original:
             raise MovimientoAjusteError("Movimiento a ajustar no encontrado o no pertenece al negocio")
-        # Validar que pertenezca a la misma ruta si es cobrador
-        if ctx.is_cobrador():
-            jornada_original = db.query(Jornada).filter(
-                _uuid_eq(Jornada.id, ajuste_original.jornada_id),
+        # Validar que pertenezca a la misma ruta que la jornada actual
+        jornada_origen = db.query(Jornada).filter(
+            _uuid_eq(Jornada.id, ajuste_original.jornada_id),
+            _uuid_eq(Jornada.negocio_id, ctx.negocio_id),
+        ).first()
+        if not jornada_origen:
+            raise MovimientoAjusteError("Jornada del movimiento a ajustar no encontrada")
+        # Validar jornada_id (donde se registra el AJUSTE) tiene la misma ruta
+        if jornada_id:
+            jornada_destino = db.query(Jornada).filter(
+                _uuid_eq(Jornada.id, jornada_id),
                 _uuid_eq(Jornada.negocio_id, ctx.negocio_id),
             ).first()
-            if not jornada_original or jornada_original.ruta_id != ctx.route_id:
+            if not jornada_destino:
+                raise MovimientoAjusteError("Jornada destino no encontrada")
+            if jornada_origen.ruta_id != jornada_destino.ruta_id:
                 raise MovimientoAjusteError("Movimiento a ajustar pertenece a otra ruta")
 
     # Get or validate jornada
