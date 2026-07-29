@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import cast, String
 from uuid import UUID
 
 from src.database import get_db
 from src.models import Pago, Credito, Negocio
 from src.schemas import PagoCreate, PagoResponse
+from src.auth.deps import get_request_context
+from src.auth.context import RequestContext
 
 
 def _uuid_eq(column, val: str | UUID):
@@ -13,21 +14,18 @@ def _uuid_eq(column, val: str | UUID):
         return column == UUID(val)
     return column == val
 
+
 router = APIRouter(prefix="/api/pagos", tags=["pagos"])
 
 
 @router.post("", response_model=PagoResponse, status_code=201)
 def registrar_pago(
     data: PagoCreate,
-    negocio_id: UUID,
+    ctx: RequestContext = Depends(get_request_context),
     db: Session = Depends(get_db),
 ):
-    """
-    Registrar un pago (append-only).
+    negocio_id = ctx.negocio_id
 
-    La clave_idempotencia garantiza que un reenvío no duplica el pago.
-    UNIQUE(negocio_id, clave_idempotencia) en la base de datos.
-    """
     negocio = db.query(Negocio).filter(_uuid_eq(Negocio.id, negocio_id)).first()
     if not negocio:
         raise HTTPException(status_code=404, detail="Negocio no encontrado")
@@ -38,6 +36,9 @@ def registrar_pago(
     ).first()
     if not credito:
         raise HTTPException(status_code=404, detail="Crédito no encontrado")
+
+    if ctx.is_cobrador() and not _uuid_eq(Credito.ruta_id, ctx.route_id):
+        raise HTTPException(status_code=403, detail="El crédito no pertenece a tu ruta")
 
     existing = db.query(Pago).filter(
         _uuid_eq(Pago.negocio_id, negocio_id),
@@ -62,7 +63,11 @@ def registrar_pago(
 
 
 @router.get("", response_model=list[PagoResponse])
-def listar_pagos(ruta_id: UUID | None = None, db: Session = Depends(get_db)):
-    """Listar pagos."""
-    pagos = db.query(Pago).all()
-    return [PagoResponse.model_validate(p) for p in pagos]
+def listar_pagos(
+    ctx: RequestContext = Depends(get_request_context),
+    db: Session = Depends(get_db),
+):
+    q = db.query(Pago).filter(_uuid_eq(Pago.negocio_id, ctx.negocio_id))
+    if ctx.is_cobrador():
+        q = q.join(Credito).filter(_uuid_eq(Credito.ruta_id, ctx.route_id))
+    return [PagoResponse.model_validate(p) for p in q.all()]

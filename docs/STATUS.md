@@ -14,7 +14,7 @@
 | **Estado general** | M0 completado, preparando M1 |
 | **Hito actual** | M0 — FUNDACIÓN EJECUTABLE ✅ |
 | **Progreso total** | M0: 20/20 (100%) |
-| **Commits** | 6 |
+| **Commits** | 7 |
 | **Tests pasando** | 28/28 |
 | **PostgreSQL** | Corriendo (cobro-postgres, puerto 7103) |
 | **Documento maestro** | docs/DOCUMENTO-MAESTRO-Plataforma-Cobro-Colombia-v1.3-CERRADO.md |
@@ -45,7 +45,7 @@
 | M0.18 | Tests: calculaciones (12/12) | ✅ | e5af682 |
 | M0.19 | Tests: API (16/16) | ✅ | 65c90f8 |
 | M0.20 | Health endpoint | ✅ | 65c90f8 |
-| M0.21 | Nombre normalizado | ✅ | (próximo commit) |
+| M0.21 | Nombre normalizado | ✅ | f1ece01 |
 | M0.22 | Documento maestro cerrado | ✅ | 724a644 |
 
 ---

@@ -19,7 +19,7 @@ from src.models import *  # noqa: F401, F403
 config = context.config
 
 # Override sqlalchemy.url from environment
-database_url = os.getenv("DATABASE_URL", config.get_main_option("sqlalchemy.url"))
+database_url = os.getenv("API_DATABASE_URL") or os.getenv("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
 config.set_main_option("sqlalchemy.url", database_url)
 
 # Logging
