@@ -9,7 +9,12 @@ from src.models import Credito, CuotaProgramada
 
 
 def generate_schedule(db: Session, credito: Credito) -> list[CuotaProgramada]:
+    # Validate UNICA has exactly one cuota
     if credito.periodicidad == "UNICA":
+        if credito.n_cuotas != 1:
+            raise ValueError(
+                f"UNICA periodicidad requires n_cuotas=1, got {credito.n_cuotas}"
+            )
         return _generate_unica(db, credito)
     elif credito.periodicidad == "SEMANAL":
         return _generate_weekly(db, credito)
@@ -17,6 +22,20 @@ def generate_schedule(db: Session, credito: Credito) -> list[CuotaProgramada]:
         return _generate_biweekly(db, credito)
     else:
         return _generate_daily(db, credito)
+
+
+def validate_schedule(db: Session, credito_id: UUID) -> bool:
+    """Validate that the sum of scheduled cuotas matches the credit total."""
+    cuotas = db.query(CuotaProgramada).filter(
+        CuotaProgramada.credito_id == credito_id,
+    ).all()
+    if not cuotas:
+        return False
+    total_programado = sum(c.monto for c in cuotas)
+    credito = db.query(Credito).filter(Credito.id == credito_id).first()
+    if not credito:
+        return False
+    return total_programado == credito.total
 
 
 def generate_schedule_for_id(db: Session, credito_id: UUID) -> list[CuotaProgramada]:

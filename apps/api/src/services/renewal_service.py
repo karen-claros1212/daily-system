@@ -1,6 +1,8 @@
-"""Renewal service — full renewal transaction."""
+"""Renewal service — full renewal transaction with RequestContext, validation,
+PAYMENT registration for pago_efectivo, idempotency, and Bogotá timezone.
+"""
 
-from datetime import date
+from datetime import date, datetime, timezone, timedelta
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
@@ -8,6 +10,24 @@ from sqlalchemy.orm import Session
 from src.models import Credito, Renovacion, Pago
 from src.services.calculation_service import calcular_renovacion
 from src.services.schedule_service import generate_schedule
+from src.services.payment_service import _uuid_eq, _normalize_uuid
+from src.auth.context import RequestContext
+
+BOGOTA_TZ = timezone(timedelta(hours=-5))
+
+
+class RenewalError(Exception):
+    """Domain error raised by renewal service."""
+    pass
+
+
+class RenewalNotFoundError(RenewalError):
+    pass
+
+
+class RenewalRouteError(RenewalError):
+    """Renewal credit belongs to a different route."""
+    pass
 
 
 def renew_credito(
@@ -20,15 +40,45 @@ def renew_credito(
     nueva_periodicidad: str = "DIARIO",
     fecha_inicio: date | None = None,
     recargo_pct: int = 20,
+    ctx: RequestContext | None = None,
+    idempotency_key: str | None = None,
 ) -> dict:
-    old = db.query(Credito).filter(Credito.id == credito_id).first()
+    """Full renewal transaction with validation, PAYMENT registration, and idempotency.
+
+    Args:
+        db: SQLAlchemy session
+        credito_id: UUID of the credit to renew
+        pago_efectivo: Cash payment at renewal time
+        nueva_cuota: New installment amount
+        nuevas_n_cuotas: Number of new installments
+        nuevo_monto: New principal amount
+        nueva_periodicidad: Periodicity for new credit
+        fecha_inicio: Start date (defaults to today in Bogotá timezone)
+        recargo_pct: Surcharge percentage
+        ctx: RequestContext from auth (optional, used for cobrador validation)
+        idempotency_key: Client-provided idempotency key (optional)
+
+    Returns:
+        dict with renewal details
+
+    Raises:
+        RenewalNotFoundError: credit not found
+        RenewalRouteError: cobrador cannot access credit's route
+    """
+    credito_id = _normalize_uuid(credito_id)
+
+    old = db.query(Credito).filter(_uuid_eq(Credito.id, credito_id)).first()
     if not old:
-        raise ValueError("Crédito no encontrado")
+        raise RenewalNotFoundError("Crédito no encontrado")
+
+    # Validate cobrador route access if ctx provided
+    if ctx and ctx.is_cobrador() and old.ruta_id != ctx.route_id:
+        raise RenewalRouteError("El crédito no pertenece a tu ruta")
 
     # Net saldo from payments
     pagos = (
         db.query(Pago)
-        .filter(Pago.credito_id == credito_id)
+        .filter(_uuid_eq(Pago.credito_id, old.id))
         .all()
     )
     total_pagado = sum(
@@ -47,6 +97,10 @@ def renew_credito(
 
     nuevo_total = nueva_cuota * nuevas_n_cuotas
 
+    # Use Bogotá timezone for fecha_inicio
+    if fecha_inicio is None:
+        fecha_inicio = datetime.now(BOGOTA_TZ).date()
+
     # Create new credito
     new = Credito(
         id=uuid4(),
@@ -59,15 +113,32 @@ def renew_credito(
         monto=nuevo_monto,
         total=nuevo_total,
         periodicidad=nueva_periodicidad,
-        fecha_inicio=fecha_inicio or date.today(),
+        fecha_inicio=fecha_inicio,
         estado="ACTIVO",
         credito_anterior_id=old.id,
     )
     db.add(new)
     db.flush()
 
-    # Mark old as RENOVADO
+    # Mark old as RENFINANCIADO
     old.estado = "REFINANCIADO"
+
+    # Register PAYMENT when pago_efectivo > 0
+    if pago_efectivo > 0:
+        pay_key = idempotency_key or f"renew-pay-{str(old.id)}"
+        pago_efectivo_row = Pago(
+            id=uuid4(),
+            negocio_id=old.negocio_id,
+            credito_id=old.id,
+            tipo="PAYMENT",
+            monto=pago_efectivo,
+            cobrador_id=ctx.user_id if ctx else None,
+            dispositivo_id=ctx.device_id if ctx else None,
+            registrado_el_dispositivo=datetime.now(BOGOTA_TZ) if ctx else None,
+            clave_idempotencia=pay_key,
+            nota="Pago de renovación",
+        )
+        db.add(pago_efectivo_row)
 
     # Register renewal event
     ren = Renovacion(
@@ -80,6 +151,7 @@ def renew_credito(
         saldo_refinanciado=calc["saldo_refinanciado"],
         monto_nuevo=calc["monto_nuevo"],
         dinero_nuevo_entregado=calc["dinero_nuevo_entregado"],
+        creado_por=ctx.user_id if ctx else None,
     )
     db.add(ren)
 

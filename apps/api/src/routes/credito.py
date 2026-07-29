@@ -7,6 +7,7 @@ from src.models import Credito, Ruta, Cliente, Negocio
 from src.schemas import CreditoCreate, CreditoResponse
 from src.auth.deps import get_request_context
 from src.auth.context import RequestContext
+from src.services.schedule_service import generate_schedule
 
 
 def _uuid_eq(column, val: str | UUID):
@@ -61,6 +62,11 @@ def crear_credito(
         estado="ACTIVO",
     )
     db.add(credito)
+    db.flush()
+
+    # Auto-generate contractual schedule for the credit
+    generate_schedule(db, credito)
+
     db.commit()
     db.refresh(credito)
     return CreditoResponse.model_validate(credito)
