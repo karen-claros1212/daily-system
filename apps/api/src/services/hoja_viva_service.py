@@ -1,13 +1,18 @@
 """Hoja viva service — business logic separated from HTTP concerns."""
 
-from datetime import date
-from decimal import Decimal
+from datetime import date, datetime, timezone, timedelta
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from src.models import Credito, CuotaProgramada, Pago
+
+BOGOTA_TZ = timezone(timedelta(hours=-5))
+
+
+def today_bogota() -> date:
+    return datetime.now(BOGOTA_TZ).date()
 
 
 def _uuid_eq(column, val):
@@ -21,7 +26,7 @@ def build_hoja_viva(
     ruta_id: UUID,
     report_date: date | None = None,
 ) -> dict:
-    report_date = report_date or date.today()
+    report_date = report_date or today_bogota()
 
     creditos = (
         db.query(Credito)

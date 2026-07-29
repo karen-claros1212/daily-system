@@ -6,7 +6,7 @@ from datetime import date
 from src.database import get_db
 from src.models import Ruta
 from src.schemas import HojaVivaCliente, HojaVivaResponse
-from src.services.hoja_viva_service import build_hoja_viva
+from src.services.hoja_viva_service import build_hoja_viva, today_bogota
 from src.auth.deps import get_request_context
 from src.auth.context import RequestContext
 
@@ -49,7 +49,7 @@ def obtener_hoja_viva(
     return HojaVivaResponse(
         ruta_id=ruta_id,
         ruta_nombre=ruta.nombre,
-        fecha=fecha or date.today(),
+        fecha=fecha or today_bogota(),
         clientes=clientes,
         vence_hoy=result["cuotas_que_vencen_hoy"],
         vence_hoy_monto=result["vence_hoy_monto"],

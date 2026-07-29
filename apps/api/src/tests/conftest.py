@@ -1,8 +1,12 @@
 """Pytest configuration for Daily System API."""
 
+import os
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
+# Ensure query-param auth works in tests
+os.environ.setdefault("DAILY_ENV", "test")
 
 from src.database import Base, get_db
 

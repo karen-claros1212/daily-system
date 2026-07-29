@@ -19,10 +19,11 @@ def get_request_context(
     user_id: UUID | None = Query(default=None, description="DEV ONLY: User ID (will come from JWT)"),
     device_id: UUID | None = Query(default=None, description="DEV ONLY: Device ID (will come from JWT)"),
 ) -> RequestContext:
-    if os.getenv("DAILY_ENV", "dev") == "production":
+    env = os.getenv("DAILY_ENV", "")
+    if env not in ("dev", "development", "test"):
         raise HTTPException(
-            status_code=500,
-            detail="query-param auth disabled in production — use JWT",
+            status_code=401,
+            detail="query-param auth disabled — set DAILY_ENV=dev for local dev",
         )
 
     if role not in ("ADMINISTRADOR", "COBRADOR", "INVERSIONISTA"):

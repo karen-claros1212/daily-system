@@ -131,6 +131,10 @@ class PagoCreate(BaseModel):
     nota: Optional[str] = None
 
 
+class PagoReversalCreate(BaseModel):
+    motivo: str = Field(..., min_length=1)
+
+
 class PagoResponse(BaseModel):
     id: UUID
     negocio_id: UUID
