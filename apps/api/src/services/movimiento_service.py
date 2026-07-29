@@ -1,6 +1,8 @@
 """Movimiento service — append-only movements with catalog types/naturalezas and idempotency.
 
 Movimientos financieros son append-only. No UPDATE ni DELETE ordinario.
+
+AJUSTE es exclusivo del administrador y permite ajuste posterior al cierre.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -9,7 +11,7 @@ from uuid import UUID, uuid4
 from sqlalchemy.orm import Session
 
 from src.auth.context import RequestContext
-from src.models import MovimientoCaja, Credito, Renovacion
+from src.models import MovimientoCaja, Credito, Renovacion, Jornada
 from src.services.jornada_service import (
     _uuid_eq,
 )
@@ -124,7 +126,7 @@ def register_movimiento(
 
     Naturaleza se deriva en el servidor (no se confía en el cliente).
     OTRO exige naturaleza explícita + nota obligatoria.
-    AJUSTE es exclusivo del administrador.
+    AJUSTE es exclusivo del administrador, permite ajuste en jornada cerrada.
     """
     jornada_id = data.get("jornada_id")
     tipo = data.get("tipo")
@@ -132,6 +134,10 @@ def register_movimiento(
     monto = data.get("monto")
     nota = data.get("nota")
     clave_idempotencia = data.get("clave_idempotencia")
+    motivo = data.get("motivo")
+    credito_id = data.get("credito_id")
+    renovacion_id = data.get("renovacion_id")
+    ajuste_de_movimiento_id = data.get("ajuste_de_movimiento_id")
 
     # Validate tipo
     validate_tipo(tipo)
@@ -154,12 +160,17 @@ def register_movimiento(
         naturaleza = naturaleza_enviada
 
     # AJUSTE exclusivo de administrador
-    if tipo in AJUSTE_TIPOS and not ctx.is_admin():
-        raise MovimientoAjusteError("Solo el administrador puede registrar ajustes")
+    if tipo in AJUSTE_TIPOS:
+        if not ctx.is_admin():
+            raise MovimientoAjusteError("Solo el administrador puede registrar ajustes")
+        # AJUSTE requiere motivo + referencia al movimiento corregido
+        if not motivo or not motivo.strip():
+            raise MovimientoAjusteError("AJUSTE requiere motivo")
+        if not ajuste_de_movimiento_id:
+            raise MovimientoAjusteError("AJUSTE requiere ajuste_de_movimiento_id")
 
     # Get or validate jornada
     if jornada_id:
-        from src.models import Jornada
         jornada = (
             db.query(Jornada)
             .filter(
@@ -175,19 +186,20 @@ def register_movimiento(
         if ctx.is_cobrador() and jornada.ruta_id != ctx.route_id:
             raise MovimientoJornadaError("Movimiento pertenece a otra ruta")
 
-        # Check if jornada is closed (append-only: can still add to open jornadas)
-        if jornada.estado in {
-            "CLOSED_LOCAL_PENDING_SYNC",
-            "CLOSED_SYNCED",
-        }:
-            raise MovimientoJornadaError(
-                "No se pueden registrar movimientos en jornada cerrada"
-            )
+        # AJUSTE se permite en jornada cerrada (ajuste administrativo posterior)
+        if tipo != "AJUSTE":
+            if jornada.estado in {
+                "CLOSED_LOCAL_PENDING_SYNC",
+                "CLOSED_SYNCED",
+            }:
+                raise MovimientoJornadaError(
+                    "No se pueden registrar movimientos en jornada cerrada"
+                )
 
     # Validate referenced entities belong to negocio + ruta
-    if data.get("credito_id"):
+    if credito_id:
         credito = db.query(Credito).filter(
-            _uuid_eq(Credito.id, data["credito_id"]),
+            _uuid_eq(Credito.id, credito_id),
             _uuid_eq(Credito.negocio_id, ctx.negocio_id),
         ).first()
         if not credito:
@@ -195,25 +207,30 @@ def register_movimiento(
         if ctx.is_cobrador() and credito.ruta_id != ctx.route_id:
             raise MovimientoJornadaError("Crédito pertenece a otra ruta")
 
-    if data.get("renovacion_id"):
+    if renovacion_id:
         renovacion = db.query(Renovacion).filter(
-            _uuid_eq(Renovacion.id, data["renovacion_id"]),
+            _uuid_eq(Renovacion.id, renovacion_id),
+            _uuid_eq(Renovacion.negocio_id, ctx.negocio_id),
         ).first()
         if not renovacion:
-            raise MovimientoJornadaError("Renovación no encontrada")
+            raise MovimientoJornadaError("Renovación no encontrada o no pertenece al negocio")
 
-    # Check idempotency — compare full payload
+    # Check idempotencia — compare full payload
     if clave_idempotencia:
         existing = db.query(MovimientoCaja).filter(
             _uuid_eq(MovimientoCaja.negocio_id, ctx.negocio_id),
             MovimientoCaja.clave_idempotencia == clave_idempotencia,
         ).first()
         if existing:
-            # Compare tipo, naturaleza, monto, jornada_id
+            # Compare ALL payload fields
             if (existing.tipo == tipo
                     and existing.naturaleza == naturaleza
                     and existing.monto == monto
-                    and str(existing.jornada_id) == str(jornada_id)):
+                    and str(existing.jornada_id) == str(jornada_id)
+                    and (existing.nota or "") == (nota or "")
+                    and str(existing.credito_id or "") == str(credito_id or "")
+                    and str(existing.renovacion_id or "") == str(renovacion_id or "")
+                    and str(existing.ajuste_de_movimiento_id or "") == str(ajuste_de_movimiento_id or "")):
                 return existing
             raise MovimientoIdempotencyError(
                 "Misma clave de idempotencia con payload diferente"
@@ -231,9 +248,9 @@ def register_movimiento(
         creado_por=ctx.user_id,
         dispositivo_id=ctx.device_id,
         registrado_el_dispositivo=datetime.now(BOGOTA_TZ),
-        credito_id=data.get("credito_id"),
-        renovacion_id=data.get("renovacion_id"),
-        ajuste_de_movimiento_id=data.get("ajuste_de_movimiento_id"),
+        credito_id=credito_id,
+        renovacion_id=renovacion_id,
+        ajuste_de_movimiento_id=ajuste_de_movimiento_id,
         clave_idempotencia=clave_idempotencia,
     )
     db.add(movimiento)

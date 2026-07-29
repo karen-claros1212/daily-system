@@ -31,6 +31,9 @@ from src.services.jornada_service import (
     JornadaNotFoundError,
     JornadaAlreadyClosed,
     JornadaError,
+    JornadaInvalidBase,
+    JornadaRouteError,
+    JornadaRoleError,
 )
 from src.services.caja_service import calcular_cadena_caja
 
@@ -55,9 +58,16 @@ def abrir_jornada(
             negocio_id=ctx.negocio_id,
             opening_base=data.opening_base,
             ctx=ctx,
+            clave_idempotencia=data.clave_idempotencia,
         )
         return JornadaResponse.model_validate(jornada)
-    except JornadaClosedError as e:
+    except JornadaRouteError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except JornadaRoleError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+    except JornadaInvalidBase as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except (JornadaClosedError, JornadaAlreadyClosed) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 

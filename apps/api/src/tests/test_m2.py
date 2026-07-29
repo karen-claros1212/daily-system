@@ -267,7 +267,7 @@ class TestJornadaClose:
         )
 
     def test_cerrar_jornada_transitions_state(self, db_session):
-        """Cerrar transitions OPEN → CLOSING → CLOSED_LOCAL_PENDING_SYNC."""
+        """Cerrar transitions OPEN → CLOSING → CLOSED_SYNCED (server-side)."""
         ctx = RequestContext(
             user_id=uuid4(),
             negocio_id=self.nid,
@@ -303,7 +303,7 @@ class TestJornadaClose:
             data={"efectivo_contado": 150000, "idempotencia_cierre": "close-001"},
             ctx=ctx,
         )
-        assert result["estado"] == "CLOSED_LOCAL_PENDING_SYNC"
+        assert result["estado"] == "CLOSED_SYNCED"
         assert result["efectivo_esperado"] == 150000  # 100k + 50k + 0 - 0
         assert result["efectivo_contado"] == 150000
         assert result["diferencia"] == 0
@@ -436,7 +436,7 @@ class TestJornadaSync:
         db_session.add(Ruta(id=self.rid, negocio_id=self.nid, nombre="R1"))
         db_session.commit()
 
-        ctx = RequestContext(
+        self.cobrador_ctx = ctx = RequestContext(
             user_id=uuid4(),
             negocio_id=self.nid,
             role="COBRADOR",
@@ -457,10 +457,24 @@ class TestJornadaSync:
             ctx=ctx,
         )
 
-    def test_sincronizar_transitions_to_closed_synced(self, db_session):
-        """Sincronizar transitions CLOSED_LOCAL_PENDING_SYNC → CLOSED_SYNCED."""
+    def test_sincronizar_validates_snapshot(self, db_session):
+        """Sincronizar validates snapshot and is idempotent on CLOSED_SYNCED."""
         import json
-        snapshot = {"efectivo_esperado": 100000, "efectivo_contado": 100000}
+        snapshot = {
+            "jornada_id": str(self.jornada.id),
+            "negocio_id": str(self.nid),
+            "ruta_id": str(self.rid),
+            "cobrador_id": str(self.cobrador_ctx.user_id),
+            "version": 1,
+            "efectivo_esperado": 100000,
+            "efectivo_contado": 100000,
+            "diferencia": 0,
+            "diferencia_motivo": "",
+            "pagos_ids": [],
+            "reversales_ids": [],
+            "movimientos_ids": [],
+            "renovaciones_ids": [],
+        }
         canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":"), default=str)
         hash_val = __import__("hashlib").sha256(canonical.encode()).hexdigest()
 

@@ -288,6 +288,7 @@ class Jornada(Base):
     sincronizada_el = Column(DateTime(timezone=True))
     creado_el = Column(DateTime(timezone=True), server_default=func.now())
     actualizado_el = Column(DateTime(timezone=True), onupdate=func.now())
+    apertura_idempotency_key = Column(String(100))
     cierre_idempotency_key = Column(String(100))
     cierre_snapshot_json = Column(PostgreSQLJSON)
     cierre_snapshot_hash = Column(String(64))
@@ -307,6 +308,7 @@ class Jornada(Base):
         ),
         UniqueConstraint("negocio_id", "ruta_id", "fecha", name="uq_jornada_fecha"),
         UniqueConstraint("negocio_id", "cierre_idempotency_key", name="uq_jornada_cierre_key"),
+        UniqueConstraint("negocio_id", "apertura_idempotency_key", name="uq_jornada_apertura_key"),
     )
 
 

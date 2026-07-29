@@ -202,11 +202,12 @@ class HojaVivaResponse(BaseModel):
 class JornadaCreate(BaseModel):
     ruta_id: UUID
     opening_base: int = Field(default=0, ge=0)
+    clave_idempotencia: str = Field(..., max_length=100)
 
 
 class JornadaCierreCreate(BaseModel):
     efectivo_contado: int = Field(default=0, ge=0)
-    idempotencia_cierre: str = Field(default="", max_length=100)
+    idempotencia_cierre: str = Field(..., max_length=100)
     motivo: str = Field(default="", max_length=500)
 
 
@@ -273,10 +274,11 @@ class MovimientoCreate(BaseModel):
     naturaleza: str = Field(..., pattern="^(GASTO|CUSTODIA|CUENTA_POR_COBRAR|TRASLADO_ENTRADA|TRASLADO_SALIDA|DESEMBOLSO|AJUSTE)$")
     monto: int = Field(..., gt=0)
     nota: Optional[str] = None
-    clave_idempotencia: Optional[str] = Field(default=None, max_length=100)
+    clave_idempotencia: str = Field(..., max_length=100)
     credito_id: Optional[UUID] = None
     renovacion_id: Optional[UUID] = None
     ajuste_de_movimiento_id: Optional[UUID] = None
+    motivo: Optional[str] = None
 
 
 class MovimientoResponse(BaseModel):

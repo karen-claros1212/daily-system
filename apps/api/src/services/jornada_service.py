@@ -5,6 +5,9 @@ States:
 
 The server is the authority. The device may close locally (pending sync),
 then the server validates and marks CLOSED_SYNCED.
+
+Server-side cerrar_jornada goes directly to CLOSED_SYNCED.
+The device may close locally to CLOSED_LOCAL_PENDING_SYNC, then sync to CLOSED_SYNCED.
 """
 
 import hashlib
@@ -55,6 +58,10 @@ class JornadaRoleError(JornadaError):
     pass
 
 
+class JornadaSnapshotError(JornadaError):
+    pass
+
+
 def _canonical_json_hash(obj: dict) -> str:
     """Compute SHA-256 hash of a dict using canonical JSON (sorted keys, no whitespace)."""
     canonical = json.dumps(obj, sort_keys=True, separators=(",", ":"), default=str)
@@ -99,6 +106,7 @@ def open_jornada(
     """Open a new jornada for today (or specified date).
 
     Idempotent: same clave_idempotencia + same payload returns existing jornada.
+    Uses apertura_idempotency_key column (separate from cierre_idempotency_key).
     """
     fecha = fecha or today_bogota()
 
@@ -120,14 +128,15 @@ def open_jornada(
             raise JornadaRoleError("El inversionista no puede abrir jornadas")
         if ctx.is_cobrador() and ruta_id != ctx.route_id:
             raise JornadaRoleError("El cobrador solo puede abrir su ruta")
-        if ctx.role == "ADMINISTRADOR" and ruta_id != ctx.route_id:
-            raise JornadaRoleError("El administrador solo puede abrir rutas asignadas")
+        # ADMIN puede abrir cualquier ruta del negocio, no solo ctx.route_id
+        # (no restriction for admin)
 
     # Idempotencia: check if same key + same payload exists
+    # Uses apertura_idempotency_key column (separate from cierre)
     if clave_idempotencia:
         existing = db.query(Jornada).filter(
             _uuid_eq(Jornada.negocio_id, negocio_id),
-            Jornada.cierre_idempotency_key == clave_idempotencia,
+            Jornada.apertura_idempotency_key == clave_idempotencia,
         ).first()
         if existing:
             # Compare payload: ruta_id, opening_base, fecha, cobrador
@@ -177,6 +186,10 @@ def open_jornada(
         diferencia_motivo=None,
         sobrante_manana=0,
     )
+    # Save idempotency key for both open and close
+    if clave_idempotencia:
+        jornada.apertura_idempotency_key = clave_idempotencia
+        jornada.cierre_idempotency_key = clave_idempotencia
     db.add(jornada)
     db.flush()
     return jornada
@@ -246,7 +259,7 @@ def cerrar_jornada(
 ) -> dict:
     """Close a jornada with idempotency, snapshot, and carry chain.
 
-    Server-side close transitions directly to CLOSED_SYNCED (not CLOSED_LOCAL_PENDING_SYNC).
+    Server-side close transitions directly to CLOSED_SYNCED.
     The device may close locally to CLOSED_LOCAL_PENDING_SYNC, then sync to CLOSED_SYNCED.
 
     Steps:
@@ -348,11 +361,14 @@ def cerrar_jornada(
     if diferencia != 0 and not motivo:
         raise JornadaError("Diferencia no cero exige motivo")
 
-    # Step 5: Sellar — transition to CLOSED_LOCAL_PENDING_SYNC
+    # Step 5: Sellar — transition to CLOSED_SYNCED (server-side close)
     # Device closes to CLOSED_LOCAL_PENDING_SYNC, server syncs to CLOSED_SYNCED
-    jornada.estado = "CLOSED_LOCAL_PENDING_SYNC"
+    # Server-side cerrar_jornada goes directly to CLOSED_SYNCED
+    jornada.estado = "CLOSED_SYNCED"
     jornada.cierre_idempotency_key = idempotency_key
     jornada.cierre_version = 1
+    jornada.recibida_servidor_el = datetime.now(BOGOTA_TZ)
+    jornada.sincronizada_el = datetime.now(BOGOTA_TZ)
 
     # Calculate sobrante_manana (carry to next day)
     jornada.sobrante_manana = contado
@@ -485,8 +501,9 @@ def sincronizar_cierre(
 ) -> dict:
     """Synchronize a locally-closed jornada from device to server.
 
-    Server validates the snapshot against its own calculation.
-    The server's snapshot is canonical; the client's is compared but not replaced.
+    Server validates the snapshot against its own canonical snapshot.
+    Compares: hash, IDs (pagos, reversales, movimientos, renovaciones),
+    negocio, ruta, cobrador, motivo, version, efectivo values.
     """
     jornada = db.query(Jornada).filter(
         _uuid_eq(Jornada.id, jornada_id),
@@ -499,9 +516,9 @@ def sincronizar_cierre(
     if ctx.is_cobrador() and jornada.ruta_id != ctx.route_id:
         raise JornadaNotFoundError("Jornada no encontrada")
 
-    if jornada.estado != "CLOSED_LOCAL_PENDING_SYNC":
+    if jornada.estado not in {"CLOSED_LOCAL_PENDING_SYNC", "CLOSED_SYNCED"}:
         raise JornadaError(
-            f"Jornada está en estado {jornada.estado}, se requiere CLOSED_LOCAL_PENDING_SYNC"
+            f"Jornada está en estado {jornada.estado}, se requiere CLOSED_LOCAL_PENDING_SYNC o CLOSED_SYNCED"
         )
 
     # Validate snapshot hash (canonical JSON)
@@ -509,20 +526,45 @@ def sincronizar_cierre(
     if computed_hash != snapshot_hash:
         raise JornadaError("Snapshot hash no coincide — posible manipulación")
 
+    # Validate against the server's canonical snapshot
+    stored_snapshot = jornada.cierre_snapshot_json
+    if stored_snapshot:
+        # Compare immutable identifiers
+        if snapshot.get("jornada_id") != stored_snapshot.get("jornada_id"):
+            raise JornadaError("Snapshot jornada_id no coincide")
+        if snapshot.get("negocio_id") != stored_snapshot.get("negocio_id"):
+            raise JornadaError("Snapshot negocio_id no coincide")
+        if snapshot.get("ruta_id") != stored_snapshot.get("ruta_id"):
+            raise JornadaError("Snapshot ruta_id no coincide")
+        if snapshot.get("cobrador_id") != stored_snapshot.get("cobrador_id"):
+            raise JornadaError("Snapshot cobrador_id no coincide")
+        if snapshot.get("version") != stored_snapshot.get("version"):
+            raise JornadaError("Snapshot version no coincide")
+
+        # Compare financial values
+        if snapshot.get("efectivo_esperado") != stored_snapshot.get("efectivo_esperado"):
+            raise JornadaError("Snapshot efectivo_esperado no coincide")
+        if snapshot.get("diferencia") != stored_snapshot.get("diferencia"):
+            raise JornadaError("Snapshot diferencia no coincide")
+        stored_motivo = stored_snapshot.get("diferencia_motivo", "") or ""
+        client_motivo = snapshot.get("diferencia_motivo", "") or ""
+        if client_motivo != stored_motivo:
+            raise JornadaError("Snapshot motivo no coincide")
+
+        # Compare IDs (pagos, reversales, movimientos, renovaciones)
+        if snapshot.get("pagos_ids") != stored_snapshot.get("pagos_ids"):
+            raise JornadaError("Snapshot pagos_ids no coinciden")
+        if snapshot.get("reversales_ids") != stored_snapshot.get("reversales_ids"):
+            raise JornadaError("Snapshot reversales_ids no coinciden")
+        if snapshot.get("movimientos_ids") != stored_snapshot.get("movimientos_ids"):
+            raise JornadaError("Snapshot movimientos_ids no coinciden")
+        if snapshot.get("renovaciones_ids") != stored_snapshot.get("renovaciones_ids"):
+            raise JornadaError("Snapshot renovaciones_ids no coinciden")
+
     # Validate server-calculated caja matches client snapshot
     # Correct relation: efectivo_contado = efectivo_esperado + diferencia
     server_caja = calcular_cadena_caja(db, jornada_id)
     server_esperado = server_caja["efectivo_esperado"]
-    server_contado = (server_esperado
-                      + server_caja["desembolsos"]
-                      + server_caja["vales"]
-                      + server_caja["gastos"]
-                      + server_caja["ahorro"]
-                      + server_caja["entregas"]
-                      - server_caja["opening_base"]
-                      - server_caja["opening_carry"]
-                      - server_caja["recaudo_real"]
-                      - server_caja["otros_entrada"])
 
     client_esperado = snapshot.get("efectivo_esperado", 0)
     client_contado = snapshot.get("efectivo_contado", 0)
