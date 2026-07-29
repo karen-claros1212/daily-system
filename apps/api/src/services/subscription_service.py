@@ -6,22 +6,24 @@ is expired or pending.
 """
 
 from datetime import datetime, timezone
+from uuid import UUID
 
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from src.models import Negocio
+from src.models import Dispositivo, Negocio
 
 
 class SuscripcionError(Exception):
     """Business error when subscription blocks an operation."""
 
-    def __init__(self, detail: str, code: str = "SUScripcion_EXPIRADA"):
+    def __init__(self, detail: str, code: str = "SUSCRIPCION_EXPIRADA"):
         self.detail = detail
         self.code = code
         super().__init__(detail)
 
 
-def check_negocio_suscripcion(db: Session, negocio_id) -> Negocio:
+def check_negocio_suscripcion(db: Session, negocio_id: UUID) -> Negocio:
     """Verify negocio exists and subscription is active.
 
     Raises SuscripcionError if:
@@ -56,49 +58,30 @@ def check_negocio_suscripcion(db: Session, negocio_id) -> Negocio:
 
 def check_dispositivo_autorizado(
     db: Session,
-    dispositivo_id,
-    negocio_id,
-) -> bool:
+    dispositivo_id: UUID,
+    negocio_id: UUID,
+) -> Dispositivo:
     """Verify device exists, belongs to negocio, and is authorized.
 
-    Returns True if device is valid. Raises SuscripcionError otherwise.
+    Returns the Dispositivo if valid. Raises SuscripcionError otherwise.
     """
-    from sqlalchemy import and_
-
     dispositivo = (
-        db.query(Negocio)
-        .join(Negocio.dispositivos)
+        db.query(Dispositivo)
         .filter(
             and_(
-                Negocio.dispositivo.id == dispositivo_id,
-                Negocio.id == negocio_id,
-                Negocio.dispositivo.activo == 1,
-                Negocio.dispositivo.revocado_el.is_(None),
+                Dispositivo.id == dispositivo_id,
+                Dispositivo.negocio_id == negocio_id,
+                Dispositivo.activo == 1,
+                Dispositivo.revocado_el.is_(None),
             ),
         )
         .first()
     )
 
     if not dispositivo:
-        # Try direct dispositivo query
-        from src.models import Dispositivo
-
-        dev = (
-            db.query(Dispositivo)
-            .filter(
-                and_(
-                    Dispositivo.id == dispositivo_id,
-                    Dispositivo.negocio_id == negocio_id,
-                    Dispositivo.activo == 1,
-                    Dispositivo.revocado_el.is_(None),
-                ),
-            )
-            .first()
+        raise SuscripcionError(
+            "Dispositivo no autorizado o revocado",
+            "DISPOSITIVO_NO_AUTORIZADO",
         )
-        if not dev:
-            raise SuscripcionError(
-                "Dispositivo no autorizado o revocado",
-                "DISPOSITIVO_NO_AUTORIZADO",
-            )
 
-    return True
+    return dispositivo

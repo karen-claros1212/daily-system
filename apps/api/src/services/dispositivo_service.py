@@ -1,6 +1,6 @@
 """Device authorization service for Etapa 3 — "que se venda".
 
-Handles device registration, validation, and revocation.
+Handles device registration, validation, revocation, and reactivation.
 Devices are identified by a cryptographic huella (fingerprint)
 per negocio.
 """
@@ -12,7 +12,6 @@ from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from src.models import Dispositivo, Negocio
-from src.services.subscription_service import SuscripcionError
 
 
 class DispositivoError(Exception):
@@ -30,13 +29,13 @@ def registrar_dispositivo(
     huella: str,
     modelo: str | None = None,
     plataforma: str | None = None,
-    usuario_id: UUID | None = None,
-    autorizado_por: UUID | None = None,
+    user_id: UUID | None = None,
+    is_admin: bool = False,
 ) -> Dispositivo:
     """Register a new device for a negocio.
 
     If device with same huella exists and is active, returns it.
-    If revoked, reactivates it.
+    If revoked, reactivates it ONLY if is_admin=True.
     Otherwise creates new entry.
     """
     # Check subscription first
@@ -59,10 +58,14 @@ def registrar_dispositivo(
 
     if dispositivo:
         if dispositivo.revocado_el is not None:
-            # Reactivate revoked device
+            if not is_admin:
+                raise DispositivoError(
+                    "Dispositivo revocado — requiere ADMINISTRADOR para reactivar",
+                    "DISPOSITIVO_REVOCADO",
+                )
+            # Admin reactivation — explicit audit
             dispositivo.revocado_el = None
             dispositivo.activo = 1
-            dispositivo.autorizado_el = ahora
             dispositivo.ultima_validacion_servidor = ahora
         else:
             # Existing active device — update metadata
@@ -80,8 +83,8 @@ def registrar_dispositivo(
             huella=huella,
             modelo=modelo,
             plataforma=plataforma,
-            usuario_id=usuario_id,
-            autorizado_por=autorizado_por,
+            usuario_id=user_id,
+            autorizado_por=user_id,
             autorizado_el=ahora,
             ultima_validacion_servidor=ahora,
             activo=1,
@@ -150,6 +153,42 @@ def revocar_dispositivo(
 
     dispositivo.revocado_el = datetime.now(timezone.utc)
     dispositivo.activo = 0
+    db.flush()
+    return dispositivo
+
+
+def reactivar_dispositivo(
+    db: Session,
+    dispositivo_id: UUID,
+    negocio_id: UUID,
+    autorizado_por: UUID | None = None,
+) -> Dispositivo:
+    """Explicitly reactivate a revoked device (admin-only, audited).
+
+    Raises DispositivoError if device not found, not revoked, or wrong negocio.
+    """
+    dispositivo = (
+        db.query(Dispositivo)
+        .filter(
+            and_(
+                Dispositivo.id == dispositivo_id,
+                Dispositivo.negocio_id == negocio_id,
+                Dispositivo.revocado_el.isnot(None),
+            ),
+        )
+        .first()
+    )
+
+    if not dispositivo:
+        raise DispositivoError(
+            "Dispositivo no encontrado o ya activo",
+            "DISPOSITIVO_NO_ENCONTRADO",
+        )
+
+    dispositivo.revocado_el = None
+    dispositivo.activo = 1
+    dispositivo.autorizado_el = datetime.now(timezone.utc)
+    dispositivo.ultima_validacion_servidor = datetime.now(timezone.utc)
     db.flush()
     return dispositivo
 
