@@ -45,6 +45,7 @@ class TestCadenaCaja:
         self.cid = uuid4()
         db_session.add(Negocio(id=self.nid, nombre="N", nit="1"))
         db_session.add(Ruta(id=self.rid, negocio_id=self.nid, nombre="R1"))
+        db_session.flush()
 
     def test_caso_r4_275_805_400_20_18_50(self):
         """Caso R4: 275 + 0 + 805 - 400 - 20 - 18 - 50 = 592.

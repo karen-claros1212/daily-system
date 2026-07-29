@@ -4,12 +4,12 @@ Movimientos financieros son append-only. No UPDATE ni DELETE ordinario.
 """
 
 from datetime import datetime, timedelta, timezone
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 
 from src.auth.context import RequestContext
-from src.models import MovimientoCaja
+from src.models import MovimientoCaja, Credito, Renovacion
 from src.services.jornada_service import (
     _uuid_eq,
 )
@@ -40,7 +40,7 @@ MOVIMIENTO_NATURALEZAS = {
     "AJUSTE",
 }
 
-# === MAPEO TIPO → NATURALEZA (default) ===
+# === MAPEO TIPO → NATURALEZA (server-derived default) ===
 TIPO_A_NATURALEZA = {
     "GASOLINA": "GASTO",
     "OFICINA": "GASTO",
@@ -52,6 +52,9 @@ TIPO_A_NATURALEZA = {
     "AJUSTE": "AJUSTE",
     "OTRO": None,  # requiere naturaleza explícita + nota obligatoria
 }
+
+# === TIPOS AJUSTE — exclusivos de administrador ===
+AJUSTE_TIPOS = {"AJUSTE"}
 
 
 class MovimientoError(Exception):
@@ -78,6 +81,14 @@ class MovimientoJornadaError(MovimientoError):
     pass
 
 
+class MovimientoMontoInvalido(MovimientoError):
+    pass
+
+
+class MovimientoAjusteError(MovimientoError):
+    pass
+
+
 def validate_tipo(tipo: str) -> None:
     """Validate that tipo is in the closed catalog."""
     if tipo not in MOVIMIENTO_TIPOS:
@@ -94,6 +105,16 @@ def validate_naturaleza(naturaleza: str) -> None:
         )
 
 
+def _derive_naturaleza(tipo: str, naturaleza_enviada: str | None) -> str | None:
+    """Derive naturaleza from tipo. Client puede enviar override para OTRO."""
+    default = TIPO_A_NATURALEZA.get(tipo)
+    if default is None:
+        # OTRO: usar la naturaleza enviada
+        return naturaleza_enviada
+    # Para otros tipos, usar el valor del servidor
+    return default
+
+
 def register_movimiento(
     db: Session,
     data: dict,
@@ -101,38 +122,40 @@ def register_movimiento(
 ) -> MovimientoCaja:
     """Register an append-only movimiento de caja.
 
-    Args:
-        db: SQLAlchemy session
-        data: dict with jornada_id, tipo, naturaleza, monto, nota, etc.
-        ctx: RequestContext from auth
-
-    Returns:
-        MovimientoCaja object
-
-    Raises:
-        MovimientoJornadaError: jornada not found or closed
-        MovimientoIdempotencyError: duplicate idempotency key
-        MovimientoTipoInvalido: invalid tipo
-        MovimientoNaturalezaInvalida: invalid naturaleza
+    Naturaleza se deriva en el servidor (no se confía en el cliente).
+    OTRO exige naturaleza explícita + nota obligatoria.
+    AJUSTE es exclusivo del administrador.
     """
     jornada_id = data.get("jornada_id")
     tipo = data.get("tipo")
-    naturaleza = data.get("naturaleza")
+    naturaleza_enviada = data.get("naturaleza")
     monto = data.get("monto")
+    nota = data.get("nota")
     clave_idempotencia = data.get("clave_idempotencia")
 
-    # Validate tipo and naturaleza
+    # Validate tipo
     validate_tipo(tipo)
-    validate_naturaleza(naturaleza)
 
-    # OTRO requires explicit naturaleza and nota
+    # Validate monto > 0
+    if not monto or monto <= 0:
+        raise MovimientoMontoInvalido("monto debe ser > 0")
+
+    # Derive naturaleza en el servidor
+    naturaleza = _derive_naturaleza(tipo, naturaleza_enviada)
+
+    # OTRO requiere naturaleza explícita + nota obligatoria
     if tipo == "OTRO":
-        if not naturaleza or naturaleza == "GASTO":
+        if not naturaleza_enviada or naturaleza_enviada not in MOVIMIENTO_NATURALEZAS:
             raise MovimientoNaturalezaInvalida(
-                "Tipo OTRO exige naturaleza explícita (no GASTO por defecto)"
+                "Tipo OTRO exige naturaleza explícita válida"
             )
-        if not monto:
-            raise MovimientoError("Tipo OTRO requiere monto")
+        if not nota or not nota.strip():
+            raise MovimientoError("Tipo OTRO requiere nota obligatoria")
+        naturaleza = naturaleza_enviada
+
+    # AJUSTE exclusivo de administrador
+    if tipo in AJUSTE_TIPOS and not ctx.is_admin():
+        raise MovimientoAjusteError("Solo el administrador puede registrar ajustes")
 
     # Get or validate jornada
     if jornada_id:
@@ -150,9 +173,7 @@ def register_movimiento(
 
         # Cobrador route isolation
         if ctx.is_cobrador() and jornada.ruta_id != ctx.route_id:
-                raise MovimientoJornadaError(
-                    "Movimiento pertenece a otra ruta"
-                )
+            raise MovimientoJornadaError("Movimiento pertenece a otra ruta")
 
         # Check if jornada is closed (append-only: can still add to open jornadas)
         if jornada.estado in {
@@ -163,29 +184,50 @@ def register_movimiento(
                 "No se pueden registrar movimientos en jornada cerrada"
             )
 
-    # Check idempotency
+    # Validate referenced entities belong to negocio + ruta
+    if data.get("credito_id"):
+        credito = db.query(Credito).filter(
+            _uuid_eq(Credito.id, data["credito_id"]),
+            _uuid_eq(Credito.negocio_id, ctx.negocio_id),
+        ).first()
+        if not credito:
+            raise MovimientoJornadaError("Crédito no encontrado o no pertenece al negocio")
+        if ctx.is_cobrador() and credito.ruta_id != ctx.route_id:
+            raise MovimientoJornadaError("Crédito pertenece a otra ruta")
+
+    if data.get("renovacion_id"):
+        renovacion = db.query(Renovacion).filter(
+            _uuid_eq(Renovacion.id, data["renovacion_id"]),
+        ).first()
+        if not renovacion:
+            raise MovimientoJornadaError("Renovación no encontrada")
+
+    # Check idempotency — compare full payload
     if clave_idempotencia:
         existing = db.query(MovimientoCaja).filter(
             _uuid_eq(MovimientoCaja.negocio_id, ctx.negocio_id),
             MovimientoCaja.clave_idempotencia == clave_idempotencia,
         ).first()
         if existing:
-            # Idempotent return: same key + same monto = OK, different = conflict
-            if existing.monto != monto:
-                raise MovimientoIdempotencyError(
-                    "Misma clave de idempotencia con monto diferente"
-                )
-            return existing
+            # Compare tipo, naturaleza, monto, jornada_id
+            if (existing.tipo == tipo
+                    and existing.naturaleza == naturaleza
+                    and existing.monto == monto
+                    and str(existing.jornada_id) == str(jornada_id)):
+                return existing
+            raise MovimientoIdempotencyError(
+                "Misma clave de idempotencia con payload diferente"
+            )
 
     # Create movimiento
     movimiento = MovimientoCaja(
-        id=__import__("uuid").uuid4(),
+        id=uuid4(),
         negocio_id=ctx.negocio_id,
         jornada_id=jornada_id,
         tipo=tipo,
         naturaleza=naturaleza,
         monto=monto,
-        nota=data.get("nota"),
+        nota=nota,
         creado_por=ctx.user_id,
         dispositivo_id=ctx.device_id,
         registrado_el_dispositivo=datetime.now(BOGOTA_TZ),
