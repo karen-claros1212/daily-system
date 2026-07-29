@@ -1,0 +1,24 @@
+version: "3.9"
+name: cobrocolombia
+
+services:
+  postgres:
+    image: postgres:18.4
+    container_name: cobro-postgres
+    ports:
+      - "7103:5432"
+    environment:
+      POSTGRES_USER: cobro
+      POSTGRES_PASSWORD: cobro_secret
+      POSTGRES_DB: cobro
+    volumes:
+      - cobro-pgdata:/var/lib/postgresql
+      - ./init.sql:/docker-entrypoint-initdb.d/00-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cobro -d cobro"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  cobro-pgdata:
