@@ -91,6 +91,10 @@ class MovimientoAjusteError(MovimientoError):
     pass
 
 
+class MovimientoNotaObligatoria(MovimientoError):
+    pass
+
+
 def validate_tipo(tipo: str) -> None:
     """Validate that tipo is in the closed catalog."""
     if tipo not in MOVIMIENTO_TIPOS:
@@ -134,10 +138,15 @@ def register_movimiento(
     monto = data.get("monto")
     nota = data.get("nota")
     clave_idempotencia = data.get("clave_idempotencia")
-    motivo = data.get("motivo")
     credito_id = data.get("credito_id")
     renovacion_id = data.get("renovacion_id")
     ajuste_de_movimiento_id = data.get("ajuste_de_movimiento_id")
+
+    # Strip whitespace from clave_idempotencia
+    if clave_idempotencia:
+        clave_idempotencia = clave_idempotencia.strip()
+        if not clave_idempotencia:
+            clave_idempotencia = None
 
     # Validate tipo
     validate_tipo(tipo)
@@ -156,18 +165,33 @@ def register_movimiento(
                 "Tipo OTRO exige naturaleza explícita válida"
             )
         if not nota or not nota.strip():
-            raise MovimientoError("Tipo OTRO requiere nota obligatoria")
+            raise MovimientoNotaObligatoria("Tipo OTRO requiere nota obligatoria")
         naturaleza = naturaleza_enviada
 
     # AJUSTE exclusivo de administrador
     if tipo in AJUSTE_TIPOS:
         if not ctx.is_admin():
             raise MovimientoAjusteError("Solo el administrador puede registrar ajustes")
-        # AJUSTE requiere motivo + referencia al movimiento corregido
-        if not motivo or not motivo.strip():
-            raise MovimientoAjusteError("AJUSTE requiere motivo")
+        # AJUSTE usa nota como motivo auditado obligatorio
+        if not nota or not nota.strip():
+            raise MovimientoAjusteError("AJUSTE requiere nota (motivo auditado)")
         if not ajuste_de_movimiento_id:
             raise MovimientoAjusteError("AJUSTE requiere ajuste_de_movimiento_id")
+        # Validar que el movimiento corregido pertenezca al mismo negocio
+        ajuste_original = db.query(MovimientoCaja).filter(
+            _uuid_eq(MovimientoCaja.id, ajuste_de_movimiento_id),
+            _uuid_eq(MovimientoCaja.negocio_id, ctx.negocio_id),
+        ).first()
+        if not ajuste_original:
+            raise MovimientoAjusteError("Movimiento a ajustar no encontrado o no pertenece al negocio")
+        # Validar que pertenezca a la misma ruta si es cobrador
+        if ctx.is_cobrador():
+            jornada_original = db.query(Jornada).filter(
+                _uuid_eq(Jornada.id, ajuste_original.jornada_id),
+                _uuid_eq(Jornada.negocio_id, ctx.negocio_id),
+            ).first()
+            if not jornada_original or jornada_original.ruta_id != ctx.route_id:
+                raise MovimientoAjusteError("Movimiento a ajustar pertenece a otra ruta")
 
     # Get or validate jornada
     if jornada_id:

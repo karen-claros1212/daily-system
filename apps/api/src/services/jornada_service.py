@@ -18,7 +18,7 @@ from uuid import UUID, uuid4
 from sqlalchemy.orm import Session
 
 from src.auth.context import RequestContext
-from src.models import Jornada, Ruta, Credito, Renovacion, MovimientoCaja, Pago
+from src.models import Jornada, Ruta, Renovacion, MovimientoCaja, Pago
 from src.services.caja_service import calcular_cadena_caja
 from src.services.hoja_viva_service import today_bogota
 
@@ -133,7 +133,11 @@ def open_jornada(
 
     # Idempotencia: check if same key + same payload exists
     # Uses apertura_idempotency_key column (separate from cierre)
+    # Strip whitespace — empty after strip is treated as no key
     if clave_idempotencia:
+        clave_idempotencia = clave_idempotencia.strip()
+        if not clave_idempotencia:
+            clave_idempotencia = None
         existing = db.query(Jornada).filter(
             _uuid_eq(Jornada.negocio_id, negocio_id),
             Jornada.apertura_idempotency_key == clave_idempotencia,
@@ -186,10 +190,9 @@ def open_jornada(
         diferencia_motivo=None,
         sobrante_manana=0,
     )
-    # Save idempotency key for both open and close
+    # Save idempotency key — apertura only (cierre stores its own key separately)
     if clave_idempotencia:
         jornada.apertura_idempotency_key = clave_idempotencia
-        jornada.cierre_idempotency_key = clave_idempotencia
     db.add(jornada)
     db.flush()
     return jornada
@@ -283,6 +286,8 @@ def cerrar_jornada(
         raise JornadaNotFoundError("Jornada no encontrada")
 
     idempotency_key = data.get("idempotencia_cierre", "")
+    if idempotency_key:
+        idempotency_key = idempotency_key.strip()
 
     # Idempotency check — compare full payload
     if idempotency_key:
@@ -526,9 +531,20 @@ def sincronizar_cierre(
     if computed_hash != snapshot_hash:
         raise JornadaError("Snapshot hash no coincide — posible manipulación")
 
+    # Validate received hash matches stored hash
+    stored_hash = jornada.cierre_snapshot_hash
+    if stored_hash and snapshot_hash != stored_hash:
+        raise JornadaError(f"Snapshot hash recibido no coincide con el almacenado: recibido={snapshot_hash[:16]}... almacenado={stored_hash[:16]}...")
+
     # Validate against the server's canonical snapshot
     stored_snapshot = jornada.cierre_snapshot_json
     if stored_snapshot:
+        # Exigir igualdad exacta del JSON canónico recibido vs almacenado
+        received_canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":"), default=str)
+        stored_canonical = json.dumps(stored_snapshot, sort_keys=True, separators=(",", ":"), default=str)
+        if received_canonical != stored_canonical:
+            raise JornadaError("Snapshot JSON canónico no coincide exactamente")
+
         # Compare immutable identifiers
         if snapshot.get("jornada_id") != stored_snapshot.get("jornada_id"):
             raise JornadaError("Snapshot jornada_id no coincide")
@@ -585,6 +601,17 @@ def sincronizar_cierre(
             f"esperado (esperado {client_esperado} + diferencia {client_diferencia} = {expected_contado})"
         )
 
+    # Si ya estaba CLOSED_SYNCED, verificar que el snapshot era idéntico (reintento)
+    was_already_synced = jornada.estado == "CLOSED_SYNCED"
+    if was_already_synced:
+        stored_snapshot_for_retry = jornada.cierre_snapshot_json
+        if not stored_snapshot_for_retry:
+            raise JornadaError("Jornada ya sincronizada sin snapshot para comparar")
+        received_canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":"), default=str)
+        stored_canonical = json.dumps(stored_snapshot_for_retry, sort_keys=True, separators=(",", ":"), default=str)
+        if received_canonical != stored_canonical:
+            raise JornadaError("Reintento en CLOSED_SYNCED con snapshot diferente")
+
     # Update server-side timestamps
     jornada.sincronizada_el = datetime.now(BOGOTA_TZ)
 
@@ -598,6 +625,7 @@ def sincronizar_cierre(
         "estado": "CLOSED_SYNCED",
         "sincronizada_el": jornada.sincronizada_el.isoformat(),
         "snapshot_valido": True,
+        "reintento": was_already_synced,
     }
 
 

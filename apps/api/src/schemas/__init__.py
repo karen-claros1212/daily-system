@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional
 from datetime import datetime, date
 from uuid import UUID
@@ -202,12 +202,21 @@ class HojaVivaResponse(BaseModel):
 class JornadaCreate(BaseModel):
     ruta_id: UUID
     opening_base: int = Field(default=0, ge=0)
-    clave_idempotencia: str = Field(..., max_length=100)
+    clave_idempotencia: str = Field(..., min_length=1, max_length=100)
+
+    @model_validator(mode="before")
+    @classmethod
+    def strip_clave_idempotencia(cls, data):
+        if isinstance(data, dict):
+            clave = data.get("clave_idempotencia")
+            if isinstance(clave, str) and clave.strip() == "":
+                data["clave_idempotencia"] = clave.strip()
+        return data
 
 
 class JornadaCierreCreate(BaseModel):
     efectivo_contado: int = Field(default=0, ge=0)
-    idempotencia_cierre: str = Field(..., max_length=100)
+    idempotencia_cierre: str = Field(..., min_length=1, max_length=100)
     motivo: str = Field(default="", max_length=500)
 
 
@@ -271,10 +280,10 @@ class JornadaResponse(BaseModel):
 class MovimientoCreate(BaseModel):
     jornada_id: UUID
     tipo: str = Field(..., pattern="^(GASOLINA|OFICINA|AHORRO|VALE|ENTREGA|RECIBIDO|DESEMBOLSO|AJUSTE|OTRO)$")
-    naturaleza: str = Field(..., pattern="^(GASTO|CUSTODIA|CUENTA_POR_COBRAR|TRASLADO_ENTRADA|TRASLADO_SALIDA|DESEMBOLSO|AJUSTE)$")
+    naturaleza: Optional[str] = Field(default=None, pattern="^(GASTO|CUSTODIA|CUENTA_POR_COBRAR|TRASLADO_ENTRADA|TRASLADO_SALIDA|DESEMBOLSO|AJUSTE)$")
     monto: int = Field(..., gt=0)
     nota: Optional[str] = None
-    clave_idempotencia: str = Field(..., max_length=100)
+    clave_idempotencia: str = Field(..., min_length=1, max_length=100)
     credito_id: Optional[UUID] = None
     renovacion_id: Optional[UUID] = None
     ajuste_de_movimiento_id: Optional[UUID] = None

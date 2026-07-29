@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 DATABASE_URL = os.getenv(
     "API_DATABASE_URL",
-    "postgresql://daily:PLACEHOLDER@localhost:7103/daily",
+    "postgresql://cobro:cobro_secret@localhost:7103/cobro",
 )
 
 engine = create_engine(DATABASE_URL)

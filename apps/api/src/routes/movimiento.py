@@ -21,6 +21,7 @@ from src.services.movimiento_service import (
     MovimientoJornadaError,
     MovimientoMontoInvalido,
     MovimientoAjusteError,
+    MovimientoNotaObligatoria,
 )
 
 router = APIRouter(prefix="/api/movimientos", tags=["movimientos"])
@@ -51,6 +52,10 @@ def registrar_movimiento(
     except MovimientoMontoInvalido as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except MovimientoAjusteError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except MovimientoNotaObligatoria as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except MovimientoError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
