@@ -1,8 +1,10 @@
 // ─── Main Shell — IndexedStack Navigation ────────────────────────
 // Material 3 NavigationBar: Inicio / Cobros / Caja / Más
+// Authority: this shell manages all navigation via callbacks.
 // Preserves scroll, filters, search, form state per tab.
 
 import 'package:flutter/material.dart';
+import '../navigation.dart';
 import '../theme/theme.dart';
 import '../screens/inicio_screen.dart';
 import '../screens/cobros_shell.dart';
@@ -20,25 +22,49 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
-  int _currentIndex = 0;
+  MainSection _currentSection = MainSection.inicio;
 
-  List<Widget> get _screens => [
-    InicioScreen(cobradorId: widget.cobradorId, cobradorNombre: widget.cobradorNombre, negocioId: widget.negocioId),
-    CobrosShell(cobradorId: widget.cobradorId, cobradorNombre: widget.cobradorNombre, negocioId: widget.negocioId),
-    const CajaMainScreen(),
-    MasScreen(cobradorId: widget.cobradorId, cobradorNombre: widget.cobradorNombre),
-  ];
+  void _navigateTo(MainSection section) {
+    setState(() => _currentSection = section);
+  }
+
+  void _openCobros(CobrosSection section) {
+    setState(() => _currentSection = MainSection.cobros);
+  }
+
+  void _openMas() {
+    setState(() => _currentSection = MainSection.mas);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
+        index: _currentSection.index,
+        children: [
+          InicioScreen(
+            cobradorId: widget.cobradorId,
+            cobradorNombre: widget.cobradorNombre,
+            negocioId: widget.negocioId,
+            onOpenCobros: _openCobros,
+            onOpenMas: _openMas,
+          ),
+          CobrosShell(
+            cobradorId: widget.cobradorId,
+            cobradorNombre: widget.cobradorNombre,
+            negocioId: widget.negocioId,
+            initialSection: CobrosSection.seleccionarRuta,
+          ),
+          const CajaMainScreen(),
+          MasScreen(
+            cobradorId: widget.cobradorId,
+            cobradorNombre: widget.cobradorNombre,
+          ),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (i) => setState(() => _currentIndex = i),
+        selectedIndex: _currentSection.index,
+        onDestinationSelected: (i) => setState(() => _currentSection = MainSection.values[i]),
         indicatorColor: AppColors.primary.withOpacity(0.12),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Inicio'),

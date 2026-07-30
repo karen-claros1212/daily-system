@@ -1,10 +1,12 @@
 // ─── Cobros Shell — Route + Hoja Viva + Pago ─────────────────────
 // Handles route selection and the cobros workflow.
+// Uses CobrosSection enum — no magic numbers.
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../database/database.dart';
 import '../models/models.dart';
+import '../navigation.dart';
 import '../services/jornada_service.dart';
 import '../theme/theme.dart';
 import '../screens/hoja_viva_screen.dart';
@@ -17,15 +19,21 @@ class CobrosShell extends StatefulWidget {
   final String cobradorId;
   final String cobradorNombre;
   final String negocioId;
-  final int initialTab; // -1 = route selection, -2 = jornada cierre, 0+ = sub-tab
-  const CobrosShell({super.key, required this.cobradorId, required this.cobradorNombre, required this.negocioId, this.initialTab = 0});
+  final CobrosSection initialSection;
+  const CobrosShell({
+    super.key,
+    required this.cobradorId,
+    required this.cobradorNombre,
+    required this.negocioId,
+    this.initialSection = CobrosSection.seleccionarRuta,
+  });
 
   @override
   State<CobrosShell> createState() => _CobrosShellState();
 }
 
 class _CobrosShellState extends State<CobrosShell> {
-  int _state = 0; // 0 = route select, 1 = hoja viva, 2 = pago, 3 = movimientos, 4 = caja, 5 = jornada cierre
+  CobrosSection _section = CobrosSection.seleccionarRuta;
   Ruta? _ruta;
   Jornada? _jornada;
   bool _cargando = true;
@@ -35,7 +43,9 @@ class _CobrosShellState extends State<CobrosShell> {
   @override
   void initState() {
     super.initState();
-    _state = widget.initialTab;
+    _section = widget.initialSection;
+    _cobradorId = widget.cobradorId;
+    _negocioId = widget.negocioId;
     _cargarDatos();
   }
 
@@ -43,11 +53,8 @@ class _CobrosShellState extends State<CobrosShell> {
     final db = await database;
     final prefs = await SharedPreferences.getInstance();
 
-    final cobradorId = prefs.getString('cobrador_id') ?? widget.cobradorId;
-    final negocioId = prefs.getString('negocio_id') ?? widget.negocioId;
-
-    if (_state == 0) {
-      // Show route selection
+    if (_section == CobrosSection.seleccionarRuta) {
+      // Load available routes for selection
       final rutasRaw = await db.query('ruta', where: 'activa = ?', whereArgs: [1]);
       setState(() {
         _cargando = false;
@@ -60,8 +67,6 @@ class _CobrosShellState extends State<CobrosShell> {
         if (rutas.isNotEmpty) {
           setState(() {
             _ruta = Ruta.fromMap(rutas.first);
-            _cobradorId = cobradorId;
-            _negocioId = negocioId;
           });
 
           final jornada = await JornadaService.getJornadaAbierta(rutaId);
@@ -74,7 +79,7 @@ class _CobrosShellState extends State<CobrosShell> {
     }
   }
 
-  void _seleccionarRuta(Ruta ruta) async {
+  Future<void> _seleccionarRuta(Ruta ruta) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('ruta_id', ruta.id);
     await prefs.setString('ruta_nombre', ruta.nombre);
@@ -85,7 +90,7 @@ class _CobrosShellState extends State<CobrosShell> {
         setState(() {
           _ruta = ruta;
           _jornada = jornada;
-          _state = 1; // Go to hoja viva
+          _section = CobrosSection.hojaViva;
         });
       } else {
         final db = await database;
@@ -98,7 +103,7 @@ class _CobrosShellState extends State<CobrosShell> {
         setState(() {
           _ruta = ruta;
           _jornada = newJornada;
-          _state = 1;
+          _section = CobrosSection.hojaViva;
         });
       }
     } catch (e) {
@@ -117,10 +122,10 @@ class _CobrosShellState extends State<CobrosShell> {
   }
 
   Widget _buildState() {
-    switch (_state) {
-      case 0: // Route selection
+    switch (_section) {
+      case CobrosSection.seleccionarRuta:
         return _buildRouteSelection();
-      case 5: // Jornada cierre
+      case CobrosSection.cerrarJornada:
         if (_jornada != null) {
           return JornadaCierreScreen(jornada: _jornada!, cobradorNombre: widget.cobradorNombre);
         }
@@ -134,33 +139,99 @@ class _CobrosShellState extends State<CobrosShell> {
   }
 
   Widget _buildRouteSelection() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(children: [
-        premiumCard(
-          child: Column(children: [
-            Container(
-              width: 64, height: 64,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(16),
+    return FutureBuilder<List<Ruta>>(
+      future: _cargarRutas(),
+      builder: (context, snapshot) {
+        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+          final rutas = snapshot.data!;
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(children: [
+              premiumCard(
+                child: Column(children: [
+                  Container(
+                    width: 64, height: 64,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(Icons.route, color: Colors.white, size: 32),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Seleccionar Ruta',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  Text('Elige la ruta del día',
+                      style: const TextStyle(fontSize: 13, color: AppColors.outlineVariant)),
+                ]),
               ),
-              child: const Icon(Icons.route, color: Colors.white, size: 32),
+              const SizedBox(height: 20),
+              ...rutas.map((ruta) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: premiumCard(
+                  onTap: () => _seleccionarRuta(ruta),
+                  child: Row(children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.route, color: AppColors.primary, size: 24),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(ruta.nombre,
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                          const Text('Ruta activa',
+                              style: TextStyle(fontSize: 12, color: AppColors.outlineVariant)),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: AppColors.outline),
+                  ]),
+                ),
+              )),
+            ]),
+          );
+        }
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(children: [
+            premiumCard(
+              child: Column(children: [
+                Container(
+                  width: 64, height: 64,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.route, color: Colors.white, size: 32),
+                ),
+                const SizedBox(height: 16),
+                const Text('Seleccionar Ruta',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Text('Elige la ruta del día',
+                    style: const TextStyle(fontSize: 13, color: AppColors.outlineVariant)),
+              ]),
             ),
-            const SizedBox(height: 16),
-            const Text('Seleccionar Ruta',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            Text('Elige la ruta del día',
-                style: const TextStyle(fontSize: 13, color: AppColors.outlineVariant)),
+            const SizedBox(height: 20),
+            const Text('No hay rutas configuradas',
+                style: TextStyle(color: AppColors.outlineVariant)),
           ]),
-        ),
-        const SizedBox(height: 20),
-        // TODO: Load routes from DB
-        const Text('No hay rutas configuradas',
-            style: TextStyle(color: AppColors.outlineVariant)),
-      ]),
+        );
+      },
     );
+  }
+
+  Future<List<Ruta>> _cargarRutas() async {
+    final db = await database;
+    final rutasRaw = await db.query('ruta', where: 'activa = ?', whereArgs: [1]);
+    return rutasRaw.map((m) => Ruta.fromMap(m)).toList();
   }
 
   Widget _buildActiveState() {
@@ -174,7 +245,7 @@ class _CobrosShellState extends State<CobrosShell> {
           child: Row(children: [
             IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => setState(() => _state = 0),
+              onPressed: () => setState(() => _section = CobrosSection.seleccionarRuta),
               tooltip: 'Cambiar ruta',
             ),
             Expanded(
@@ -188,10 +259,6 @@ class _CobrosShellState extends State<CobrosShell> {
                 ],
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.more_vert, color: Colors.white),
-              onPressed: () {},
-            ),
           ]),
         ),
         // Sub-navigation
@@ -199,13 +266,17 @@ class _CobrosShellState extends State<CobrosShell> {
           margin: const EdgeInsets.all(16),
           child: Row(
             children: [
-              _subNavChip('Hoja Viva', _state == 1, AppColors.accent, () => setState(() => _state = 1)),
+              _subNavChip('Hoja Viva', _section == CobrosSection.hojaViva, AppColors.accent,
+                  () => setState(() => _section = CobrosSection.hojaViva)),
               const SizedBox(width: 8),
-              _subNavChip('Cobrar', _state == 2, AppColors.primary, () => setState(() => _state = 2)),
+              _subNavChip('Cobrar', _section == CobrosSection.pago, AppColors.primary,
+                  () => setState(() => _section = CobrosSection.pago)),
               const SizedBox(width: 8),
-              _subNavChip('Movimientos', _state == 3, AppColors.tertiaryDark, () => setState(() => _state = 3)),
+              _subNavChip('Movimientos', _section == CobrosSection.movimientos, AppColors.tertiaryDark,
+                  () => setState(() => _section = CobrosSection.movimientos)),
               const SizedBox(width: 8),
-              _subNavChip('Caja', _state == 4, AppColors.secondary, () => setState(() => _state = 4)),
+              _subNavChip('Caja', _section == CobrosSection.caja, AppColors.secondary,
+                  () => setState(() => _section = CobrosSection.caja)),
             ],
           ),
         ),
@@ -240,14 +311,14 @@ class _CobrosShellState extends State<CobrosShell> {
   }
 
   Widget _buildSubContent() {
-    switch (_state) {
-      case 1:
+    switch (_section) {
+      case CobrosSection.hojaViva:
         return HojaVivaScreen(rutaId: _ruta!.id);
-      case 2:
+      case CobrosSection.pago:
         return PagoScreen(jornadaId: _jornada!.id, cobradorId: _cobradorId, negocioId: _negocioId);
-      case 3:
+      case CobrosSection.movimientos:
         return MovimientosScreen(jornadaId: _jornada!.id);
-      case 4:
+      case CobrosSection.caja:
         return CajaScreen(jornadaId: _jornada!.id);
       default:
         return const Center(child: Text('Selecciona una sección'));

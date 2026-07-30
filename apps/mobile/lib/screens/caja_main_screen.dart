@@ -1,8 +1,10 @@
 // ─── Caja Main Screen ────────────────────────────────────────────
 // Displays caja summary for the active jornada.
+// Difference = efectivo_contado - efectivo_esperado (not recaudo - esperado).
 
 import 'package:flutter/material.dart';
 import '../database/database.dart';
+import '../navigation.dart';
 import '../theme/theme.dart';
 
 class CajaMainScreen extends StatefulWidget {
@@ -21,6 +23,7 @@ class _CajaMainScreenState extends State<CajaMainScreen> {
   int _ahorro = 0;
   int _esperado = 0;
   int _contado = 0;
+  String _jornadaId = '';
 
   @override
   void initState() {
@@ -46,9 +49,14 @@ class _CajaMainScreenState extends State<CajaMainScreen> {
     final j = jornadas.first;
     final jornadaId = j['id'] as String;
 
-    setState(() => _jornadaAbierta = true);
+    setState(() {
+      _jornadaAbierta = true;
+      _jornadaId = jornadaId;
+      _esperado = j['esperado'] as int? ?? 0;
+      _contado = j['contado'] as int? ?? 0;
+    });
 
-    // Recaudo real
+    // Recaudo real (payments only)
     final recaudo = await db.rawQuery('''
       SELECT COALESCE(SUM(monto), 0) as total
       FROM pago WHERE jornada_id = ? AND tipo = 'PAYMENT'
@@ -76,14 +84,10 @@ class _CajaMainScreenState extends State<CajaMainScreen> {
     ''', [jornadaId]);
     _ahorro = ahorro.first['total'] as int? ?? 0;
 
-    final esperado = j['esperado'] as int? ?? 0;
-    final contado = j['contado'] as int? ?? 0;
-    setState(() {
-      _esperado = esperado;
-      _contado = contado;
-      _cargando = false;
-    });
+    setState(() => _cargando = false);
   }
+
+  int get diferencia => _contado - _esperado;
 
   @override
   Widget build(BuildContext context) {
@@ -128,17 +132,43 @@ class _CajaMainScreenState extends State<CajaMainScreen> {
           _cajaCard('Ahorro', formatMoney(_ahorro),
               color: AppColors.tertiary, icon: Icons.savings, wide: true),
           const SizedBox(height: 16),
-          // Difference card
+          // Difference card — uses contado, not recaudo
           premiumCard(
-            bgColor: _esperado > 0 ? (_recaudoReal >= _esperado ? AppColors.accentContainer : const Color(0xFFFFEBEE)) : AppColors.surfaceContainer,
+            bgColor: diferencia >= 0 ? AppColors.accentContainer : const Color(0xFFFFEBEE),
             child: Column(children: [
               const Text('Diferencia',
                   style: TextStyle(fontSize: 13, color: AppColors.outlineVariant)),
-              Text(formatMoney(_recaudoReal - _esperado),
+              Text(formatMoney(diferencia),
                   style: TextStyle(
                     fontSize: 28, fontWeight: FontWeight.w700,
-                    color: _recaudoReal >= _esperado ? AppColors.accent : AppColors.danger,
+                    color: diferencia >= 0 ? AppColors.accent : AppColors.danger,
                   )),
+              const SizedBox(height: 4),
+              Text('Contado: \$${formatMoney(_contado)} · Esperado: \$${formatMoney(_esperado)}',
+                  style: const TextStyle(fontSize: 11, color: AppColors.outlineVariant)),
+            ]),
+          ),
+          const SizedBox(height: 20),
+          // Contado input (editable)
+          premiumCard(
+            child: Column(children: [
+              const Text('Efectivo contado',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              TextField(
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Contado (COP)',
+                  prefixIcon: Icon(Icons.money, size: 20),
+                ),
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+                onChanged: (v) {
+                  final val = int.tryParse(v);
+                  if (val != null && val != _contado) {
+                    setState(() => _contado = val);
+                  }
+                },
+              ),
             ]),
           ),
         ]),

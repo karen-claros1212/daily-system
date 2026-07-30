@@ -5,6 +5,7 @@
 // Identidad: azul petróleo (primario/confianza), verde esmeralda (acento/operación).
 
 import 'package:flutter/material.dart';
+import 'dart:ui';
 
 // ── Color Tokens ─────────────────────────────────────────────────
 class AppColors {
@@ -86,34 +87,203 @@ class Motion {
   static const curveElastic = Curves.elasticOut;
 }
 
-// ── Theme Extension ──────────────────────────────────────────────
-// Provides semantic access to design tokens via context.
-class AppTheme {
-  static AppTheme of(BuildContext context) {
-    return AppTheme(
-      colors: AppColors(),
-      shapes: Shapes(),
-      spacing: Spacing(),
-      motion: Motion(),
+// ── Theme Extension (real ThemeExtension) ────────────────────────
+// Extends ThemeExtension<AppThemeExtension> with copyWith and lerp.
+// Accessible via context.extend<AppThemeExtension>().
+
+class AppThemeExtension extends ThemeExtension<AppThemeExtension> {
+  final Color primary;
+  final Color accent;
+  final Color tertiary;
+  final Color danger;
+  final Color success;
+  final Color warning;
+  final Color surface;
+  final Color surfaceContainer;
+  final Color outline;
+  final Color outlineVariant;
+  final Color textPrimary;
+  final Color textSecondary;
+  final double shapeSm;
+  final double shapeMd;
+  final double shapeLg;
+  final double shapeXl;
+  final double spacingSm;
+  final double spacingMd;
+  final double spacingLg;
+
+  const AppThemeExtension({
+    required this.primary,
+    required this.accent,
+    required this.tertiary,
+    required this.danger,
+    required this.success,
+    required this.warning,
+    required this.surface,
+    required this.surfaceContainer,
+    required this.outline,
+    required this.outlineVariant,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.shapeSm,
+    required this.shapeMd,
+    required this.shapeLg,
+    required this.shapeXl,
+    required this.spacingSm,
+    required this.spacingMd,
+    required this.spacingLg,
+  });
+
+  static const AppThemeExtension _default = AppThemeExtension(
+    primary: AppColors.primary,
+    accent: AppColors.accent,
+    tertiary: AppColors.tertiary,
+    danger: AppColors.danger,
+    success: AppColors.success,
+    warning: AppColors.warning,
+    surface: AppColors.surface,
+    surfaceContainer: AppColors.surfaceContainer,
+    outline: AppColors.outline,
+    outlineVariant: AppColors.outlineVariant,
+    textPrimary: AppColors.textPrimary,
+    textSecondary: AppColors.textSecondary,
+    shapeSm: Shapes.sm,
+    shapeMd: Shapes.md,
+    shapeLg: Shapes.lg,
+    shapeXl: Shapes.xl,
+    spacingSm: Spacing.sm,
+    spacingMd: Spacing.md,
+    spacingLg: Spacing.lg,
+  );
+
+  /// Access the theme extension from context.
+  static AppThemeExtension of(BuildContext context) {
+    final ext = Theme.of(context).extension<AppThemeExtension>();
+    return ext ?? const AppThemeExtension(
+      primary: AppColors.primary,
+      accent: AppColors.accent,
+      tertiary: AppColors.tertiary,
+      danger: AppColors.danger,
+      success: AppColors.success,
+      warning: AppColors.warning,
+      surface: AppColors.surface,
+      surfaceContainer: AppColors.surfaceContainer,
+      outline: AppColors.outline,
+      outlineVariant: AppColors.outlineVariant,
+      textPrimary: AppColors.textPrimary,
+      textSecondary: AppColors.textSecondary,
+      shapeSm: Shapes.sm,
+      shapeMd: Shapes.md,
+      shapeLg: Shapes.lg,
+      shapeXl: Shapes.xl,
+      spacingSm: Spacing.sm,
+      spacingMd: Spacing.md,
+      spacingLg: Spacing.lg,
     );
   }
 
-  final AppColors colors;
-  final Shapes shapes;
-  final Spacing spacing;
-  final Motion motion;
+  @override
+  ThemeExtension<AppThemeExtension> copyWith({
+    Color? primary,
+    Color? accent,
+    Color? tertiary,
+    Color? danger,
+    Color? success,
+    Color? warning,
+    Color? surface,
+    Color? surfaceContainer,
+    Color? outline,
+    Color? outlineVariant,
+    Color? textPrimary,
+    Color? textSecondary,
+    double? shapeSm,
+    double? shapeMd,
+    double? shapeLg,
+    double? shapeXl,
+    double? spacingSm,
+    double? spacingMd,
+    double? spacingLg,
+  }) {
+    return AppThemeExtension(
+      primary: primary ?? this.primary,
+      accent: accent ?? this.accent,
+      tertiary: tertiary ?? this.tertiary,
+      danger: danger ?? this.danger,
+      success: success ?? this.success,
+      warning: warning ?? this.warning,
+      surface: surface ?? this.surface,
+      surfaceContainer: surfaceContainer ?? this.surfaceContainer,
+      outline: outline ?? this.outline,
+      outlineVariant: outlineVariant ?? this.outlineVariant,
+      textPrimary: textPrimary ?? this.textPrimary,
+      textSecondary: textSecondary ?? this.textSecondary,
+      shapeSm: shapeSm ?? this.shapeSm,
+      shapeMd: shapeMd ?? this.shapeMd,
+      shapeLg: shapeLg ?? this.shapeLg,
+      shapeXl: shapeXl ?? this.shapeXl,
+      spacingSm: spacingSm ?? this.spacingSm,
+      spacingMd: spacingMd ?? this.spacingMd,
+      spacingLg: spacingLg ?? this.spacingLg,
+    );
+  }
 
-  AppTheme({
-    required this.colors,
-    required this.shapes,
-    required this.spacing,
-    required this.motion,
-  });
+  @override
+  ThemeExtension<AppThemeExtension> lerp(
+      covariant ThemeExtension<AppThemeExtension>? other, double t) {
+    if (other is! AppThemeExtension) return this;
+    return AppThemeExtension(
+      primary: Color.lerp(primary, other.primary, t) ?? primary,
+      accent: Color.lerp(accent, other.accent, t) ?? accent,
+      tertiary: Color.lerp(tertiary, other.tertiary, t) ?? tertiary,
+      danger: Color.lerp(danger, other.danger, t) ?? danger,
+      success: Color.lerp(success, other.success, t) ?? success,
+      warning: Color.lerp(warning, other.warning, t) ?? warning,
+      surface: Color.lerp(surface, other.surface, t) ?? surface,
+      surfaceContainer: Color.lerp(surfaceContainer, other.surfaceContainer, t) ?? surfaceContainer,
+      outline: Color.lerp(outline, other.outline, t) ?? outline,
+      outlineVariant: Color.lerp(outlineVariant, other.outlineVariant, t) ?? outlineVariant,
+      textPrimary: Color.lerp(textPrimary, other.textPrimary, t) ?? textPrimary,
+      textSecondary: Color.lerp(textSecondary, other.textSecondary, t) ?? textSecondary,
+      shapeSm: lerpDouble(shapeSm, other.shapeSm, t) ?? shapeSm,
+      shapeMd: lerpDouble(shapeMd, other.shapeMd, t) ?? shapeMd,
+      shapeLg: lerpDouble(shapeLg, other.shapeLg, t) ?? shapeLg,
+      shapeXl: lerpDouble(shapeXl, other.shapeXl, t) ?? shapeXl,
+      spacingSm: lerpDouble(spacingSm, other.spacingSm, t) ?? spacingSm,
+      spacingMd: lerpDouble(spacingMd, other.spacingMd, t) ?? spacingMd,
+      spacingLg: lerpDouble(spacingLg, other.spacingLg, t) ?? spacingLg,
+    );
+  }
+
+  @override
+  String toString() => 'AppThemeExtension($runtimeType)';
 }
 
 // ── Premium ThemeData ────────────────────────────────────────────
 final ThemeData premiumTheme = ThemeData(
   useMaterial3: true,
+  extensions: [
+    const AppThemeExtension(
+      primary: AppColors.primary,
+      accent: AppColors.accent,
+      tertiary: AppColors.tertiary,
+      danger: AppColors.danger,
+      success: AppColors.success,
+      warning: AppColors.warning,
+      surface: AppColors.surface,
+      surfaceContainer: AppColors.surfaceContainer,
+      outline: AppColors.outline,
+      outlineVariant: AppColors.outlineVariant,
+      textPrimary: AppColors.textPrimary,
+      textSecondary: AppColors.textSecondary,
+      shapeSm: Shapes.sm,
+      shapeMd: Shapes.md,
+      shapeLg: Shapes.lg,
+      shapeXl: Shapes.xl,
+      spacingSm: Spacing.sm,
+      spacingMd: Spacing.md,
+      spacingLg: Spacing.lg,
+    ),
+  ],
   colorScheme: ColorScheme.fromSeed(
     seedColor: AppColors.primary,
     brightness: Brightness.light,

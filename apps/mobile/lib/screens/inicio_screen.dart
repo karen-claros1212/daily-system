@@ -1,19 +1,27 @@
 // ─── Inicio Screen — Real SQLite Data ────────────────────────────
-// Loads open jornada, recaudo, clientes visitados, pendientes.
+// Loads open jornada, recaudo (PAYMENT - REVERSAL), clientes visitados/pendientes.
+// Uses callbacks to MainShell — no Navigator.push.
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../database/database.dart';
-import '../models/models.dart';
+import '../navigation.dart';
 import '../theme/theme.dart';
-import 'cobros_shell.dart';
-import 'caja_main_screen.dart';
 
 class InicioScreen extends StatefulWidget {
   final String cobradorId;
   final String cobradorNombre;
   final String negocioId;
-  const InicioScreen({super.key, required this.cobradorId, required this.cobradorNombre, required this.negocioId});
+  final void Function(CobrosSection) onOpenCobros;
+  final VoidCallback onOpenMas;
+  const InicioScreen({
+    super.key,
+    required this.cobradorId,
+    required this.cobradorNombre,
+    required this.negocioId,
+    required this.onOpenCobros,
+    required this.onOpenMas,
+  });
 
   @override
   State<InicioScreen> createState() => _InicioScreenState();
@@ -60,54 +68,42 @@ class _InicioScreenState extends State<InicioScreen> {
 
     if (jornada.isNotEmpty) {
       final j = jornada.first;
+      final jornadaId = j['id'] as String;
+
       setState(() {
         _jornadaAbierta = true;
-        _jornadaAbierta = true;
         _aperturaBase = j['opening_base'] as int? ?? 0;
-        _rutaId = j['ruta_id'] as String? ?? '';
+        _rutaId = jornadaId;
       });
 
-      // Recaudo real del día
+      // Recaudo real = PAYMENTS - REVERSALS
       final recaudo = await db.rawQuery('''
-        SELECT COALESCE(SUM(monto), 0) as total
+        SELECT
+          COALESCE(SUM(CASE WHEN tipo = 'PAYMENT' THEN monto ELSE 0 END), 0) -
+          COALESCE(SUM(CASE WHEN tipo = 'REVERSAL' THEN monto ELSE 0 END), 0) as neto
         FROM pago
-        WHERE jornada_id = ? AND tipo = 'PAYMENT'
-      ''', [j['id'] as String]);
-      _recaudoHoy = recaudo.first['total'] as int? ?? 0;
+        WHERE jornada_id = ?
+      ''', [jornadaId]);
+      _recaudoHoy = (recaudo.first['neto'] as int? ?? 0).clamp(0, 999999999);
 
-      // Clientes con créditos activos
+      // Clientes con créditos activos en esta ruta
       final pendientes = await db.rawQuery('''
         SELECT COUNT(DISTINCT c.cliente_id) as cnt
         FROM credito c
         WHERE c.ruta_id = ? AND c.estado = 'ACTIVO'
-      ''', [_rutaId]);
+      ''', [prefs.getString('ruta_id') ?? '']);
       _clientesPendientes = pendientes.first['cnt'] as int? ?? 0;
 
-      // Clientes visitados (pagos registrados hoy)
+      // Clientes visitados (pagos registrados en esta jornada)
       final visitados = await db.rawQuery('''
         SELECT COUNT(DISTINCT p.credito_id) as cnt
         FROM pago p
-        JOIN credito c ON p.credito_id = c.id
         WHERE p.jornada_id = ? AND p.tipo = 'PAYMENT'
-      ''', [j['id'] as String]);
+      ''', [jornadaId]);
       _clientesVisitados = visitados.first['cnt'] as int? ?? 0;
     }
 
     setState(() => _cargando = false);
-  }
-
-  void _actualizar() {
-    if (mounted) {
-      _cargarDatos();
-    }
-  }
-
-  void _navegarA(String destino) {
-    // Navigate to the appropriate tab (Cobros, Caja, etc.)
-    // This will be handled by the parent shell
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Navegando a: $destino')),
-    );
   }
 
   @override
@@ -230,23 +226,23 @@ class _InicioScreenState extends State<InicioScreen> {
                       const Text('Acciones',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 12),
-                      _actionTile(context, Icons.people, 'Hoja Viva',
+                      _actionTile(Icons.people, 'Hoja Viva',
                           'Ver cartera y semáforos', AppColors.accent,
-                          () => _navegarACobros(0)),
-                      _actionTile(context, Icons.payment, 'Cobrar',
+                          () => widget.onOpenCobros(CobrosSection.hojaViva)),
+                      _actionTile(Icons.payment, 'Cobrar',
                           'Seleccionar cliente y abono', AppColors.primary,
-                          () => _navegarACobros(1)),
-                      _actionTile(context, Icons.receipt_long, 'Movimientos',
+                          () => widget.onOpenCobros(CobrosSection.pago)),
+                      _actionTile(Icons.receipt_long, 'Movimientos',
                           'Gastos, ahorro, vales', AppColors.tertiaryDark,
-                          () => _navegarACaja()),
-                      _actionTile(context, Icons.calculate, 'Caja',
+                          () => widget.onOpenCobros(CobrosSection.movimientos)),
+                      _actionTile(Icons.calculate, 'Caja',
                           'Efectivo esperado vs contado', AppColors.secondary,
-                          () => _navegarACaja()),
+                          () => setState(() => widget.onOpenCobros(CobrosSection.caja))),
                       const SizedBox(height: 12),
                       // TERMINAR JORNADA — with onTap
                       premiumCard(
                         bgColor: AppColors.danger,
-                        onTap: () => _navegarAJornadaCierre(),
+                        onTap: () => widget.onOpenCobros(CobrosSection.cerrarJornada),
                         child: Row(children: [
                           Container(
                             padding: const EdgeInsets.all(10),
@@ -263,7 +259,7 @@ class _InicioScreenState extends State<InicioScreen> {
                               children: [
                                 const Text('TERMINAR JORNADA',
                                     style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
-                                Text('Contado: \$${formatMoney(_recaudoHoy)}',
+                                Text('Recaudado: \$${formatMoney(_recaudoHoy)}',
                                     style: TextStyle(fontSize: 12, color: Colors.white70)),
                               ],
                             ),
@@ -281,7 +277,7 @@ class _InicioScreenState extends State<InicioScreen> {
                       const SizedBox(height: 20),
                       compactButton(
                         label: 'SELECCIONAR RUTA',
-                        onPressed: () => _navegarACobros(-1),
+                        onPressed: () => widget.onOpenCobros(CobrosSection.seleccionarRuta),
                         color: AppColors.primary,
                         icon: Icons.route,
                       ),
@@ -309,7 +305,7 @@ class _InicioScreenState extends State<InicioScreen> {
     );
   }
 
-  Widget _actionTile(BuildContext context, IconData icon, String title,
+  Widget _actionTile(IconData icon, String title,
       String subtitle, Color color, VoidCallback onTap) {
     return Padding(padding: const EdgeInsets.only(bottom: 8),
       child: premiumCard(
@@ -349,45 +345,5 @@ class _InicioScreenState extends State<InicioScreen> {
       },
       tooltip: 'Cerrar sesión',
     );
-  }
-
-  void _navegarACobros(int tabIndex) {
-    // Signal to parent shell to switch to Cobros tab with optional sub-tab
-    // This uses a callback pattern — the shell will handle navigation
-    final navigator = Navigator.of(context);
-    navigator.push(
-      MaterialPageRoute(
-        builder: (_) => CobrosShell(
-          cobradorId: widget.cobradorId,
-          cobradorNombre: widget.cobradorNombre,
-          negocioId: widget.negocioId,
-          initialTab: tabIndex,
-        ),
-      ),
-    ).then((_) => _actualizar());
-  }
-
-  void _navegarACaja() {
-    final navigator = Navigator.of(context);
-    navigator.push(
-      MaterialPageRoute(
-        builder: (_) => const CajaMainScreen(),
-      ),
-    ).then((_) => _actualizar());
-  }
-
-  void _navegarAJornadaCierre() {
-    // Navigate to jornada cierre via Cobros shell
-    final navigator = Navigator.of(context);
-    navigator.push(
-      MaterialPageRoute(
-        builder: (_) => CobrosShell(
-          cobradorId: widget.cobradorId,
-          cobradorNombre: widget.cobradorNombre,
-          negocioId: widget.negocioId,
-          initialTab: -2, // Special tab for jornada cierre
-        ),
-      ),
-    ).then((_) => _actualizar());
   }
 }
