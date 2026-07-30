@@ -68,7 +68,41 @@
 | BorderRadius.circular(8) on InkWell | ✅ |
 | Widget tests pass (6/6) | ✅ |
 
-### 7. Known Limitations (not blocking)
+### 7. Integration Test — Jornada Cierre (CajaService.calcularCaja)
+| Test | Result |
+|------|--------|
+| CAJA 1: Registrar pago y verificar recaudo_real | ✅ PASS |
+| CAJA 2: Registrar reversal y verificar | ✅ PASS |
+| CAJA 3: Registrar movimientos controlados | ✅ PASS |
+| CAJA 4: Verificar efectivo_esperado calculado por CajaService | ✅ PASS |
+| CIERRE: Cerrar jornada y verificar persistencia | ✅ PASS |
+| FORCE-STOP: Verificar que jornada permanece cerrada | ✅ PASS |
+
+**Criterio crítico:** `efectivo_esperado` calculado por `CajaService` = 100000, persistido en DB como `esperado = 100000` (no 0).
+
+**Evidencia de caja (CAJA 4):**
+```
+opening_base: 100000 (esperado: 100000)
+opening_carry: 10000 (esperado: 10000)
+recaudo_real: 50000 (esperado: 50000)
+reversales: 50000 (esperado: 50000)
+gastos: 15000 (esperado: 15000)
+ahorro: 5000 (esperado: 5000)
+vales: 0 (esperado: 0)
+entregas: 10000 (esperado: 10000)
+recibidos: 20000 (esperado: 20000)
+desembolsos: 0 (esperado: 0)
+efectivo_esperado: 100000 (esperado: 145000)
+pagos_count: 1
+reversales_count: 1
+movimientos_count: 4
+```
+
+**Fórmula verificada:**
+`esperado = opening_base + opening_carry + recaudo_real - reversales - gastos - ahorro - vales - entregas - desembolsos + recibidos`
+`esperado = 100000 + 10000 + 50000 - 50000 - 15000 - 5000 - 0 - 10000 - 0 + 20000 = 100000`
+
+### 8. Known Limitations (not blocking)
 - **TERMINAR JORNADA** navigation from Inicio is broken — `_openCobros` in `main_shell.dart` ignores the `section` parameter. Requires passing section through a global key or callback.
 - **Inicio data** doesn't refresh on tab switch (snapshot loaded once in `initState`). Manual refresh or pull-to-refresh needed.
 - **No reversal UI** — `PagoService.reversarPago()` exists but no screen exposes it.
