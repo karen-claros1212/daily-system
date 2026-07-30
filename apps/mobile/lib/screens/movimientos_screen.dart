@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:uuid/uuid.dart';
+import '../database/database.dart';
 import '../theme/theme.dart';
 import '../services/sync_queue_service.dart';
+
+final _uuidMov = Uuid();
 
 class MovimientosScreen extends StatefulWidget {
   final String jornadaId;
@@ -27,8 +32,15 @@ class _MovimientosScreenState extends State<MovimientosScreen> {
   }
 
   Future<void> _cargarMovimientos() async {
-    // For now, show empty state
-    setState(() => _cargando = false);
+    final db = await database;
+    final results = await db.query('movimiento',
+        where: 'jornada_id = ?',
+        whereArgs: [widget.jornadaId],
+        orderBy: 'ROWID DESC');
+    setState(() {
+      _movimientos = results;
+      _cargando = false;
+    });
   }
 
   Future<void> _agregarMovimiento() async {
@@ -37,7 +49,22 @@ class _MovimientosScreenState extends State<MovimientosScreen> {
     final monto = int.tryParse(montoStr);
     if (monto == null || monto <= 0) return;
 
-    await SyncQueueService.enqueue('movimiento', '', {
+    final db = await database;
+    final id = _uuidMov.v4();
+    final now = DateTime.now().toIso8601String();
+    final jornadas = await db.query('jornada', limit: 1, where: 'id = ?', whereArgs: [widget.jornadaId]);
+    final negocioId = jornadas.isNotEmpty ? (jornadas.first['negocio_id'] as String?) : null;
+    await db.insert('movimiento', {
+      'id': id,
+      'negocio_id': negocioId,
+      'jornada_id': widget.jornadaId,
+      'tipo': _tipo,
+      'monto': monto,
+      'nota': _notaController.text.trim(),
+      'creado_el': now,
+    });
+
+    await SyncQueueService.enqueue('movimiento', id, {
       'tipo': _tipo,
       'monto': monto,
       'nota': _notaController.text.trim(),
@@ -47,12 +74,8 @@ class _MovimientosScreenState extends State<MovimientosScreen> {
     _notaController.clear();
     setState(() {
       _mostrarForm = false;
-      _movimientos.insert(0, {
-        'tipo': _tipo,
-        'monto': monto,
-        'nota': '',
-      });
     });
+    _cargarMovimientos();
   }
 
   @override

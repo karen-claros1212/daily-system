@@ -23,13 +23,19 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   MainSection _currentSection = MainSection.inicio;
+  int _cobrosKey = 0;
+  CobrosSection _cobrosSection = CobrosSection.seleccionarRuta;
 
   void _navigateTo(MainSection section) {
     setState(() => _currentSection = section);
   }
 
   void _openCobros(CobrosSection section) {
-    setState(() => _currentSection = MainSection.cobros);
+    setState(() {
+      _currentSection = MainSection.cobros;
+      _cobrosKey++;
+      _cobrosSection = section;
+    });
   }
 
   void _openMas() {
@@ -50,10 +56,11 @@ class _MainShellState extends State<MainShell> {
             onOpenMas: _openMas,
           ),
           CobrosShell(
+            key: ValueKey('cobros-$_cobrosKey'),
             cobradorId: widget.cobradorId,
             cobradorNombre: widget.cobradorNombre,
             negocioId: widget.negocioId,
-            initialSection: CobrosSection.seleccionarRuta,
+            initialSection: _cobrosSection,
           ),
           const CajaMainScreen(),
           MasScreen(

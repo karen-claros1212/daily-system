@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:intl/intl.dart';
 import '../database/database.dart';
 import '../models/models.dart';
+import 'caja_service.dart';
 
 class JornadaService {
   static Future<Jornada> abrirJornada(String rutaId, String cobradorId, String negocioId, int openingBase) async {
@@ -44,7 +45,8 @@ class JornadaService {
     if (jornadaMap.isEmpty) throw Exception('Jornada no encontrada');
 
     final jornada = Jornada.fromMap(jornadaMap.first);
-    final esperado = jornada.efectivoEsperado;
+    final caja = await CajaService.calcularCaja(jornadaId);
+    final esperado = caja['efectivo_esperado'] as int;
     final diferencia = contado - esperado;
 
     await db.update('jornada', {
