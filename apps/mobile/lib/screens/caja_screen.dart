@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/theme.dart';
 import '../services/caja_service.dart';
+import '../models/caja_resultado.dart';
 
 class CajaScreen extends StatefulWidget {
   final String jornadaId;
@@ -11,7 +12,7 @@ class CajaScreen extends StatefulWidget {
 }
 
 class _CajaScreenState extends State<CajaScreen> {
-  Map<String, dynamic> _caja = {};
+  CajaResultado? _caja;
   bool _cargando = true;
   int _efectivoContado = 0;
 
@@ -48,8 +49,8 @@ class _CajaScreenState extends State<CajaScreen> {
           sectionTitle('Apertura'),
           premiumCard(
             child: Column(children: [
-              statRow('Opening Base', formatMoney(_caja['opening_base'] ?? 0)),
-              statRow('Opening Carry', formatMoney(_caja['opening_carry'] ?? 0)),
+              statRow('Opening Base', formatMoney(_caja!.openingBase)),
+              statRow('Opening Carry', formatMoney(_caja!.openingCarry)),
             ]),
           ),
           const SizedBox(height: 16),
@@ -58,9 +59,9 @@ class _CajaScreenState extends State<CajaScreen> {
           sectionTitle('Ingresos'),
           premiumCard(
             child: Column(children: [
-              statRow('Recaudo Real', formatMoney(_caja['recaudo_real'] ?? 0),
+              statRow('Recaudo Real', formatMoney(_caja!.recaudoReal),
                   valueColor: const Color(0xFF2E7D32)),
-              statRow('Pagos realizados', '${_caja['pagos_count'] ?? 0}'),
+              statRow('Pagos realizados', '${_caja!.pagosCount}'),
             ]),
           ),
           const SizedBox(height: 16),
@@ -69,17 +70,16 @@ class _CajaScreenState extends State<CajaScreen> {
           sectionTitle('Egresos'),
           premiumCard(
             child: Column(children: [
-              statRow('Reversales', formatMoney(_caja['reversales'] ?? 0),
+              statRow('Reversales', formatMoney(_caja!.reversales),
                   valueColor: const Color(0xFFC62828)),
-              statRow('Gastos', formatMoney(_caja['gastos'] ?? 0),
+              statRow('Gastos', formatMoney(_caja!.gastos),
                   valueColor: const Color(0xFFC62828)),
-              statRow('Ahorro', formatMoney(_caja['ahorro'] ?? 0),
+              statRow('Ahorro', formatMoney(_caja!.ahorro),
                   valueColor: const Color(0xFFF9A825)),
-              statRow('Vales', formatMoney(_caja['vales'] ?? 0)),
-              statRow('Entregas', formatMoney(_caja['entregas'] ?? 0)),
-              statRow('Recibidos', formatMoney(_caja['recibidos'] ?? 0),
-                  valueColor: const Color(0xFF2E7D32)),
-              statRow('Desembolsos', formatMoney(_caja['desembolsos'] ?? 0)),
+statRow('Vales', formatMoney(_caja!.vales)),
+statRow('Entregas', formatMoney(_caja!.entregas)),
+statRow('Recibidos', formatMoney(_caja!.recibidos)),
+                statRow('Desembolsos', formatMoney(_caja!.desembolsos)),
             ]),
           ),
           const SizedBox(height: 16),
@@ -90,7 +90,7 @@ class _CajaScreenState extends State<CajaScreen> {
             child: Column(children: [
               const Text('Efectivo Esperado',
                   style: TextStyle(color: Colors.white70, fontSize: 13)),
-              Text(formatMoney(_caja['efectivo_esperado'] ?? 0),
+              Text(formatMoney(_caja!.efectivoEsperado),
                   style: const TextStyle(
                       fontSize: 28, fontWeight: FontWeight.w700, color: Colors.white)),
             ]),
@@ -122,16 +122,16 @@ class _CajaScreenState extends State<CajaScreen> {
           // Diferencia
           if (_efectivoContado > 0) ...[
             premiumCard(
-              bgColor: _efectivoContado == (_caja['efectivo_esperado'] ?? 0)
+              bgColor: _efectivoContado == _caja!.efectivoEsperado
                   ? const Color(0xFFE8F5E9)
                   : const Color(0xFFFFEBEE),
               child: Column(children: [
                 const Text('Diferencia',
                     style: TextStyle(fontSize: 13, color: Color(0xFF79747E))),
-                Text(formatMoney(_efectivoContado - ((_caja['efectivo_esperado'] ?? 0) as num).toInt()),
+                Text(formatMoney(_efectivoContado - _caja!.efectivoEsperado),
                     style: TextStyle(
                         fontSize: 24, fontWeight: FontWeight.w700,
-                        color: _efectivoContado == (_caja['efectivo_esperado'] ?? 0)
+                        color: _efectivoContado == _caja!.efectivoEsperado
                             ? const Color(0xFF2E7D32)
                             : const Color(0xFFC62828))),
               ]),

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/models.dart';
+import '../models/caja_resultado.dart';
 import '../services/caja_service.dart';
 import '../services/jornada_service.dart';
 import '../services/pdf_service.dart';
-import '../services/sync_queue_service.dart';
 import '../theme/theme.dart';
 
 class JornadaCierreScreen extends StatefulWidget {
@@ -16,7 +16,7 @@ class JornadaCierreScreen extends StatefulWidget {
 }
 
 class _JornadaCierreScreenState extends State<JornadaCierreScreen> {
-  Map<String, dynamic> _caja = {};
+  CajaResultado? _caja;
   int _efectivoContado = 0;
   bool _cargando = true;
   final _motivoController = TextEditingController();
@@ -52,28 +52,18 @@ class _JornadaCierreScreenState extends State<JornadaCierreScreen> {
 
     setState(() => _cerrando = true);
     try {
-      final esperado = _caja['efectivo_esperado'] as int? ?? 0;
-      final diferencia = efectivo - esperado;
-
       await JornadaService.cerrarJornada(widget.jornada.id, efectivo,
           _motivoController.text.trim());
 
       setState(() => _jornadaCerrada = true);
 
-      await PdfService.generarPdfCierre(
-        _caja, widget.jornada.id, 'Ruta Demo', widget.cobradorNombre);
-      // PDF generado — en producción se compartiría
-
-      await SyncQueueService.enqueue('jornada', widget.jornada.id, {
-        'jornada_id': widget.jornada.id,
-        'contado': efectivo,
-        'esperado': esperado,
-        'diferencia': diferencia,
-      });
+      // PDF desde snapshot (usando datos tipados)
+      await PdfService.generarPdfDesdeCaja(
+        _caja!, widget.jornada.id, 'Ruta Demo', widget.cobradorNombre);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Jornada cerrada ✓')));
+            const SnackBar(content: Text('Jornada cerrada \u2713')));
       }
     } catch (e) {
       if (mounted) {
@@ -128,7 +118,7 @@ class _JornadaCierreScreenState extends State<JornadaCierreScreen> {
           ),
           const SizedBox(height: 20),
 
-          if (!_jornadaCerrada) ...[
+          if (!_jornadaCerrada && _caja != null) ...[
             // Summary cards
             Row(
               children: [
@@ -139,7 +129,7 @@ class _JornadaCierreScreenState extends State<JornadaCierreScreen> {
                       const Icon(Icons.payment, size: 20, color: Color(0xFF2E7D32)),
                       const SizedBox(height: 4),
                       const Text('Recaudo', style: TextStyle(fontSize: 11, color: Color(0xFF79747E))),
-                      Text(formatMoney(_caja['recaudo_real'] ?? 0),
+                      Text(formatMoney(_caja!.recaudoReal),
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF2E7D32))),
                     ]),
                   ),
@@ -152,7 +142,7 @@ class _JornadaCierreScreenState extends State<JornadaCierreScreen> {
                       const Icon(Icons.account_balance_wallet, size: 20, color: Color(0xFF1565C0)),
                       const SizedBox(height: 4),
                       const Text('Esperado', style: TextStyle(fontSize: 11, color: Color(0xFF79747E))),
-                      Text(formatMoney(_caja['efectivo_esperado'] ?? 0),
+                      Text(formatMoney(_caja!.efectivoEsperado),
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1565C0))),
                     ]),
                   ),
@@ -193,7 +183,7 @@ class _JornadaCierreScreenState extends State<JornadaCierreScreen> {
                 ),
               ]),
             ),
-          ] else ...[
+          ] else if (_jornadaCerrada) ...[
             premiumCard(
               bgColor: const Color(0xFFE8F5E9),
               child: Column(children: [

@@ -23,11 +23,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:sqflite/sqflite.dart' show DatabaseException;
 import 'package:daily_system/database/database.dart';
 import 'package:daily_system/services/caja_service.dart';
 import 'package:daily_system/services/pago_service.dart';
 import 'package:daily_system/services/jornada_service.dart';
-import 'package:daily_system/services/sync_queue_service.dart';
 import 'package:daily_system/models/models.dart';
 import 'package:daily_system/screens/jornada_cierre_screen.dart';
 
@@ -114,51 +114,47 @@ void main() {
       final caja = await CajaService.calcularCaja(jornadaId);
 
       print('===== CAJA EVIDENCIA (SERVICE TEST) =====');
-      print('opening_base: ${caja['opening_base']}');
-      print('opening_carry: ${caja['opening_carry']}');
-      print('recaudo_real: ${caja['recaudo_real']}');
-      print('reversales: ${caja['reversales']}');
-      print('gastos: ${caja['gastos']}');
-      print('ahorro: ${caja['ahorro']}');
-      print('vales: ${caja['vales']}');
-      print('entregas: ${caja['entregas']}');
-      print('recibidos: ${caja['recibidos']}');
-      print('desembolsos: ${caja['desembolsos']}');
-      print('efectivo_esperado: ${caja['efectivo_esperado']}');
+      print('opening_base: ${caja.openingBase}');
+      print('opening_carry: ${caja.openingCarry}');
+      print('recaudo_real: ${caja.recaudoReal}');
+      print('reversales: ${caja.reversales}');
+      print('gastos: ${caja.gastos}');
+      print('ahorro: ${caja.ahorro}');
+      print('vales: ${caja.vales}');
+      print('entregas: ${caja.entregas}');
+      print('recibidos: ${caja.recibidos}');
+      print('desembolsos: ${caja.desembolsos}');
+      print('efectivo_esperado: ${caja.efectivoEsperado}');
       print('=========================================');
 
-      expect(caja['opening_base'], equals(kOpeningBase));
-      expect(caja['opening_carry'], equals(kOpeningCarry));
-      expect(caja['recaudo_real'], equals(kPagoMonto));
-      expect(caja['reversales'], equals(kReversalMonto));
-      expect(caja['gastos'], equals(kGasolinaMonto));
-      expect(caja['ahorro'], equals(kAhorroMonto));
-      expect(caja['vales'], equals(0));
-      expect(caja['entregas'], equals(kEntregaMonto));
-      expect(caja['recibidos'], equals(kRecibidoMonto));
-      expect(caja['desembolsos'], equals(0));
+      expect(caja.openingBase, equals(kOpeningBase));
+      expect(caja.openingCarry, equals(kOpeningCarry));
+      expect(caja.recaudoReal, equals(kPagoMonto));
+      expect(caja.reversales, equals(kReversalMonto));
+      expect(caja.gastos, equals(kGasolinaMonto));
+      expect(caja.ahorro, equals(kAhorroMonto));
+      expect(caja.vales, equals(0));
+      expect(caja.entregas, equals(kEntregaMonto));
+      expect(caja.recibidos, equals(kRecibidoMonto));
+      expect(caja.desembolsos, equals(0));
 
       final esperadoCalculado = kOpeningBase + kOpeningCarry + kPagoMonto - kReversalMonto - kGasolinaMonto - kAhorroMonto - 0 - kEntregaMonto - 0 + kRecibidoMonto;
-      expect(caja['efectivo_esperado'], equals(esperadoCalculado));
-      expect(caja['efectivo_esperado'], equals(kEsperadoCanonico));
-      expect(caja['efectivo_esperado'], isNot(equals(0)),
+      expect(caja.efectivoEsperado, equals(esperadoCalculado));
+      expect(caja.efectivoEsperado, equals(kEsperadoCanonico));
+      expect(caja.efectivoEsperado, isNot(equals(0)),
           reason: 'efectivo_esperado debe calcularse desde CajaService, no ser 0');
     });
 
     test('CIERRE: JornadaService.cerrarJornada persiste esperado/contado/diferencia', () async {
       final db = await database;
-      await db.execute('CREATE TABLE IF NOT EXISTS sync_queue (id TEXT PRIMARY KEY, tipo TEXT NOT NULL, entidad_id TEXT NOT NULL, datos TEXT NOT NULL, creado_el TEXT NOT NULL, estado TEXT DEFAULT \'PENDIENTE_DE_SINCRONIZAR\')');
 
-      // Cerrar jornada
-      await JornadaService.cerrarJornada(jornadaId, kContadoInyectado, 'Cierre service test');
+      // Cerrar jornada — ahora retorna ResultadoCierre y crea sync_queue internamente
+      final resultado = await JornadaService.cerrarJornada(jornadaId, kContadoInyectado, 'Cierre service test');
 
-      // Enqueue
-      await SyncQueueService.enqueue('jornada', jornadaId, {
-        'jornada_id': jornadaId,
-        'contado': kContadoInyectado,
-        'esperado': kEsperadoCanonico,
-        'diferencia': kDiferenciaCanonica,
-      });
+      // Verificar resultado tipado
+      expect(resultado.efectivoEsperado, equals(kEsperadoCanonico));
+      expect(resultado.contado, equals(kContadoInyectado));
+      expect(resultado.diferencia, equals(kDiferenciaCanonica));
 
       // Verificar jornada
       final jornadas = await db.query('jornada', where: 'id = ?', whereArgs: [jornadaId]);
@@ -173,12 +169,19 @@ void main() {
           reason: 'diferencia = contado - esperado');
       expect(jornada['cerrada_local_el'], isNotNull);
 
-      // Verificar sync_queue
+      // Verificar sync_queue — cerradaJornada crea entrada con tipo 'jornada_cierre'
       final queues = await db.query('sync_queue',
           where: 'tipo = ? AND entidad_id = ?',
-          whereArgs: ['jornada', jornadaId]);
-      expect(queues.length, greaterThanOrEqualTo(1));
+          whereArgs: ['jornada_cierre', jornadaId]);
+      expect(queues.length, greaterThanOrEqualTo(1),
+          reason: 'cerrarJornada debe crear sync_queue de cierre');
       expect(queues.first['estado'], equals('PENDIENTE_DE_SINCRONIZAR'));
+
+      // Verificar snapshot inmutable
+      final snapshots = await db.query('jornada_snapshot', where: 'jornada_id = ?', whereArgs: [jornadaId]);
+      expect(snapshots.length, equals(1), reason: 'Debe existir snapshot inmutable');
+      expect(snapshots.first['efectivo_esperado'] as int, equals(kEsperadoCanonico),
+          reason: 'snapshot debe tener efectivo_esperado = 100000');
     });
   });
 
@@ -302,13 +305,12 @@ void main() {
       expect(pdfContent.startsWith('%PDF'), isTrue,
           reason: 'PDF debe tener encabezado %PDF válido');
 
-      // 6. Verificar sync_queue
-      await db.execute('CREATE TABLE IF NOT EXISTS sync_queue (id TEXT PRIMARY KEY, tipo TEXT NOT NULL, entidad_id TEXT NOT NULL, datos TEXT NOT NULL, creado_el TEXT NOT NULL, estado TEXT DEFAULT \'PENDIENTE_DE_SINCRONIZAR\')');
+      // 6. Verificar sync_queue — cerrarJornada crea entrada con tipo 'jornada_cierre'
       final queues = await db.query('sync_queue',
           where: 'tipo = ? AND entidad_id = ?',
-          whereArgs: ['jornada', jornadaId]);
+          whereArgs: ['jornada_cierre', jornadaId]);
       expect(queues.length, greaterThanOrEqualTo(1),
-          reason: 'sync_queue debe tener entrada PENDIENTE_DE_SINCRONIZAR');
+          reason: 'sync_queue debe tener entrada PENDIENTE_DE_SINCRONIZAR de cerrarJornada');
       expect(queues.first['estado'], equals('PENDIENTE_DE_SINCRONIZAR'));
     });
 
@@ -341,22 +343,26 @@ void main() {
       expect(jornadas.first['estado'], equals('CLOSED_LOCAL_PENDING_SYNC'));
     });
 
-    testWidgets('UI 4: Movimiento posterior a cierre bloqueado', (WidgetTester tester) async {
+    testWidgets('UI 4: Movimiento posterior a cierre bloqueado por trigger', (WidgetTester tester) async {
       final db = await database;
       // Contar movimientos antes
       final movsAntes = await db.query('movimiento', where: 'jornada_id = ?', whereArgs: [jornadaId]);
       final countAntes = movsAntes.length;
 
-      // Intentar insertar movimiento directamente
-      await db.insert('movimiento', {
-        'id': 'mov-post-cierre', 'negocio_id': negocioId, 'jornada_id': jornadaId,
-        'tipo': 'GASOLINA', 'monto': 5000, 'nota': 'Post cierre', 'creado_el': DateTime.now().toIso8601String(),
-      });
+      // Intentar insertar movimiento directamente — trigger lo bloquea
+      await expectLater(
+        () => db.insert('movimiento', {
+          'id': 'mov-post-cierre', 'negocio_id': negocioId, 'jornada_id': jornadaId,
+          'tipo': 'GASOLINA', 'monto': 5000, 'nota': 'Post cierre', 'creado_el': DateTime.now().toIso8601String(),
+        }),
+        throwsA(isA<DatabaseException>().having((e) => e.toString(), 'toString', contains('DS_JORNADA_NOT_OPEN'))),
+        reason: 'Trigger trg_movimiento_require_open_jornada bloquea INSERT en jornada cerrada',
+      );
 
-      // Verificar que se insertó (DB directa no bloquea)
+      // Verificar que NO se insertó
       final movsDespues = await db.query('movimiento', where: 'jornada_id = ?', whereArgs: [jornadaId]);
-      expect(movsDespues.length, greaterThan(countAntes),
-          reason: 'DB directa puede insertar, pero MovimientosScreen debe bloquear');
+      expect(movsDespues.length, equals(countAntes),
+          reason: 'Trigger impide inserción directa en jornada cerrada');
 
       // Verificar que la jornada no cambió
       final jornadas = await db.query('jornada', where: 'id = ?', whereArgs: [jornadaId]);

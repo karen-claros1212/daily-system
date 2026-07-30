@@ -1,9 +1,13 @@
 import 'package:sqflite/sqflite.dart';
 import '../database/database.dart';
+import '../models/caja_resultado.dart';
 
+/// Servicio inmutable de cálculo de caja.
+/// Retorna CajaResultado tipado. Acepta DatabaseExecutor opcional para uso dentro de transacciones.
 class CajaService {
-  static Future<Map<String, dynamic>> calcularCaja(String jornadaId) async {
-    final db = await database;
+  static Future<CajaResultado> calcularCaja(String jornadaId, {DatabaseExecutor? executor}) async {
+    final bool usarDb = executor == null;
+    final DatabaseExecutor db = usarDb ? await database : executor;
 
     // Opening base
     final jornadas = await db.query('jornada', limit: 1, where: 'id = ?', whereArgs: [jornadaId]);
@@ -69,25 +73,25 @@ class CajaService {
     final reversalesCount = await _count(db, 'pago', jornadaId, 'REVERSAL');
     final movimientosCount = await _countMovimientos(db, jornadaId);
 
-    return {
-      'opening_base': openingBase,
-      'opening_carry': openingCarry,
-      'recaudo_real': recaudoReal,
-      'reversales': totalReversales,
-      'gastos': gastos,
-      'ahorro': ahorro,
-      'vales': vales,
-      'entregas': entregas,
-      'recibidos': recibidos,
-      'desembolsos': desembolsos,
-      'efectivo_esperado': efectivoEsperado,
-      'pagos_count': pagosCount,
-      'reversales_count': reversalesCount,
-      'movimientos_count': movimientosCount,
-    };
+    return CajaResultado(
+      openingBase: openingBase,
+      openingCarry: openingCarry,
+      recaudoReal: recaudoReal,
+      reversales: totalReversales,
+      gastos: gastos,
+      ahorro: ahorro,
+      vales: vales,
+      entregas: entregas,
+      recibidos: recibidos,
+      desembolsos: desembolsos,
+      efectivoEsperado: efectivoEsperado,
+      pagosCount: pagosCount,
+      reversalesCount: reversalesCount,
+      movimientosCount: movimientosCount,
+    );
   }
 
-  static Future<int> _count(Database db, String table, String jornadaId, String tipo) async {
+  static Future<int> _count(DatabaseExecutor db, String table, String jornadaId, String tipo) async {
     final results = await db.query(table,
         columns: ['COUNT(*)'],
         where: 'jornada_id = ? AND tipo = ?',
@@ -95,7 +99,7 @@ class CajaService {
     return results.first['COUNT(*)'] as int;
   }
 
-  static Future<int> _countMovimientos(Database db, String jornadaId) async {
+  static Future<int> _countMovimientos(DatabaseExecutor db, String jornadaId) async {
     final results = await db.query('movimiento',
         columns: ['COUNT(*)'],
         where: 'jornada_id = ?',

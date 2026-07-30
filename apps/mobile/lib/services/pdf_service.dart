@@ -5,9 +5,11 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:intl/intl.dart';
+import '../models/caja_resultado.dart';
 
 class PdfService {
-  static Future<String> generarPdfCierre(Map<String, dynamic> caja,
+  /// Genera PDF desde CajaResultado tipado (fuente única de verdad).
+  static Future<String> generarPdfDesdeCaja(CajaResultado caja,
       String jornadaId, String rutaNombre, String cobradorNombre) async {
     final pdf = pw.Document();
     final fecha = DateFormat('dd/MM/yyyy').format(DateTime.now());
@@ -39,49 +41,73 @@ class PdfService {
         pw.SizedBox(height: 10),
         pw.Text('INFORME DE PAGOS', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 10),
-        pw.Text('Total pagos: \$${_formatMoney(caja['recaudo_real'])}', style: pw.TextStyle(fontSize: 12)),
-        pw.Text('Total reversales: \$${_formatMoney(caja['reversales'])}', style: pw.TextStyle(fontSize: 12)),
-        pw.Text('Pagos realizados: ${caja['pagos_count']}', style: pw.TextStyle(fontSize: 12)),
+        pw.Text('Total pagos: \$${_formatMoney(caja.recaudoReal)}', style: pw.TextStyle(fontSize: 12)),
+        pw.Text('Total reversales: \$${_formatMoney(caja.reversales)}', style: pw.TextStyle(fontSize: 12)),
+        pw.Text('Pagos realizados: ${caja.pagosCount}', style: pw.TextStyle(fontSize: 12)),
         pw.SizedBox(height: 20),
         pw.Divider(),
         pw.SizedBox(height: 10),
         pw.Text('MOVIMIENTOS DE CAJA', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 10),
-        pw.Text('Gastos: \$${_formatMoney(caja['gastos'])}', style: pw.TextStyle(fontSize: 12)),
-        pw.Text('Ahorro: \$${_formatMoney(caja['ahorro'])}', style: pw.TextStyle(fontSize: 12)),
-        pw.Text('Vales: \$${_formatMoney(caja['vales'])}', style: pw.TextStyle(fontSize: 12)),
-        pw.Text('Entregas: \$${_formatMoney(caja['entregas'])}', style: pw.TextStyle(fontSize: 12)),
-        pw.Text('Recibidos: \$${_formatMoney(caja['recibidos'])}', style: pw.TextStyle(fontSize: 12)),
-        pw.Text('Desembolsos: \$${_formatMoney(caja['desembolsos'])}', style: pw.TextStyle(fontSize: 12)),
+        pw.Text('Gastos: \$${_formatMoney(caja.gastos)}', style: pw.TextStyle(fontSize: 12)),
+        pw.Text('Ahorro: \$${_formatMoney(caja.ahorro)}', style: pw.TextStyle(fontSize: 12)),
+        pw.Text('Vales: \$${_formatMoney(caja.vales)}', style: pw.TextStyle(fontSize: 12)),
+        pw.Text('Entregas: \$${_formatMoney(caja.entregas)}', style: pw.TextStyle(fontSize: 12)),
+        pw.Text('Recibidos: \$${_formatMoney(caja.recibidos)}', style: pw.TextStyle(fontSize: 12)),
+        pw.Text('Desembolsos: \$${_formatMoney(caja.desembolsos)}', style: pw.TextStyle(fontSize: 12)),
         pw.SizedBox(height: 20),
         pw.Divider(),
         pw.SizedBox(height: 10),
-        pw.Text('TOTAL EFECTIVO ESPERADO: \$${_formatMoney(caja['efectivo_esperado'])}',
+        pw.Text('TOTAL EFECTIVO ESPERADO: \$${_formatMoney(caja.efectivoEsperado)}',
             style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 30),
         pw.Text('---', style: pw.TextStyle(fontSize: 10)),
-        pw.Text('Documento generado automáticamente por Daily System',
+        pw.Text('Documento generado automáticamente desde snapshot de Daily System',
             style: pw.TextStyle(fontSize: 8)),
       ],
     ));
 
     // Save to file
     final dir = await getApplicationDocumentsDirectory();
-    final fileName = 'cierre_jornada_${DateTime.now().millisecondsSinceEpoch}.pdf';
+    final fileName = 'cierre_jornada_${jornadaId}_${DateTime.now().millisecondsSinceEpoch}.pdf';
     final file = File('${dir.path}/$fileName');
     await file.writeAsBytes(await pdf.save());
 
     return file.path;
   }
 
-  static pw.Widget _buildCajaTable(Map<String, dynamic> caja) {
+  /// Método legacy para compatibilidad con tests antiguos.
+  @Deprecated('Usar generarPdfDesdeCaja')
+  static Future<String> generarPdfCierre(Map<String, dynamic> caja,
+      String jornadaId, String rutaNombre, String cobradorNombre) async {
+    // Convert Map to CajaResultado (legacy)
+    final cajaTyped = CajaResultado(
+      openingBase: caja['opening_base'] as int? ?? 0,
+      openingCarry: caja['opening_carry'] as int? ?? 0,
+      recaudoReal: caja['recaudo_real'] as int? ?? 0,
+      reversales: caja['reversales'] as int? ?? 0,
+      gastos: caja['gastos'] as int? ?? 0,
+      ahorro: caja['ahorro'] as int? ?? 0,
+      vales: caja['vales'] as int? ?? 0,
+      entregas: caja['entregas'] as int? ?? 0,
+      recibidos: caja['recibidos'] as int? ?? 0,
+      desembolsos: caja['desembolsos'] as int? ?? 0,
+      efectivoEsperado: caja['efectivo_esperado'] as int? ?? 0,
+      pagosCount: caja['pagos_count'] as int? ?? 0,
+      reversalesCount: caja['reversales_count'] as int? ?? 0,
+      movimientosCount: caja['movimientos_count'] as int? ?? 0,
+    );
+    return generarPdfDesdeCaja(cajaTyped, jornadaId, rutaNombre, cobradorNombre);
+  }
+
+  static pw.Widget _buildCajaTable(CajaResultado caja) {
     return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-      _pdfRow('Opening Base', '\$${_formatMoney(caja['opening_base'] as int)}'),
-      _pdfRow('Opening Carry', '\$${_formatMoney(caja['opening_carry'] as int)}'),
-      _pdfRow('Recaudo Real', '\$${_formatMoney(caja['recaudo_real'] as int)}'),
-      _pdfRow('Reversales', '\$${_formatMoney(caja['reversales'] as int)}'),
+      _pdfRow('Opening Base', '\$${_formatMoney(caja.openingBase)}'),
+      _pdfRow('Opening Carry', '\$${_formatMoney(caja.openingCarry)}'),
+      _pdfRow('Recaudo Real', '\$${_formatMoney(caja.recaudoReal)}'),
+      _pdfRow('Reversales', '\$${_formatMoney(caja.reversales)}'),
       pw.SizedBox(height: 8),
-      _pdfRowBold('Efectivo Esperado', '\$${_formatMoney(caja['efectivo_esperado'] as int)}'),
+      _pdfRowBold('Efectivo Esperado', '\$${_formatMoney(caja.efectivoEsperado)}'),
     ]);
   }
 
