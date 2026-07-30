@@ -14,8 +14,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String _cobradorNombre = '';
   String _rutaNombre = '';
-  bool _sinConexion = true;
-  bool _jornadaAbierta = false;
+  final bool _sinConexion = true;
+  final bool _jornadaAbierta = false;
 
   @override
   void initState() {
@@ -113,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           onPressed: () async {
                             final prefs = await SharedPreferences.getInstance();
                             await prefs.clear();
-                            if (mounted) Navigator.popUntil(context, (r) => r.isFirst);
+                            if (context.mounted) Navigator.popUntil(context, (r) => r.isFirst);
                           },
                           tooltip: 'Cerrar sesión',
                         ),
@@ -194,7 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Icon(Icons.done_all, color: Colors.white, size: 24),
@@ -237,7 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, color: color, size: 22),

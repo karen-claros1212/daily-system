@@ -1,14 +1,14 @@
-/// Migración v2: defensa en profundidad para M3.6 cierre definitivo.
-///
-/// Añade:
-/// 1. UNIQUE en pago.clave_idempotencia (ya existe en tables.dart, se verifica)
-/// 2. UNIQUE parcial para una sola reversión por pago original
-/// 3. UNIQUE en snapshot.jornada_id
-/// 4. Trigger que rechaza INSERT en pago cuando jornada no está OPEN
-/// 5. Trigger que rechaza INSERT en movimiento cuando jornada no está OPEN
-/// 6. Trigger que impide UPDATE del snapshot
-/// 7. Trigger que impide DELETE del snapshot
-/// 8. Tabla jornada_snapshot inmutable
+// Migración v2: defensa en profundidad para M3.6 cierre definitivo.
+//
+// Añade:
+// 1. UNIQUE en pago.clave_idempotencia (ya existe en tables.dart, se verifica)
+// 2. UNIQUE parcial para una sola reversión por pago original
+// 3. UNIQUE en snapshot.jornada_id
+// 4. Trigger que rechaza INSERT en pago cuando jornada no está OPEN
+// 5. Trigger que rechaza INSERT en movimiento cuando jornada no está OPEN
+// 6. Trigger que impide UPDATE del snapshot
+// 7. Trigger que impide DELETE del snapshot
+// 8. Tabla jornada_snapshot inmutable
 import 'package:sqflite/sqflite.dart';
 
 class MigrationV2 {

@@ -40,7 +40,7 @@ void main() {
                               constraints: const BoxConstraints(minHeight: 48),
                               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                               decoration: BoxDecoration(
-                                color: isSelected ? color : color.withOpacity(0.1),
+                                color: isSelected ? color : color.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(label, textAlign: TextAlign.center),

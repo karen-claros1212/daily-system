@@ -113,7 +113,7 @@ class _InicioScreenState extends State<InicioScreen> {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [AppColors.primary.withOpacity(0.05), AppColors.surface],
+              colors: [AppColors.primary.withValues(alpha: 0.05), AppColors.surface],
             ),
           ),
           child: const Center(child: CircularProgressIndicator(color: AppColors.primary)),
@@ -127,7 +127,7 @@ class _InicioScreenState extends State<InicioScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [AppColors.primary.withOpacity(0.05), AppColors.surface],
+            colors: [AppColors.primary.withValues(alpha: 0.05), AppColors.surface],
           ),
         ),
         child: SafeArea(
@@ -245,7 +245,7 @@ class _InicioScreenState extends State<InicioScreen> {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
+                              color: Colors.white.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(Icons.done_all, color: Colors.white, size: 22),
@@ -312,7 +312,7 @@ class _InicioScreenState extends State<InicioScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: color, size: 22),

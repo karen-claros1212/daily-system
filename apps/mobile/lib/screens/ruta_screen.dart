@@ -84,7 +84,7 @@ class _RutaScreenState extends State<RutaScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF2E7D32).withOpacity(0.1),
+                          color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(Icons.route, color: Color(0xFF2E7D32), size: 24),
@@ -119,27 +119,31 @@ class _RutaScreenState extends State<RutaScreen> {
     await prefs.setString('ruta_id', ruta.id);
     await prefs.setString('ruta_nombre', ruta.nombre);
 
-    if (!mounted) return;
+   if (!context.mounted) return;
 
     final jornada = await JornadaService.getJornadaAbierta(ruta.id);
 
-    if (jornada != null) {
-Navigator.pushReplacement(context,
-           MaterialPageRoute(builder: (_) => RutaActivaScreen(
-               ruta: ruta, jornada: jornada,
-               cobradorId: _cobradorId, cobradorNombre: _cobradorNombre,
-               negocioId: _negocioId)));
+ if (jornada != null) {
+      if (mounted && context.mounted) {
+        Navigator.pushReplacement(context,
+            MaterialPageRoute(builder: (_) => RutaActivaScreen(
+                ruta: ruta, jornada: jornada,
+                cobradorId: _cobradorId, cobradorNombre: _cobradorNombre,
+                negocioId: _negocioId)));
+      }
     } else {
       try {
         final newJornada = await JornadaService.abrirJornada(
             ruta.id, _cobradorId, _negocioId, 0);
-        Navigator.pushReplacement(context,
-            MaterialPageRoute(builder: (_) => RutaActivaScreen(
-                ruta: ruta, jornada: newJornada,
-                cobradorId: _cobradorId, cobradorNombre: _cobradorNombre,
-                negocioId: _negocioId)));
+        if (mounted && context.mounted) {
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => RutaActivaScreen(
+                  ruta: ruta, jornada: newJornada,
+                  cobradorId: _cobradorId, cobradorNombre: _cobradorNombre,
+                  negocioId: _negocioId)));
+        }
       } catch (e) {
-        if (mounted) {
+        if (mounted && context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Error: $e')));
         }

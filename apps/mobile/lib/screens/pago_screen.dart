@@ -164,7 +164,7 @@ class _PagoScreenState extends State<PagoScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2E7D32).withOpacity(0.1),
+                      color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.person, color: Color(0xFF2E7D32), size: 20),

@@ -68,7 +68,7 @@ class _MainShellState extends State<MainShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentSection.index,
         onDestinationSelected: (i) => setState(() => _currentSection = MainSection.values[i]),
-        indicatorColor: AppColors.primary.withOpacity(0.12),
+        indicatorColor: AppColors.primary.withValues(alpha: 0.12),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Inicio'),
           NavigationDestination(icon: Icon(Icons.payment_outlined), selectedIcon: Icon(Icons.payment), label: 'Cobros'),

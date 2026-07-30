@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:uuid/uuid.dart';
 import 'package:sqflite/sqflite.dart';
 import '../database/database.dart';
@@ -22,12 +23,12 @@ class PagoService {
   ///
   /// Si cualquier paso falla: no queda mutación parcial.
   static Future<Pago> registrarPago(String creditoId, String jornadaId, String cobradorId,
-      String negocioId, int monto, String nota) async {
+      String negocioId, int monto, String nota, {String? clienteIdempotenciaClave}) async {
     if (monto <= 0) {
       throw MontoInvalidoException(monto);
     }
 
-    final clave = _uuid.v4();
+    final clave = clienteIdempotenciaClave ?? _uuid.v4();
 
     final pago = Pago(
       id: uid(),
@@ -172,7 +173,7 @@ class PagoService {
       'id': uid(),
       'tipo': tipo,
       'entidad_id': entidadId,
-      'datos': datos.toString(),
+      'datos': jsonEncode(datos),
       'creado_el': DateTime.now().toIso8601String(),
       'estado': 'PENDIENTE_DE_SINCRONIZAR',
     });

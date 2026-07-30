@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:intl/intl.dart';
 import '../database/database.dart';
@@ -83,7 +85,7 @@ class JornadaService {
         'id': uid(),
         'tipo': 'jornada_cierre',
         'entidad_id': jornadaId,
-        'datos': '{"contado": $contado, "esperado": ${caja.efectivoEsperado}, "diferencia": $diferencia}',
+        'datos': jsonEncode({'contado': contado, 'esperado': caja.efectivoEsperado, 'diferencia': diferencia}),
         'creado_el': now,
         'estado': 'PENDIENTE_DE_SINCRONIZAR',
       });
@@ -133,16 +135,41 @@ class JornadaService {
       'movimientos_count': caja.movimientosCount,
       'cerrada_local_el': now,
       'version_esquema': 2,
-      'hash_content': _computeSnapshotHash(jornadaId),
+      'hash_content': _computeSnapshotHash(caja, jornadaMap['fecha'] as String,
+          jornadaMap['cobrador_id'] as String?,
+          jornadaMap['ruta_id'] as String,
+          contado, diferencia, diferenciaMotivo, now),
     });
   }
 
   static String _snapshotId(String jornadaId) => 'snapshot_$jornadaId';
 
-  static String _computeSnapshotHash(String jornadaId) {
-    // Hash estable basado en jornadaId + timestamp de cierre
-    // En producción se usaría hash de contenido completo
-    return 'sha256_${jornadaId}_${DateTime.now().millisecondsSinceEpoch}';
+  static String _computeSnapshotHash(CajaResultado caja, String fecha,
+      String? cobradorId, String rutaId, int contado, int diferencia,
+      String diferenciaMotivo, String cerradaLocalEl) {
+    final canonical = const JsonEncoder.withIndent('').convert({
+      'jornada_id': '',
+      'fecha': fecha,
+      'cobrador_id': cobradorId,
+      'ruta_id': rutaId,
+      'opening_base': caja.openingBase,
+      'opening_carry': caja.openingCarry,
+      'recaudo_real': caja.recaudoReal,
+      'reversales': caja.reversales,
+      'gastos': caja.gastos,
+      'ahorro': caja.ahorro,
+      'vales': caja.vales,
+      'entregas': caja.entregas,
+      'recibidos': caja.recibidos,
+      'desembolsos': caja.desembolsos,
+      'efectivo_esperado': caja.efectivoEsperado,
+      'contado': contado,
+      'diferencia': diferencia,
+      'diferencia_motivo': diferenciaMotivo,
+      'cerrada_local_el': cerradaLocalEl,
+    });
+    final bytes = sha256.convert(utf8.encode(canonical)).toString();
+    return bytes;
   }
 
   static Future<List<Jornada>> getJornadasHistorial(String rutaId) async {

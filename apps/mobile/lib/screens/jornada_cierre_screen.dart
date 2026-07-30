@@ -57,9 +57,8 @@ class _JornadaCierreScreenState extends State<JornadaCierreScreen> {
 
       setState(() => _jornadaCerrada = true);
 
-      // PDF desde snapshot (usando datos tipados)
-      await PdfService.generarPdfDesdeCaja(
-        _caja!, widget.jornada.id, 'Ruta Demo', widget.cobradorNombre);
+      // PDF recuperable desde snapshot inmutable
+      await PdfService.generarPdfDesdeSnapshot(widget.jornada.id);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -51,7 +51,7 @@ class AppColors {
   static const textDisabled = Color(0xFFCAC4D0);
 
   // Shadow
-  static Color shadow = Colors.black.withOpacity(0.08);
+  static Color shadow = Colors.black.withValues(alpha: 0.08);
 }
 
 // ── Shape Tokens ─────────────────────────────────────────────────
@@ -279,7 +279,7 @@ final ThemeData premiumTheme = ThemeData(
     onTertiaryContainer: AppColors.tertiaryDark,
     error: AppColors.danger,
     onError: Colors.white,
-    errorContainer: AppColors.danger.withOpacity(0.15),
+    errorContainer: AppColors.danger.withValues(alpha: 0.15),
     onErrorContainer: AppColors.danger,
     surface: AppColors.surface,
     onSurface: AppColors.textPrimary,
@@ -427,7 +427,7 @@ final ThemeData premiumTheme = ThemeData(
   // Scrollbar
   scrollbarTheme: ScrollbarThemeData(
     trackVisibility: const WidgetStatePropertyAll(true),
-    trackColor: WidgetStatePropertyAll(AppColors.outlineVariant.withOpacity(0.2)),
+    trackColor: WidgetStatePropertyAll(AppColors.outlineVariant.withValues(alpha: 0.2)),
     radius: const Radius.circular(4),
     thickness: WidgetStatePropertyAll(4),
   ),

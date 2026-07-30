@@ -125,7 +125,7 @@ class _LoginScreenState extends State<_LoginScreen> with SingleTickerProviderSta
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [AppColors.primary.withOpacity(0.08), AppColors.surface],
+            colors: [AppColors.primary.withValues(alpha: 0.08), AppColors.surface],
           ),
         ),
         child: SafeArea(
@@ -144,7 +144,7 @@ class _LoginScreenState extends State<_LoginScreen> with SingleTickerProviderSta
                         color: AppColors.primary,
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [BoxShadow(
-                          color: AppColors.primary.withOpacity(0.3),
+                          color: AppColors.primary.withValues(alpha: 0.3),
                           blurRadius: 20, offset: const Offset(0, 8),
                         )],
                       ),

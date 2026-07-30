@@ -91,7 +91,7 @@ class _HojaVivaScreenState extends State<HojaVivaScreen> {
                             color: color,
                             shape: BoxShape.circle,
                             boxShadow: [
-                              BoxShadow(color: color.withOpacity(0.4), blurRadius: 6),
+                              BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 6),
                             ],
                           ),
                         ),
@@ -159,9 +159,9 @@ class _HojaVivaScreenState extends State<HojaVivaScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(children: [
         Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),

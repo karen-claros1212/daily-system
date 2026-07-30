@@ -174,7 +174,7 @@ class _CobrosShellState extends State<CobrosShell> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
+                        color: AppColors.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(Icons.route, color: AppColors.primary, size: 24),
@@ -305,7 +305,7 @@ class _CobrosShellState extends State<CobrosShell> {
               constraints: const BoxConstraints(minHeight: 48),
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
               decoration: BoxDecoration(
-                color: selected ? color : color.withOpacity(0.1),
+                color: selected ? color : color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(label,

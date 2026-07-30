@@ -1,5 +1,5 @@
-/// Excepciones tipadas del dominio financiero.
-/// Reemplazan las exceptions genéricas con mensajes String dispersos.
+// Excepciones tipadas del dominio financiero.
+// Reemplazan las exceptions genéricas con mensajes String dispersos.
 
 /// La jornada no existe en la base de datos.
 class JornadaNoEncontradaException implements Exception {

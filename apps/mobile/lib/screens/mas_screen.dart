@@ -77,7 +77,7 @@ class _MasScreenState extends State<MasScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.history, color: AppColors.primary, size: 22),
@@ -106,7 +106,7 @@ class _MasScreenState extends State<MasScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.secondary.withOpacity(0.1),
+                  color: AppColors.secondary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.settings, color: AppColors.secondary, size: 22),
@@ -125,7 +125,7 @@ class _MasScreenState extends State<MasScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.tertiary.withOpacity(0.1),
+                  color: AppColors.tertiary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.info_outline, color: AppColors.tertiaryDark, size: 22),
@@ -152,7 +152,7 @@ class _MasScreenState extends State<MasScreen> {
             onPressed: () async {
               final prefs = await SharedPreferences.getInstance();
               await prefs.clear();
-              if (mounted) Navigator.popUntil(context, (r) => r.isFirst);
+              if (context.mounted) Navigator.popUntil(context, (r) => r.isFirst);
             },
             color: AppColors.danger,
             icon: Icons.logout,

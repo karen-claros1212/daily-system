@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:uuid/uuid.dart';
 import '../database/database.dart';
 import '../domain/domain_exceptions.dart';
@@ -55,7 +56,7 @@ class MovimientoService {
         'id': uid(),
         'tipo': 'movimiento',
         'entidad_id': id,
-        'datos': '{"tipo": "$tipo", "monto": $monto, "nota": "$nota"}',
+        'datos': jsonEncode({'tipo': tipo, 'monto': monto, 'nota': nota}),
         'creado_el': now,
         'estado': 'PENDIENTE_DE_SINCRONIZAR',
       });

@@ -72,7 +72,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.history, size: 64, color: const Color(0xFF79747E).withOpacity(0.5)),
+                  Icon(Icons.history, size: 64, color: const Color(0xFF79747E).withValues(alpha: 0.5)),
                   const SizedBox(height: 16),
                   const Text('No hay jornadas en el historial',
                       style: TextStyle(color: Color(0xFF79747E))),
@@ -82,7 +82,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
           : ListView.separated(
               padding: const EdgeInsets.all(12),
               itemCount: _jornadas.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 final j = _jornadas[index];
                 final color = _estadoColor(j.estado);
@@ -91,7 +91,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: color.withOpacity(0.1),
+                        color: color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(_estadoIcon(j.estado), color: color, size: 24),
@@ -108,7 +108,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: color.withOpacity(0.1),
+                              color: color.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(_estadoLabel(j.estado),

@@ -64,14 +64,20 @@ class _MovimientosScreenState extends State<MovimientosScreen> {
       });
       _cargarMovimientos();
     } on JornadaNoEncontradaException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.toString())));
+      }
     } on JornadaCerradaException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.toString())));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al registrar movimiento: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al registrar movimiento: $e')));
+      }
     }
   }
 
@@ -116,7 +122,7 @@ class _MovimientosScreenState extends State<MovimientosScreen> {
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: _tipo,
+                  initialValue: _tipo,
                   decoration: const InputDecoration(labelText: 'Tipo'),
                   items: _tipos.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
                   onChanged: (v) => setState(() => _tipo = v!),
@@ -146,7 +152,7 @@ class _MovimientosScreenState extends State<MovimientosScreen> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: _movimientoColor(m['tipo'] as String).withOpacity(0.1),
+                        color: _movimientoColor(m['tipo'] as String).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(_movimientoIcon(m['tipo'] as String),
