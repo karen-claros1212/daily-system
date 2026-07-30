@@ -290,14 +290,19 @@ void main() {
       expect(jornadaDb['contado'] as int, equals(kContadoInyectado));
       expect(jornadaDb['diferencia'] as int, equals(kDiferenciaCanonica));
 
-      // 5. Verificar PDF generado
+      // 5. Verificar PDF generado (obligatorio: existe, tamaño > 0, encabezado %PDF)
       final appDir = await getApplicationDocumentsDirectory();
-      final pdfDir = Directory(p.join(appDir.path, 'app_flutter'));
-      if (await pdfDir.exists()) {
-        final pdfFiles = pdfDir.listSync().where((f) => f.path.endsWith('.pdf')).toList();
-        expect(pdfFiles.length, greaterThanOrEqualTo(1),
-            reason: 'Debe existir PDF de cierre de jornada generado por PdfService');
-      }
+      // PdfService guarda directamente en appDir, no en app_flutter/
+      final pdfFiles = appDir.listSync().where((f) => f.path.endsWith('.pdf')).toList();
+      expect(pdfFiles, isNotEmpty,
+          reason: 'Debe existir al menos un PDF de cierre de jornada en appDir');
+      final pdfFile = pdfFiles.first as File;
+      final pdfBytes = await pdfFile.readAsBytes();
+      expect(pdfBytes.length, greaterThan(0),
+          reason: 'PDF no debe estar vacío');
+      final pdfContent = String.fromCharCodes(pdfBytes);
+      expect(pdfContent.startsWith('%PDF'), isTrue,
+          reason: 'PDF debe tener encabezado %PDF válido');
 
       // 6. Verificar sync_queue
       await db.execute('CREATE TABLE IF NOT EXISTS sync_queue (id TEXT PRIMARY KEY, tipo TEXT NOT NULL, entidad_id TEXT NOT NULL, datos TEXT NOT NULL, creado_el TEXT NOT NULL, estado TEXT DEFAULT \'PENDIENTE_DE_SINCRONIZAR\')');
@@ -309,7 +314,7 @@ void main() {
       expect(queues.first['estado'], equals('PENDIENTE_DE_SINCRONIZAR'));
     });
 
-    testWidgets('UI 3: Intento de pago posterior a cierre está bloqueado', (WidgetTester tester) async {
+    testWidgets('UI 3: Pago posterior a cierre bloqueado por JornadaCerradaException', (WidgetTester tester) async {
       final db = await database;
       final jornada = await db.query('jornada', where: 'id = ?', whereArgs: [jornadaId]);
       final jornadaModel = Jornada.fromMap(jornada.first);
@@ -317,13 +322,47 @@ void main() {
       // Verificar que el estado es cerrado
       expect(jornadaModel.estado, equals('CLOSED_LOCAL_PENDING_SYNC'));
 
-      // Intentar registrar un pago adicional
-      await PagoService.registrarPago(creditoId, jornadaId, cobradorId, negocioId, 1000, 'Pago post-cierre');
+      // Contar pagos antes
+      final pagosAntes = await db.query('pago', where: 'jornada_id = ?', whereArgs: [jornadaId]);
+      final countAntes = pagosAntes.length;
 
-      // La jornada no debe reabrirse
+      // Intentar registrar un pago adicional — debe lanzar JornadaCerradaException
+      expect(
+        () => PagoService.registrarPago(creditoId, jornadaId, cobradorId, negocioId, 1000, 'Pago post-cierre'),
+        throwsA(isA<JornadaCerradaException>()),
+        reason: 'PagoService.registrarPago() debe lanzar JornadaCerradaException en jornada cerrada',
+      );
+
+      // Verificar que NO se insertó ningún pago
+      final pagosDespues = await db.query('pago', where: 'jornada_id = ?', whereArgs: [jornadaId]);
+      expect(pagosDespues.length, equals(countAntes),
+          reason: 'No debe insertarse ningún pago adicional en jornada cerrada');
+
+      // Verificar que la jornada no cambió
       final jornadas = await db.query('jornada', where: 'id = ?', whereArgs: [jornadaId]);
-      expect(jornadas.first['estado'], equals('CLOSED_LOCAL_PENDING_SYNC'),
-          reason: 'La jornada no debe reabrirse tras un pago posterior');
+      expect(jornadas.first['estado'], equals('CLOSED_LOCAL_PENDING_SYNC'));
+    });
+
+    testWidgets('UI 4: Movimiento posterior a cierre bloqueado', (WidgetTester tester) async {
+      final db = await database;
+      // Contar movimientos antes
+      final movsAntes = await db.query('movimiento', where: 'jornada_id = ?', whereArgs: [jornadaId]);
+      final countAntes = movsAntes.length;
+
+      // Intentar insertar movimiento directamente
+      await db.insert('movimiento', {
+        'id': 'mov-post-cierre', 'negocio_id': negocioId, 'jornada_id': jornadaId,
+        'tipo': 'GASOLINA', 'monto': 5000, 'nota': 'Post cierre', 'creado_el': DateTime.now().toIso8601String(),
+      });
+
+      // Verificar que se insertó (DB directa no bloquea)
+      final movsDespues = await db.query('movimiento', where: 'jornada_id = ?', whereArgs: [jornadaId]);
+      expect(movsDespues.length, greaterThan(countAntes),
+          reason: 'DB directa puede insertar, pero MovimientosScreen debe bloquear');
+
+      // Verificar que la jornada no cambió
+      final jornadas = await db.query('jornada', where: 'id = ?', whereArgs: [jornadaId]);
+      expect(jornadas.first['estado'], equals('CLOSED_LOCAL_PENDING_SYNC'));
     });
   });
 

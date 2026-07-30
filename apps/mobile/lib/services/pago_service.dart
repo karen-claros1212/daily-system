@@ -3,12 +3,25 @@ import 'package:uuid/uuid.dart';
 import '../database/database.dart';
 import '../models/models.dart';
 
+/// Verifica que la jornada esté abierta antes de cualquier mutación financiera.
+/// Lanza [JornadaCerradaException] si la jornada ya fue cerrada.
+Future<void> _checkJornadaAbierta(Database db, String jornadaId) async {
+  final jornadas = await db.query('jornada', limit: 1, where: 'id = ?', whereArgs: [jornadaId]);
+  if (jornadas.isEmpty) throw Exception('Jornada no encontrada: $jornadaId');
+  final estado = jornadas.first['estado'] as String;
+  if (estado != 'OPEN') {
+    throw JornadaCerradaException(
+        'No se pueden registrar pagos en una jornada cerrada (estado: $estado)');
+  }
+}
+
 final _uuid = Uuid();
 
 class PagoService {
   static Future<Pago> registrarPago(String creditoId, String jornadaId, String cobradorId,
       String negocioId, int monto, String nota) async {
     final db = await database;
+    await _checkJornadaAbierta(db, jornadaId);
     final clave = _uuid.v4();
 
     final pago = Pago(
@@ -51,6 +64,7 @@ class PagoService {
   static Future<Pago> reversarPago(String pagoId, String jornadaId, String cobradorId,
       String negocioId, String motivo) async {
     final db = await database;
+    await _checkJornadaAbierta(db, jornadaId);
 
     // Get original payment
     final pagos = await db.query('pago', limit: 1, where: 'id = ?', whereArgs: [pagoId]);

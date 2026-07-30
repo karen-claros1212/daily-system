@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../database/database.dart';
 import '../theme/theme.dart';
 import '../services/sync_queue_service.dart';
+import '../models/models.dart';
 
 final _uuidMov = Uuid();
 
@@ -50,10 +51,21 @@ class _MovimientosScreenState extends State<MovimientosScreen> {
     if (monto == null || monto <= 0) return;
 
     final db = await database;
+    final jornadas = await db.query('jornada', limit: 1, where: 'id = ?', whereArgs: [widget.jornadaId]);
+    if (jornadas.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Jornada no encontrada')));
+      return;
+    }
+    final estado = jornadas.first['estado'] as String;
+    if (estado != 'OPEN') {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pueden registrar movimientos en una jornada cerrada (estado: $estado)')));
+      return;
+    }
     final id = _uuidMov.v4();
     final now = DateTime.now().toIso8601String();
-    final jornadas = await db.query('jornada', limit: 1, where: 'id = ?', whereArgs: [widget.jornadaId]);
-    final negocioId = jornadas.isNotEmpty ? (jornadas.first['negocio_id'] as String?) : null;
+    final negocioId = jornadas.first['negocio_id'] as String?;
     await db.insert('movimiento', {
       'id': id,
       'negocio_id': negocioId,

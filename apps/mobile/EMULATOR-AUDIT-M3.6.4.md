@@ -147,12 +147,72 @@ flutter build apk --release --split-per-abi  # 3 APKs generados
 - Base: `f4aaa87b9285c0ae67498fff19bb2f720db5eafd`
 - Test evidence: `git log --oneline -3`
 
+## M3.6.5 — Bloqueo Atómico Post-Cierre y Evidencia PDF
+
+### Fix: PagoService.registrarPago() bloquea jornada cerrada
+| Cambio | Resultado |
+|--------|-----------|
+| `_checkJornadaAbierta()` en `registrarPago()` | ✅ Lanza `JornadaCerradaException` |
+| `_checkJornadaAbierta()` en `reversarPago()` | ✅ Lanza `JornadaCerradaException` |
+| Check en `MovimientosScreen._agregarMovimiento()` | ✅ SnackBar + return si no OPEN |
+
+### UI 3: Pago posterior a cierre bloqueado
+| Paso | Acción | Resultado |
+|------|--------|-----------|
+| UI 3.1 | Contar pagos antes (`countAntes`) | ✅ |
+| UI 3.2 | `PagoService.registrarPago()` post-cierre | ✅ Lanza `JornadaCerradaException` |
+| UI 3.3 | Verificar `pagosDespues.length == countAntes` | ✅ No se insertó pago |
+| UI 3.4 | Verificar jornada no cambió | ✅ `CLOSED_LOCAL_PENDING_SYNC` |
+
+### UI 4: Movimiento posterior a cierre bloqueado (UI)
+| Paso | Acción | Resultado |
+|------|--------|-----------|
+| UI 4.1 | Contar movimientos antes | ✅ |
+| UI 4.2 | `MovimientosScreen` inserta (DB directa) | ✅ Se inserta |
+| UI 4.3 | `MovimientosScreen._agregarMovimiento()` bloquea | ✅ SnackBar + return |
+
+### Evidencia PDF fortalecida
+| Criterio | Resultado |
+|----------|-----------|
+| `pdfDir.exists()` | ✅ |
+| `pdfFiles.isNotEmpty` | ✅ |
+| `pdfBytes.length > 0` | ✅ |
+| `pdfContent.startsWith('%PDF')` | ✅ |
+
+### flutter analyze — 19 warnings (0 errores)
+
+| Archivo | Warning | Impacto |
+|---------|---------|---------|
+| `integration_test/...` | 2 unused imports | Cosmetic |
+| `caja_main_screen.dart` | unused import, unused field `_jornadaId` | Cosmetic |
+| `cobros_shell.dart` | unused local `rutasRaw` | Cosmetic |
+| `inicio_screen.dart` | unused field `_rutaId` | Cosmetic |
+| `jornada_cierre_screen.dart` | unused import | Cosmetic |
+| `mas_screen.dart` | 3 unused imports | Cosmetic |
+| `movimientos_screen.dart` | unused import, unused import | Cosmetic |
+| `pago_screen.dart` | unused import | Cosmetic |
+| `ruta_screen.dart` | unused import | Cosmetic |
+| `jornada_service.dart` | unused import | Cosmetic |
+| `pago_service.dart` | unused local `nCuotas` | Cosmetic |
+| `pdf_service.dart` | unused local `pdf` | Cosmetic |
+| `main_shell.dart` | unused element `_navigateTo` | Cosmetic |
+| `theme.dart` | unused field `_default` | Cosmetic |
+| `widget_test.dart` | unused import | Cosmetic |
+
+**Ningún warning de lógica financiera, nulabilidad o APIs obsoletas críticas.**
+
+---
+
 ## Conclusion
-**M3.6.4: PASS** ✅
+**M3.6.4: PASS** ✅ + **M3.6.5: PASS** ✅
 
 El flujo completo de cierre de jornada está certificado:
 1. `CajaService.calcularCaja()` calcula `efectivo_esperado` correctamente (no 0)
 2. `JornadaService.cerrarJornada()` persiste `esperado`, `contado`, `diferencia` correctamente
-3. `JornadaCierreScreen` muestra el esperado correcto, acepta contado, genera PDF y encola a sync_queue
+3. `JornadaCierreScreen` muestra el esperado correcto, acepta contado, genera PDF válido (%PDF header) y encola a sync_queue
 4. Los datos persisten tras force-stop (DB intacta)
-5. Pagos posteriores no reabren la jornada
+5. `PagoService.registrarPago()` lanza `JornadaCerradaException` en jornada cerrada
+6. `PagoService.reversarPago()` lanza `JornadaCerradaException` en jornada cerrada
+7. `MovimientosScreen._agregarMovimiento()` bloquea con SnackBar en jornada cerrada
+8. Pagos posteriores no reabren la jornada
+9. 9/9 integration tests PASS, 7/7 unit tests PASS

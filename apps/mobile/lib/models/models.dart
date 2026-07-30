@@ -157,6 +157,13 @@ class Movimiento {
       Movimiento(id: m['id'] as String, negocioId: m['negocio_id'] as String, jornadaId: m['jornada_id'] as String?, tipo: m['tipo'] as String, naturaleza: m['naturaleza'] as String?, monto: m['monto'] as int, nota: m['nota'] as String?, claveIdempotencia: m['clave_idempotencia'] as String?, creadoPor: m['creado_por'] as String?, creadoEl: m['creado_el'] as String?);
 }
 
+class JornadaCerradaException implements Exception {
+  final String message;
+  JornadaCerradaException(this.message);
+  @override
+  String toString() => 'JornadaCerradaException: $message';
+}
+
 class SyncQueueItem {
   final String id;
   final String tipo;
