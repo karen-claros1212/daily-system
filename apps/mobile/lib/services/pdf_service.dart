@@ -1,9 +1,12 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:crypto/crypto.dart';
+import 'package:uuid/uuid.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
-import 'dart:io';
 import 'package:intl/intl.dart';
 import '../models/caja_resultado.dart';
 import '../database/database.dart';
@@ -77,20 +80,59 @@ class PdfService {
     return file.path;
   }
 
+  /// Registra documento PDF en jornada_documento.
+  static Future<void> _registrarDocumento(
+      String jornadaId, String estado, String? ruta, String? hashSha256,
+      String? error, String generadoEl) async {
+    final db = await database;
+    final id = _uuidV4();
+    try {
+      await db.insert('jornada_documento', {
+        'id': id,
+        'jornada_id': jornadaId,
+        'tipo': 'PDF_CIERRE',
+        'estado': estado,
+        'ruta': ruta,
+        'hash_sha256': hashSha256,
+        'bytes_b64': null,
+        'error': error,
+        'creado_el': generadoEl,
+        'generado_el': generadoEl,
+      });
+    } catch (e) {
+      // UNIQUE constraint puede fallar si ya existe; actualizar estado
+      await db.update('jornada_documento', {
+        'estado': estado,
+        'ruta': ruta,
+        'hash_sha256': hashSha256,
+        'error': error,
+        'generado_el': generadoEl,
+      }, where: 'jornada_id = ? AND tipo = ?', whereArgs: [jornadaId, 'PDF_CIERRE']);
+    }
+  }
+
   /// Genera PDF recuperable desde la fila inmutable jornada_snapshot.
   ///
-  /// Usa la fecha almacenada en el snapshot (no DateTime.now()),
-  /// el hash_content como parte del nombre de archivo,
-  /// y todos los datos numéricos directamente desde la fila.
+  /// Flujo completo:
+  /// 1. Verifica hash_content del snapshot contra hash recomputado
+  /// 2. Verifica si PDF existente existe en disco y es válido
+  /// 3. Genera PDF desde snapshot si no existe o está corrupto
+  /// 4. Registra en jornada_documento con estado GENERATED/PENDING
   static Future<String> generarPdfDesdeSnapshot(String jornadaId) async {
     final db = await database;
+    final now = DateTime.now().toIso8601String();
+
+    // 1. Obtener snapshot
     final results = await db.query('jornada_snapshot',
         where: 'jornada_id = ?', whereArgs: [jornadaId], limit: 1);
     if (results.isEmpty) {
+      await _registrarDocumento(jornadaId, 'FAILED_PERMANENT', null, null,
+          'Snapshot no encontrado para jornada: $jornadaId', now);
       throw Exception('Snapshot no encontrado para jornada: $jornadaId');
     }
     final snap = results.first;
 
+    // 2. Validar hash_content del snapshot
     final caja = CajaResultado(
       openingBase: snap['opening_base'] as int? ?? 0,
       openingCarry: snap['opening_carry'] as int? ?? 0,
@@ -109,14 +151,39 @@ class PdfService {
     );
 
     final fecha = snap['fecha'] as String? ?? 'desconocida';
-    final hash = snap['hash_content'] as String? ?? jornadaId;
-    final rutaNombre = snap['ruta_id'] as String? ?? 'Ruta Demo';
-    final cobradorNombre = snap['cobrador_id'] as String? ?? 'Cobrador';
+    final cobradorId = snap['cobrador_id'] as String?;
+    final rutaId = snap['ruta_id'] as String? ?? 'Ruta Demo';
     final contado = snap['contado'] as int? ?? 0;
     final diferencia = snap['diferencia'] as int? ?? 0;
     final diferenciaMotivo = snap['diferencia_motivo'] as String? ?? '';
+    final storedHash = snap['hash_content'] as String?;
 
+    final recomputedHash = _computeCanonicalHash(
+        caja, fecha, cobradorId, rutaId, contado, diferencia, diferenciaMotivo, now);
+
+    // Verificar hash (solo log, no aborta)
+    if (storedHash != null && storedHash != recomputedHash) {
+      // Hash mismatch — snapshot puede estar corrupto
+      await _registrarDocumento(jornadaId, 'FAILED_RETRYABLE', null,
+          recomputedHash, 'Hash mismatch: stored=$storedHash computed=$recomputedHash', now);
+    }
+
+    // 3. Verificar PDF existente en disco
+    final existingPdfPath = await _findExistingPdf(jornadaId, storedHash);
+    if (existingPdfPath != null && await File(existingPdfPath).exists()) {
+      final fileSize = await File(existingPdfPath).length();
+      if (fileSize > 1024) {
+        // PDF existente válido (mayor que 1KB)
+        await _registrarDocumento(jornadaId, 'GENERATED', existingPdfPath,
+            storedHash, null, now);
+        return existingPdfPath;
+      }
+    }
+
+    // 4. Generar PDF desde snapshot
     final pdf = pw.Document();
+    final rutaNombre = rutaId;
+    final cobradorNombre = cobradorId ?? 'Cobrador';
 
     pdf.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a5,
@@ -127,37 +194,56 @@ class PdfService {
         pw.Row(children: [
           pw.Text('Fecha: $fecha', style: pw.TextStyle(fontSize: 12)),
           pw.SizedBox(width: 20),
-          pw.Text('Hash: ${hash.substring(0, 16)}...', style: pw.TextStyle(fontSize: 9)),
+          pw.Text('Hash: ${storedHash?.substring(0, 16) ?? 'N/A'}...',
+              style: pw.TextStyle(fontSize: 9)),
         ]),
         pw.SizedBox(height: 10),
         pw.Divider(),
         pw.SizedBox(height: 10),
-        pw.Text('RUTA: $rutaNombre', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-        pw.Text('COBRADOR: $cobradorNombre', style: pw.TextStyle(fontSize: 12)),
-        pw.Text('JORNADA ID: $jornadaId', style: pw.TextStyle(fontSize: 10)),
+        pw.Text('RUTA: $rutaNombre',
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+        pw.Text('COBRADOR: $cobradorNombre',
+            style: pw.TextStyle(fontSize: 12)),
+        pw.Text('JORNADA ID: $jornadaId',
+            style: pw.TextStyle(fontSize: 10)),
         pw.SizedBox(height: 20),
-        pw.Text('RESUMEN DE CAJA', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+        pw.Text('RESUMEN DE CAJA',
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 10),
         _buildCajaTable(caja),
         pw.SizedBox(height: 20),
         pw.Divider(),
         pw.SizedBox(height: 10),
-        pw.Text('INFORME DE PAGOS', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+        pw.Text('INFORME DE PAGOS',
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 10),
-        pw.Text('Total pagos: \$${_formatMoney(caja.recaudoReal)}', style: pw.TextStyle(fontSize: 12)),
-        pw.Text('Total reversales: \$${_formatMoney(caja.reversales)}', style: pw.TextStyle(fontSize: 12)),
-        pw.Text('Pagos realizados: ${caja.pagosCount}', style: pw.TextStyle(fontSize: 12)),
+        pw.Text(
+            'Total pagos: \$${_formatMoney(caja.recaudoReal)}',
+            style: pw.TextStyle(fontSize: 12)),
+        pw.Text(
+            'Total reversales: \$${_formatMoney(caja.reversales)}',
+            style: pw.TextStyle(fontSize: 12)),
+        pw.Text(
+            'Pagos realizados: ${caja.pagosCount}',
+            style: pw.TextStyle(fontSize: 12)),
         pw.SizedBox(height: 20),
         pw.Divider(),
         pw.SizedBox(height: 10),
-        pw.Text('MOVIMIENTOS DE CAJA', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+        pw.Text('MOVIMIENTOS DE CAJA',
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 10),
-        pw.Text('Gastos: \$${_formatMoney(caja.gastos)}', style: pw.TextStyle(fontSize: 12)),
-        pw.Text('Ahorro: \$${_formatMoney(caja.ahorro)}', style: pw.TextStyle(fontSize: 12)),
-        pw.Text('Vales: \$${_formatMoney(caja.vales)}', style: pw.TextStyle(fontSize: 12)),
-        pw.Text('Entregas: \$${_formatMoney(caja.entregas)}', style: pw.TextStyle(fontSize: 12)),
-        pw.Text('Recibidos: \$${_formatMoney(caja.recibidos)}', style: pw.TextStyle(fontSize: 12)),
-        pw.Text('Desembolsos: \$${_formatMoney(caja.desembolsos)}', style: pw.TextStyle(fontSize: 12)),
+        pw.Text('Gastos: \$${_formatMoney(caja.gastos)}',
+            style: pw.TextStyle(fontSize: 12)),
+        pw.Text('Ahorro: \$${_formatMoney(caja.ahorro)}',
+            style: pw.TextStyle(fontSize: 12)),
+        pw.Text('Vales: \$${_formatMoney(caja.vales)}',
+            style: pw.TextStyle(fontSize: 12)),
+        pw.Text('Entregas: \$${_formatMoney(caja.entregas)}',
+            style: pw.TextStyle(fontSize: 12)),
+        pw.Text('Recibidos: \$${_formatMoney(caja.recibidos)}',
+            style: pw.TextStyle(fontSize: 12)),
+        pw.Text('Desembolsos: \$${_formatMoney(caja.desembolsos)}',
+            style: pw.TextStyle(fontSize: 12)),
         pw.SizedBox(height: 20),
         pw.Divider(),
         pw.SizedBox(height: 10),
@@ -168,9 +254,10 @@ class PdfService {
             style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 10),
         pw.Text('Diferencia: \$${_formatMoney(diferencia)}',
-            style: pw.TextStyle(fontSize: 14,
-                fontWeight: pw.FontWeight.bold,
-                color: diferencia == 0 ? PdfColor.fromHex('2E7D32') : PdfColor.fromHex('C62828'))),
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold,
+                color: diferencia == 0
+                    ? PdfColor.fromHex('2E7D32')
+                    : PdfColor.fromHex('C62828'))),
         if (diferenciaMotivo.isNotEmpty) ...[
           pw.SizedBox(height: 5),
           pw.Text('Motivo: $diferenciaMotivo',
@@ -183,14 +270,78 @@ class PdfService {
       ],
     ));
 
+    // 5. Guardar PDF en disco
     final dir = await getApplicationDocumentsDirectory();
-    final safeHash = hash.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
+    final safeHash = storedHash?.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_') ?? jornadaId;
     final fileName = 'cierre_${jornadaId}_${safeHash.substring(0, 16)}.pdf';
     final file = File('${dir.path}/$fileName');
-    await file.writeAsBytes(await pdf.save());
+    final bytes = await pdf.save();
 
-    return file.path;
+    try {
+      await file.writeAsBytes(bytes);
+      final pdfSha256 = sha256.convert(bytes).toString();
+      await _registrarDocumento(jornadaId, 'GENERATED', file.path,
+          pdfSha256, null, now);
+      return file.path;
+    } catch (e) {
+      await _registrarDocumento(jornadaId, 'FAILED_RETRYABLE', null,
+          null, 'Error al guardar PDF: $e', now);
+      rethrow;
+    }
   }
+
+  /// Busca PDF existente para esta jornada (por hash o nombre).
+  static Future<String?> _findExistingPdf(String jornadaId, String? storedHash) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final prefix = 'cierre_${jornadaId}_';
+    final dirHandle = Directory('${dir.path}/');
+    final files = await dirHandle.list().toList();
+
+    for (final entity in files) {
+      if (entity is File) {
+        final name = entity.path.split('/').last;
+        if (!name.startsWith(prefix)) continue;
+        // Si tenemos hash almacenado, buscar archivo con ese hash en el nombre
+        if (storedHash != null && name.contains(storedHash.substring(0, 8))) {
+          return entity.path;
+        }
+        // Si no hay hash, cualquier archivo con prefix cuenta
+        if (storedHash == null) {
+          return entity.path;
+        }
+      }
+    }
+    return null;
+  }
+
+  static String _computeCanonicalHash(CajaResultado caja, String fecha,
+      String? cobradorId, String rutaId, int contado, int diferencia,
+      String diferenciaMotivo, String cerradaLocalEl) {
+    final canonical = const JsonEncoder.withIndent('').convert({
+      'jornada_id': '',
+      'fecha': fecha,
+      'cobrador_id': cobradorId,
+      'ruta_id': rutaId,
+      'opening_base': caja.openingBase,
+      'opening_carry': caja.openingCarry,
+      'recaudo_real': caja.recaudoReal,
+      'reversales': caja.reversales,
+      'gastos': caja.gastos,
+      'ahorro': caja.ahorro,
+      'vales': caja.vales,
+      'entregas': caja.entregas,
+      'recibidos': caja.recibidos,
+      'desembolsos': caja.desembolsos,
+      'efectivo_esperado': caja.efectivoEsperado,
+      'contado': contado,
+      'diferencia': diferencia,
+      'diferencia_motivo': diferenciaMotivo,
+      'cerrada_local_el': cerradaLocalEl,
+    });
+    return sha256.convert(utf8.encode(canonical)).toString();
+  }
+
+  static String _uuidV4() => const Uuid().v4();
 
   /// Método legacy para compatibilidad con tests antiguos.
   @Deprecated('Usar generarPdfDesdeCaja')

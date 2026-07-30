@@ -113,35 +113,35 @@ void main() {
     test('CAJA 2: efectivo_esperado calculado por CajaService ≠ 0', () async {
       final caja = await CajaService.calcularCaja(jornadaId);
 
-      print('===== CAJA EVIDENCIA (SERVICE TEST) =====');
-      print('opening_base: ${caja.openingBase}');
-      print('opening_carry: ${caja.openingCarry}');
-      print('recaudo_real: ${caja.recaudoReal}');
-      print('reversales: ${caja.reversales}');
-      print('gastos: ${caja.gastos}');
-      print('ahorro: ${caja.ahorro}');
-      print('vales: ${caja.vales}');
-      print('entregas: ${caja.entregas}');
-      print('recibidos: ${caja.recibidos}');
-      print('desembolsos: ${caja.desembolsos}');
-      print('efectivo_esperado: ${caja.efectivoEsperado}');
-      print('=========================================');
+      final evidencia = {
+        'opening_base': caja.openingBase,
+        'opening_carry': caja.openingCarry,
+        'recaudo_real': caja.recaudoReal,
+        'reversales': caja.reversales,
+        'gastos': caja.gastos,
+        'ahorro': caja.ahorro,
+        'vales': caja.vales,
+        'entregas': caja.entregas,
+        'recibidos': caja.recibidos,
+        'desembolsos': caja.desembolsos,
+        'efectivo_esperado': caja.efectivoEsperado,
+      };
 
-      expect(caja.openingBase, equals(kOpeningBase));
-      expect(caja.openingCarry, equals(kOpeningCarry));
-      expect(caja.recaudoReal, equals(kPagoMonto));
-      expect(caja.reversales, equals(kReversalMonto));
-      expect(caja.gastos, equals(kGasolinaMonto));
-      expect(caja.ahorro, equals(kAhorroMonto));
-      expect(caja.vales, equals(0));
-      expect(caja.entregas, equals(kEntregaMonto));
-      expect(caja.recibidos, equals(kRecibidoMonto));
-      expect(caja.desembolsos, equals(0));
+      expect(evidencia['opening_base'], equals(kOpeningBase));
+      expect(evidencia['opening_carry'], equals(kOpeningCarry));
+      expect(evidencia['recaudo_real'], equals(kPagoMonto));
+      expect(evidencia['reversales'], equals(kReversalMonto));
+      expect(evidencia['gastos'], equals(kGasolinaMonto));
+      expect(evidencia['ahorro'], equals(kAhorroMonto));
+      expect(evidencia['vales'], equals(0));
+      expect(evidencia['entregas'], equals(kEntregaMonto));
+      expect(evidencia['recibidos'], equals(kRecibidoMonto));
+      expect(evidencia['desembolsos'], equals(0));
 
       final esperadoCalculado = kOpeningBase + kOpeningCarry + kPagoMonto - kReversalMonto - kGasolinaMonto - kAhorroMonto - 0 - kEntregaMonto - 0 + kRecibidoMonto;
-      expect(caja.efectivoEsperado, equals(esperadoCalculado));
-      expect(caja.efectivoEsperado, equals(kEsperadoCanonico));
-      expect(caja.efectivoEsperado, isNot(equals(0)),
+      expect(evidencia['efectivo_esperado'], equals(esperadoCalculado));
+      expect(evidencia['efectivo_esperado'], equals(kEsperadoCanonico));
+      expect(evidencia['efectivo_esperado'], isNot(equals(0)),
           reason: 'efectivo_esperado debe calcularse desde CajaService, no ser 0');
     });
 

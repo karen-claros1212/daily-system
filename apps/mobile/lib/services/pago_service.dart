@@ -52,7 +52,17 @@ class PagoService {
       final existentes = await txn.query('pago',
           limit: 1, where: 'clave_idempotencia = ?', whereArgs: [clave]);
       if (existentes.isNotEmpty) {
-        return Pago.fromMap(existentes.first);
+        final existente = Pago.fromMap(existentes.first);
+        final fieldsMatch = existente.creditoId == creditoId
+            && existente.jornadaId == jornadaId
+            && existente.negocioId == negocioId
+            && existente.cobradorId == cobradorId
+            && existente.monto == monto
+            && existente.tipo == 'PAYMENT';
+        if (!fieldsMatch) {
+          throw IdempotenciaConflictoException(clave, existente.id, monto, existente.monto);
+        }
+        return existente;
       }
 
       // Insertar pago

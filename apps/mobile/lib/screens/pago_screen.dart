@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../database/database.dart';
 import '../services/pago_service.dart';
@@ -20,6 +21,16 @@ class _PagoScreenState extends State<PagoScreen> {
   final _notaController = TextEditingController();
   Map<String, dynamic>? _creditoSeleccionado;
   bool _registrando = false;
+
+  String _generarClaveIdempotencia(String creditoId, int monto) {
+    final canonical = const JsonEncoder.withIndent('').convert({
+      'jornada_id': widget.jornadaId,
+      'credito_id': creditoId,
+      'monto': monto,
+      'app': 'daily_system',
+    });
+    return canonical;
+  }
 
   @override
   void initState() {
@@ -59,13 +70,16 @@ class _PagoScreenState extends State<PagoScreen> {
 
     setState(() => _registrando = true);
     try {
+      final creditoId = _creditoSeleccionado!['credito_id'] as String;
+      final clave = _generarClaveIdempotencia(creditoId, monto);
       await PagoService.registrarPago(
-        _creditoSeleccionado!['credito_id'] as String,
+        creditoId,
         widget.jornadaId,
         widget.cobradorId,
         widget.negocioId,
         monto,
         _notaController.text.trim(),
+        clienteIdempotenciaClave: clave,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
