@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 import '../database/database.dart';
 import '../services/pago_service.dart';
+import '../theme/theme.dart';
 
 class PagoScreen extends StatefulWidget {
   final String jornadaId;
@@ -19,6 +20,7 @@ class _PagoScreenState extends State<PagoScreen> {
   final _montoController = TextEditingController();
   final _notaController = TextEditingController();
   Map<String, dynamic>? _creditoSeleccionado;
+  bool _registrando = false;
 
   @override
   void initState() {
@@ -42,18 +44,21 @@ class _PagoScreenState extends State<PagoScreen> {
   }
 
   Future<void> _registrarPago() async {
-    if (_creditoSeleccionado == null) return;
+    if (_creditoSeleccionado == null || _registrando) return;
     final montoStr = _montoController.text.trim();
     if (montoStr.isEmpty) {
-      _showError('Ingresa el monto');
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ingresa el monto')));
       return;
     }
     final monto = int.tryParse(montoStr);
     if (monto == null || monto <= 0) {
-      _showError('Monto inválido');
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Monto inválido')));
       return;
     }
 
+    setState(() => _registrando = true);
     try {
       await PagoService.registrarPago(
         _creditoSeleccionado!['credito_id'] as String,
@@ -65,18 +70,22 @@ class _PagoScreenState extends State<PagoScreen> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Pago registrado correctamente')));
+            const SnackBar(content: Text('Pago registrado')));
         _montoController.clear();
         _notaController.clear();
-        setState(() => _creditoSeleccionado = null);
+        setState(() {
+          _creditoSeleccionado = null;
+          _registrando = false;
+        });
+        _cargarCreditos();
       }
     } catch (e) {
-      if (mounted) _showError('Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')));
+        setState(() => _registrando = false);
+      }
     }
-  }
-
-  void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
@@ -84,90 +93,103 @@ class _PagoScreenState extends State<PagoScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Registrar Pago'),
-        backgroundColor: Colors.blue[800],
+        elevation: 0,
       ),
       body: _cargando ? const Center(child: CircularProgressIndicator()) :
-      Column(children: [
-        // Creditor selector
-        Padding(padding: const EdgeInsets.all(16),
-          child: Column(children: [
-            const Text('Seleccionar deudor:', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            DropdownButton<Map<String, dynamic>>(
-              isExpanded: true,
-              hint: const Text('Seleccionar deudor...'),
-              value: _creditoSeleccionado,
-              items: _creditos.map((c) {
-                final nombre = '${c['primer_apellido']} ${c['nombres']}';
-                return DropdownMenuItem(value: c, child: Text(nombre));
-              }).toList(),
-              onChanged: (v) => setState(() => _creditoSeleccionado = v),
-            ),
-          ]),
-        ),
-        // Amount input
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: TextField(
-            controller: _montoController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Monto (COP)',
-              prefixText: '\$ ',
-              border: OutlineInputBorder(),
-            ),
+      SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(children: [
+          // Creditor selector
+          premiumCard(
+            child: Column(children: [
+              const Text('Seleccionar deudor',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              DropdownButton<Map<String, dynamic>>(
+                isExpanded: true,
+                hint: const Text('Seleccionar deudor...'),
+                value: _creditoSeleccionado,
+                underline: const SizedBox(),
+                items: _creditos.map((c) {
+                  final nombre = '${c['primer_apellido']} ${c['nombres']}';
+                  return DropdownMenuItem(value: c, child: Text(nombre));
+                }).toList(),
+                onChanged: (v) => setState(() => _creditoSeleccionado = v),
+              ),
+            ]),
           ),
-        ),
-        const SizedBox(height: 8),
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: TextField(
-            controller: _notaController,
-            decoration: const InputDecoration(
-              labelText: 'Nota (opcional)',
-              border: OutlineInputBorder(),
-            ),
+          const SizedBox(height: 16),
+          // Amount
+          premiumCard(
+            child: Column(children: [
+              const Text('Monto del abono',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _montoController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Monto (COP)',
+                  prefixIcon: Icon(Icons.attach_money, size: 20),
+                ),
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _notaController,
+                decoration: const InputDecoration(
+                  labelText: 'Nota (opcional)',
+                  prefixIcon: Icon(Icons.note, size: 20),
+                ),
+              ),
+              const SizedBox(height: 16),
+              compactButton(
+                label: 'REGISTRAR PAGO',
+                onPressed: _registrarPago,
+                color: const Color(0xFF2E7D32),
+                isLoading: _registrando,
+              ),
+            ]),
           ),
-        ),
-        const SizedBox(height: 16),
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green[700]),
-              onPressed: _registrarPago,
-              child: const Text('REGISTRAR PAGO',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        const Divider(),
-        // Payment history
-        const Padding(padding: EdgeInsets.all(16),
-          child: Text('Pagos de hoy:', style: TextStyle(fontWeight: FontWeight.bold))),
-        Expanded(
-          child: ListView.builder(
-            itemCount: _creditos.length,
-            itemBuilder: (context, index) {
-              final c = _creditos[index];
-              return ListTile(
-                leading: const Icon(Icons.person, color: Colors.blue),
-                title: Text('${c['primer_apellido']} ${c['nombres']}'),
-                subtitle: Text('Cuota: \$${_formatMoney(c['cuota'] as int)}'),
-                trailing: Text('Total: \$${_formatMoney(c['total'] as int)}'),
+          const SizedBox(height: 20),
+          // Creditor list
+          const Text('Deudores activos',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
+          ..._creditos.map((c) {
+            final nombre = '${c['primer_apellido']} ${c['nombres']}';
+            return Padding(padding: const EdgeInsets.only(bottom: 8),
+              child: premiumCard(
                 onTap: () => setState(() => _creditoSeleccionado = c),
-              );
-            },
-          ),
-        ),
-      ]),
-    );
-  }
-
-  String _formatMoney(int amount) {
-    return amount.toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (m) => '${m[1]}.',
+                child: Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2E7D32).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.person, color: Color(0xFF2E7D32), size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(nombre,
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                        Text('Cuota: \$${formatMoney(c['cuota'] as int)}',
+                            style: const TextStyle(fontSize: 12, color: Color(0xFF79747E))),
+                      ],
+                    ),
+                  ),
+                  Text('\$${formatMoney(c['total'] as int)}',
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                ]),
+              ),
+            );
+          }),
+        ]),
+      ),
     );
   }
 

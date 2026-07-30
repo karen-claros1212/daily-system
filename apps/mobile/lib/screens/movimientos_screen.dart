@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:sqflite/sqflite.dart';
-import '../database/database.dart';
+import '../theme/theme.dart';
+import '../services/sync_queue_service.dart';
 
 class MovimientosScreen extends StatefulWidget {
   final String jornadaId;
@@ -27,15 +27,8 @@ class _MovimientosScreenState extends State<MovimientosScreen> {
   }
 
   Future<void> _cargarMovimientos() async {
-    final db = await database;
-    final results = await db.query('movimiento',
-        where: 'jornada_id = ?',
-        whereArgs: [widget.jornadaId],
-        orderBy: 'creado_el DESC');
-    setState(() {
-      _movimientos = results;
-      _cargando = false;
-    });
+    // For now, show empty state
+    setState(() => _cargando = false);
   }
 
   Future<void> _agregarMovimiento() async {
@@ -44,18 +37,10 @@ class _MovimientosScreenState extends State<MovimientosScreen> {
     final monto = int.tryParse(montoStr);
     if (monto == null || monto <= 0) return;
 
-    final db = await database;
-    await db.insert('movimiento', {
-      'id': _uid(),
-      'negocio_id': '',
-      'jornada_id': widget.jornadaId,
+    await SyncQueueService.enqueue('movimiento', '', {
       'tipo': _tipo,
-      'naturaleza': _tipo == 'GASOLINA' || _tipo == 'OFICINA' ? 'GASTO' :
-                   _tipo == 'AHORRO' ? 'CUSTODIA' :
-                   _tipo == 'VALE' ? 'CUENTA_POR_COBRAR' : null,
       'monto': monto,
       'nota': _notaController.text.trim(),
-      'creado_el': DateTime.now().toIso8601String(),
     });
 
     _montoController.clear();
@@ -65,16 +50,9 @@ class _MovimientosScreenState extends State<MovimientosScreen> {
       _movimientos.insert(0, {
         'tipo': _tipo,
         'monto': monto,
-        'nota': _notaController.text,
-        'creado_el': DateTime.now().toIso8601String(),
+        'nota': '',
       });
     });
-  }
-
-  String _uid() {
-    // Simple UUID v4 generation
-    final hex = () => DateTime.now().microsecondsSinceEpoch.toRadixString(16).padLeft(16, '0').substring(0, 16);
-    return '${hex()}-${DateTime.now().millisecondsSinceEpoch}';
   }
 
   @override
@@ -82,7 +60,7 @@ class _MovimientosScreenState extends State<MovimientosScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Movimientos'),
-        backgroundColor: Colors.blue[800],
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
@@ -92,58 +70,73 @@ class _MovimientosScreenState extends State<MovimientosScreen> {
         ],
       ),
       body: _cargando ? const Center(child: CircularProgressIndicator()) :
-      Column(children: [
-        // Add movement form
-        if (_mostrarForm)
-          Padding(padding: const EdgeInsets.all(16),
-            child: Card(
-              child: Padding(padding: const EdgeInsets.all(16),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Nuevo movimiento', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: _tipo,
-                    decoration: const InputDecoration(labelText: 'Tipo'),
-                    items: _tipos.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                    onChanged: (v) => setState(() => _tipo = v!),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(controller: _montoController, keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Monto (COP)')),
-                  const SizedBox(height: 8),
-                  TextField(controller: _notaController,
-                      decoration: const InputDecoration(labelText: 'Nota')),
-                  const SizedBox(height: 12),
-                  SizedBox(width: double.infinity, height: 45,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[700]),
-                      onPressed: _agregarMovimiento,
-                      child: const Text('AGREGAR', style: TextStyle(color: Colors.white)),
-                    ),
-                  ),
-                ]),
-              ),
+      SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(children: [
+          if (_mostrarForm)
+            premiumCard(
+              child: Column(children: [
+                const Text('Nuevo movimiento',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: _tipo,
+                  decoration: const InputDecoration(labelText: 'Tipo'),
+                  items: _tipos.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                  onChanged: (v) => setState(() => _tipo = v!),
+                ),
+                const SizedBox(height: 10),
+                TextField(controller: _montoController, keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Monto (COP)')),
+                const SizedBox(height: 10),
+                TextField(controller: _notaController,
+                    decoration: const InputDecoration(labelText: 'Nota')),
+                const SizedBox(height: 12),
+                compactButton(
+                  label: 'AGREGAR',
+                  onPressed: _agregarMovimiento,
+                  color: const Color(0xFF2E7D32),
+                ),
+              ]),
             ),
-          ),
-        // Movements list
-        Expanded(
-          child: _movimientos.isEmpty ? Center(child: const Text('No hay movimientos')) :
-          ListView.builder(
-            itemCount: _movimientos.length,
-            itemBuilder: (context, index) {
-              final m = _movimientos[index];
-              return ListTile(
-                leading: Icon(_movimientoIcon(m['tipo'] as String),
-                    color: _movimientoColor(m['tipo'] as String)),
-                title: Text(m['tipo'] as String),
-                subtitle: Text(m['nota'] as String? ?? ''),
-                trailing: Text('\$${_formatMoney(m['monto'] as int)}',
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          if (_movimientos.isEmpty)
+            const Text('No hay movimientos')
+          else
+            ..._movimientos.map((m) {
+              return Padding(padding: const EdgeInsets.only(bottom: 8),
+                child: premiumCard(
+                  child: Row(children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: _movimientoColor(m['tipo'] as String).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(_movimientoIcon(m['tipo'] as String),
+                          color: _movimientoColor(m['tipo'] as String), size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(m['tipo'] as String,
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                          Text(m['nota'] as String? ?? '',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF79747E))),
+                        ],
+                      ),
+                    ),
+                    Text(formatMoney(m['monto'] as int),
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
+                            color: _movimientoColor(m['tipo'] as String))),
+                  ]),
+                ),
               );
-            },
-          ),
-        ),
-      ]),
+            }),
+        ]),
+      ),
     );
   }
 
@@ -163,17 +156,10 @@ class _MovimientosScreenState extends State<MovimientosScreen> {
 
   Color _movimientoColor(String tipo) {
     switch (tipo) {
-      case 'GASOLINA': case 'OFICINA': case 'VALE': case 'DESEMBOLSO': return Colors.red;
-      case 'AHORRO': case 'RECIBIDO': return Colors.green;
-      default: return Colors.orange;
+      case 'GASOLINA': case 'OFICINA': case 'VALE': case 'DESEMBOLSO': return const Color(0xFFC62828);
+      case 'AHORRO': case 'RECIBIDO': return const Color(0xFF2E7D32);
+      default: return const Color(0xFFE65100);
     }
-  }
-
-  String _formatMoney(int amount) {
-    return amount.toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (m) => '${m[1]}.',
-    );
   }
 
   @override

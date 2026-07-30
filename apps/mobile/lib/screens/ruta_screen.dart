@@ -4,15 +4,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../database/database.dart';
 import '../models/models.dart';
 import '../services/jornada_service.dart';
-import '../services/hoja_viva_service.dart';
-import '../services/caja_service.dart';
-import '../services/pago_service.dart';
-import '../services/pdf_service.dart';
+import '../theme/theme.dart';
+import 'jornada_cierre_screen.dart';
 import 'hoja_viva_screen.dart';
 import 'pago_screen.dart';
 import 'movimientos_screen.dart';
 import 'caja_screen.dart';
-import 'jornada_cierre_screen.dart';
 
 class RutaScreen extends StatefulWidget {
   const RutaScreen({super.key});
@@ -37,7 +34,6 @@ class _RutaScreenState extends State<RutaScreen> {
   Future<void> _loadData() async {
     final db = await database;
 
-    // Get usuario
     final usuarios = await db.query('usuario', where: 'rol = ?', whereArgs: ['COBRADOR']);
     if (usuarios.isEmpty) {
       setState(() => _cargando = false);
@@ -47,23 +43,16 @@ class _RutaScreenState extends State<RutaScreen> {
     _cobradorId = cobrador.id;
     _cobradorNombre = cobrador.nombre;
 
-    // Get negocio
     final negocios = await db.query('negocio', limit: 1);
     if (negocios.isNotEmpty) {
       _negocioId = (negocios.first as Map<String, dynamic>)['id'] as String;
     }
 
-    // Get rutas
     final rutasRaw = await db.query('ruta', where: 'activa = ?', whereArgs: [1]);
     setState(() {
       _rutas = rutasRaw.map((m) => Ruta.fromMap(m)).toList();
       _cargando = false;
     });
-
-    // Save session
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('cobrador_id', _cobradorId);
-    await prefs.setString('cobrador_nombre', _cobradorNombre);
   }
 
   @override
@@ -71,25 +60,57 @@ class _RutaScreenState extends State<RutaScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Seleccionar Ruta'),
-        backgroundColor: Colors.blue[800],
+        elevation: 0,
       ),
       body: _cargando ? const Center(child: CircularProgressIndicator()) :
       _rutas.isEmpty ? Center(child: const Text('No hay rutas disponibles')) :
-      ListView.builder(
-        itemCount: _rutas.length,
-        itemBuilder: (context, index) {
-          final ruta = _rutas[index];
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: ListTile(
-              leading: const Icon(Icons.route, color: Colors.blue),
-              title: Text(ruta.nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text('Ruta activa'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _seleccionarRuta(ruta),
+      Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(children: [
+          const Text('Elige la ruta del día',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Text('Cobrador: $_cobradorNombre',
+              style: const TextStyle(fontSize: 13, color: Color(0xFF79747E))),
+          const SizedBox(height: 20),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _rutas.length,
+              itemBuilder: (context, index) {
+                final ruta = _rutas[index];
+                return Padding(padding: const EdgeInsets.only(bottom: 12),
+                  child: premiumCard(
+                    onTap: () => _seleccionarRuta(ruta),
+                    child: Row(children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2E7D32).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.route, color: Color(0xFF2E7D32), size: 24),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(ruta.nombre,
+                                style: const TextStyle(
+                                    fontSize: 15, fontWeight: FontWeight.w600)),
+                            const Text('Ruta activa',
+                                style: TextStyle(fontSize: 12, color: Color(0xFF79747E))),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right, color: Color(0xFFCAC4D0)),
+                    ]),
+                  ),
+                );
+              },
             ),
-          );
-        },
+          ),
+        ]),
       ),
     );
   }
@@ -101,22 +122,21 @@ class _RutaScreenState extends State<RutaScreen> {
 
     if (!mounted) return;
 
-    // Check if there's an open jornada for this route
     final jornada = await JornadaService.getJornadaAbierta(ruta.id);
 
     if (jornada != null) {
-      // Navigate to main route screen with open jornada
-      Navigator.pushReplacement(context,
-          MaterialPageRoute(builder: (_) => RutaActivaScreen(ruta: ruta, jornada: jornada,
-              cobradorId: _cobradorId, cobradorNombre: _cobradorNombre,
-              negocioId: _negocioId)));
+Navigator.pushReplacement(context,
+           MaterialPageRoute(builder: (_) => RutaActivaScreen(
+               ruta: ruta, jornada: jornada,
+               cobradorId: _cobradorId, cobradorNombre: _cobradorNombre,
+               negocioId: _negocioId)));
     } else {
-      // Open new jornada
       try {
         final newJornada = await JornadaService.abrirJornada(
             ruta.id, _cobradorId, _negocioId, 0);
         Navigator.pushReplacement(context,
-            MaterialPageRoute(builder: (_) => RutaActivaScreen(ruta: ruta, jornada: newJornada,
+            MaterialPageRoute(builder: (_) => RutaActivaScreen(
+                ruta: ruta, jornada: newJornada,
                 cobradorId: _cobradorId, cobradorNombre: _cobradorNombre,
                 negocioId: _negocioId)));
       } catch (e) {
@@ -143,46 +163,79 @@ class RutaActivaScreen extends StatefulWidget {
   State<RutaActivaScreen> createState() => _RutaActivaScreenState();
 }
 
-class _RutaActivaScreenState extends State<RutaActivaScreen> {
+class _RutaActivaScreenState extends State<RutaActivaScreen>
+    with SingleTickerProviderStateMixin {
   int _pageIndex = 0;
+  late AnimationController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _onTabChanged(int index) {
+    _tabController.forward(from: 0);
+    setState(() => _pageIndex = index);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.ruta.nombre),
-        backgroundColor: Colors.blue[800],
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.exit_to_app),
+            icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.popUntil(context, (r) => r.isFirst),
             tooltip: 'Volver',
           ),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _pageIndex,
-        onTap: (i) => setState(() => _pageIndex = i),
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.blue[800],
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.white70,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Hoja Viva'),
-          BottomNavigationBarItem(icon: Icon(Icons.payment), label: 'Pago'),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'Movimientos'),
-          BottomNavigationBarItem(icon: Icon(Icons.calculate), label: 'Caja'),
-          BottomNavigationBarItem(icon: Icon(Icons.done_all), label: 'Jornada'),
-        ],
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        switchInCurve: Curves.easeInOut,
+        switchOutCurve: Curves.easeInOut,
+        child: [
+          HojaVivaScreen(key: ValueKey('hoja'), rutaId: widget.ruta.id),
+          PagoScreen(key: ValueKey('pago'), jornadaId: widget.jornada.id,
+              cobradorId: widget.cobradorId, negocioId: widget.negocioId),
+          MovimientosScreen(key: ValueKey('mov'), jornadaId: widget.jornada.id),
+          CajaScreen(key: ValueKey('caja'), jornadaId: widget.jornada.id),
+          JornadaCierreScreen(key: ValueKey('jornada'), jornada: widget.jornada,
+              cobradorNombre: widget.cobradorNombre),
+        ][_pageIndex],
       ),
-      body: [
-        HojaVivaScreen(rutaId: widget.ruta.id),
-        PagoScreen(jornadaId: widget.jornada.id, cobradorId: widget.cobradorId,
-            negocioId: widget.negocioId),
-        MovimientosScreen(jornadaId: widget.jornada.id),
-        CajaScreen(jornadaId: widget.jornada.id),
-        JornadaCierreScreen(jornada: widget.jornada, cobradorNombre: widget.cobradorNombre),
-      ][_pageIndex],
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: const Color(0xFFE7E0EC), width: 0.5)),
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _pageIndex,
+          onTap: _onTabChanged,
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: const Color(0xFFFDFDF7),
+          selectedItemColor: const Color(0xFF2E7D32),
+          unselectedItemColor: const Color(0xFF79747E),
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Hoja Viva'),
+            BottomNavigationBarItem(icon: Icon(Icons.payment), label: 'Pago'),
+            BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'Movimientos'),
+            BottomNavigationBarItem(icon: Icon(Icons.calculate), label: 'Caja'),
+            BottomNavigationBarItem(icon: Icon(Icons.done_all), label: 'Jornada'),
+          ],
+        ),
+      ),
     );
   }
 }

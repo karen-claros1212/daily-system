@@ -2,14 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'database/database.dart';
 import 'screens/home_screen.dart';
-import 'screens/ruta_screen.dart';
+import 'theme/theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize database with seed data
   await initDatabase();
-
   runApp(const DailySystemApp());
 }
 
@@ -31,15 +28,13 @@ class _DailySystemAppState extends State<DailySystemApp> {
 
   Future<void> _checkSession() async {
     final prefs = await SharedPreferences.getInstance();
-    final cobradorId = prefs.getString('cobrador_id');
     setState(() {
-      _mostrarLogin = cobradorId == null;
+      _mostrarLogin = prefs.getString('cobrador_id') == null;
     });
   }
 
-  Future<void> _login() async {
+  Future<void> _handleLogin() async {
     final prefs = await SharedPreferences.getInstance();
-    // For demo: use the seeded cobrador
     final db = await database;
     final usuarios = await db.query('usuario', where: 'rol = ?', whereArgs: ['COBRADOR']);
     if (usuarios.isNotEmpty) {
@@ -50,77 +45,123 @@ class _DailySystemAppState extends State<DailySystemApp> {
     setState(() => _mostrarLogin = false);
   }
 
-  Future<void> _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    setState(() => _mostrarLogin = true);
-  }
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Daily System',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        useMaterial3: true,
-        appBarTheme: const AppBarTheme(
-          centerTitle: true,
-          elevation: 0,
-        ),
-      ),
-      home: _mostrarLogin ? _LoginScreen(onLogin: _login, onLogout: _logout) : const HomeScreen(),
+      theme: premiumTheme,
+      home: _mostrarLogin ? _LoginScreen(onLogin: _handleLogin) : const HomeScreen(),
     );
   }
 }
 
-class _LoginScreen extends StatelessWidget {
-  final VoidCallback onLogin;
-  final VoidCallback onLogout;
-  const _LoginScreen({required this.onLogin, required this.onLogout});
+class _LoginScreen extends StatefulWidget {
+  final Function onLogin;
+  const _LoginScreen({required this.onLogin});
+
+  @override
+  State<_LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<_LoginScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fadeAnimation;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+    _scaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Daily System'),
-        backgroundColor: Colors.blue[800],
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: () async {
-            await closeDatabase();
-            await initDatabase();
-            ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Datos reiniciados')));
-          }),
-        ],
-      ),
-      body: SafeArea(
-        child: Center(
-          child: Padding(padding: const EdgeInsets.all(32),
-            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Icon(Icons.account_balance_wallet, size: 80, color: Colors.blue),
-              const SizedBox(height: 24),
-              const Text('Daily System',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              const Text('Cobro diario offline',
-                  style: TextStyle(fontSize: 16, color: Colors.grey)),
-              const SizedBox(height: 48),
-              SizedBox(width: double.infinity, height: 55,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[700]),
-                  onPressed: onLogin,
-                  child: const Text('INICIAR SESIÓN',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFE8F5E9),
+              Color(0xFFFDFDF7),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Logo
+                    Container(
+                      width: 80, height: 80,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2E7D32),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF2E7D32).withOpacity(0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.account_balance_wallet,
+                          color: Colors.white, size: 40),
+                    ),
+                    const SizedBox(height: 32),
+                    const Text('Daily System',
+                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700,
+                            color: Color(0xFF1C1B1F))),
+                    const SizedBox(height: 8),
+                    Text('Cobro diario offline',
+                        style: TextStyle(fontSize: 16, color: const Color(0xFF79747E))),
+                    const SizedBox(height: 8),
+                    Text('Flutter 3.44 • Material 3',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFFCAC4D0))),
+                    const SizedBox(height: 48),
+                    // Login button
+                    compactButton(
+                      label: 'INICIAR SESIÓN',
+                      onPressed: () async {
+                        await widget.onLogin();
+                      },
+                      color: const Color(0xFF2E7D32),
+                      icon: Icons.login,
+                    ),
+                    const SizedBox(height: 16),
+                    Text('Demo: datos precargados',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFFCAC4D0))),
+                    Text('5 clientes • 5 créditos • 1 ruta',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFFCAC4D0))),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-              const Text('Demo: datos precargados',
-                  style: TextStyle(fontSize: 12, color: Colors.grey)),
-              const SizedBox(height: 8),
-              const Text('5 clientes • 5 créditos • 1 ruta',
-                  style: TextStyle(fontSize: 12, color: Colors.grey)),
-            ]),
+            ),
           ),
         ),
       ),
