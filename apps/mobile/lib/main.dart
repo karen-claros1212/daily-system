@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'database/database.dart';
-import 'screens/home_screen.dart';
+import 'models/models.dart';
+import 'shell/main_shell.dart';
 import 'theme/theme.dart';
 
 void main() async {
@@ -19,6 +20,9 @@ class DailySystemApp extends StatefulWidget {
 
 class _DailySystemAppState extends State<DailySystemApp> {
   bool _mostrarLogin = true;
+  String _cobradorId = '';
+  String _cobradorNombre = '';
+  String _negocioId = '';
 
   @override
   void initState() {
@@ -28,9 +32,18 @@ class _DailySystemAppState extends State<DailySystemApp> {
 
   Future<void> _checkSession() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _mostrarLogin = prefs.getString('cobrador_id') == null;
-    });
+    final cobradorId = prefs.getString('cobrador_id');
+    final cobradorNombre = prefs.getString('cobrador_nombre');
+    final negocioId = prefs.getString('negocio_id');
+
+    if (cobradorId != null) {
+      setState(() {
+        _mostrarLogin = false;
+        _cobradorId = cobradorId;
+        _cobradorNombre = cobradorNombre ?? '';
+        _negocioId = negocioId ?? '';
+      });
+    }
   }
 
   Future<void> _handleLogin() async {
@@ -38,11 +51,22 @@ class _DailySystemAppState extends State<DailySystemApp> {
     final db = await database;
     final usuarios = await db.query('usuario', where: 'rol = ?', whereArgs: ['COBRADOR']);
     if (usuarios.isNotEmpty) {
-      final cobrador = usuarios.first;
-      await prefs.setString('cobrador_id', cobrador['id'] as String);
-      await prefs.setString('cobrador_nombre', cobrador['nombre'] as String);
+      final cobrador = Usuario.fromMap(usuarios.first);
+      await prefs.setString('cobrador_id', cobrador.id);
+      await prefs.setString('cobrador_nombre', cobrador.nombre);
+
+      final negocios = await db.query('negocio', limit: 1);
+      if (negocios.isNotEmpty) {
+        await prefs.setString('negocio_id', negocios.first['id'] as String);
+        _negocioId = negocios.first['id'] as String;
+      }
+
+      setState(() {
+        _cobradorId = cobrador.id;
+        _cobradorNombre = cobrador.nombre;
+        _mostrarLogin = false;
+      });
     }
-    setState(() => _mostrarLogin = false);
   }
 
   @override
@@ -51,7 +75,8 @@ class _DailySystemAppState extends State<DailySystemApp> {
       title: 'Daily System',
       debugShowCheckedModeBanner: false,
       theme: premiumTheme,
-      home: _mostrarLogin ? _LoginScreen(onLogin: _handleLogin) : const HomeScreen(),
+      home: _mostrarLogin ? _LoginScreen(onLogin: _handleLogin) :
+          MainShell(cobradorId: _cobradorId, cobradorNombre: _cobradorNombre, negocioId: _negocioId),
     );
   }
 }
@@ -96,14 +121,11 @@ class _LoginScreenState extends State<_LoginScreen> with SingleTickerProviderSta
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFE8F5E9),
-              Color(0xFFFDFDF7),
-            ],
+            colors: [AppColors.primary.withOpacity(0.08), AppColors.surface],
           ),
         ),
         child: SafeArea(
@@ -116,19 +138,15 @@ class _LoginScreenState extends State<_LoginScreen> with SingleTickerProviderSta
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Logo
                     Container(
                       width: 80, height: 80,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF2E7D32),
+                        color: AppColors.primary,
                         borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF2E7D32).withOpacity(0.3),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
+                        boxShadow: [BoxShadow(
+                          color: AppColors.primary.withOpacity(0.3),
+                          blurRadius: 20, offset: const Offset(0, 8),
+                        )],
                       ),
                       child: const Icon(Icons.account_balance_wallet,
                           color: Colors.white, size: 40),
@@ -136,28 +154,27 @@ class _LoginScreenState extends State<_LoginScreen> with SingleTickerProviderSta
                     const SizedBox(height: 32),
                     const Text('Daily System',
                         style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700,
-                            color: Color(0xFF1C1B1F))),
+                            color: AppColors.textPrimary)),
                     const SizedBox(height: 8),
                     Text('Cobro diario offline',
-                        style: TextStyle(fontSize: 16, color: const Color(0xFF79747E))),
+                        style: TextStyle(fontSize: 16, color: AppColors.outlineVariant)),
                     const SizedBox(height: 8),
                     Text('Flutter 3.44 • Material 3',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFFCAC4D0))),
+                        style: const TextStyle(fontSize: 12, color: AppColors.outline)),
                     const SizedBox(height: 48),
-                    // Login button
                     compactButton(
                       label: 'INICIAR SESIÓN',
                       onPressed: () async {
                         await widget.onLogin();
                       },
-                      color: const Color(0xFF2E7D32),
+                      color: AppColors.primary,
                       icon: Icons.login,
                     ),
                     const SizedBox(height: 16),
                     Text('Demo: datos precargados',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFFCAC4D0))),
+                        style: const TextStyle(fontSize: 12, color: AppColors.outline)),
                     Text('5 clientes • 5 créditos • 1 ruta',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFFCAC4D0))),
+                        style: const TextStyle(fontSize: 12, color: AppColors.outline)),
                   ],
                 ),
               ),
