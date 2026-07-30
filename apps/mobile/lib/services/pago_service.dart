@@ -1,27 +1,27 @@
-import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 import '../database/database.dart';
+import '../domain/domain_exceptions.dart';
 import '../models/models.dart';
-
-/// Verifica que la jornada esté abierta antes de cualquier mutación financiera.
-/// Lanza [JornadaCerradaException] si la jornada ya fue cerrada.
-Future<void> _checkJornadaAbierta(Database db, String jornadaId) async {
-  final jornadas = await db.query('jornada', limit: 1, where: 'id = ?', whereArgs: [jornadaId]);
-  if (jornadas.isEmpty) throw Exception('Jornada no encontrada: $jornadaId');
-  final estado = jornadas.first['estado'] as String;
-  if (estado != 'OPEN') {
-    throw JornadaCerradaException(
-        'No se pueden registrar pagos en una jornada cerrada (estado: $estado)');
-  }
-}
+import 'jornada_guard.dart';
 
 final _uuid = Uuid();
 
 class PagoService {
+  /// Registra un pago en la jornada.
+  ///
+  /// Transacción atómica:
+  /// 1. Verifica jornada abierta (JornadaGuard)
+  /// 2. Inserta el pago
+  /// 3. Marca la cuota_programada como PAGADO
+  ///
+  /// Si falla paso 3, se revierte paso 2.
   static Future<Pago> registrarPago(String creditoId, String jornadaId, String cobradorId,
       String negocioId, int monto, String nota) async {
     final db = await database;
-    await _checkJornadaAbierta(db, jornadaId);
+
+    // Verificar jornada abierta
+    await JornadaGuard.requireOpen(jornadaId);
+
     final clave = _uuid.v4();
 
     final pago = Pago(
@@ -37,39 +37,53 @@ class PagoService {
       registradoElDispositivo: DateTime.now().toIso8601String(),
     );
 
-    await db.insert('pago', pago.toMap());
+    // Transacción atómica: pago + cuota
+    await db.transaction((txn) async {
+      final txnDb = txn;
+      await txnDb.insert('pago', pago.toMap());
 
-    // Update related cuota_programada to PAGADO
-    final credito = await db.query('credito', limit: 1, where: 'id = ?', whereArgs: [creditoId]);
-    if (credito.isNotEmpty) {
-      final creditoMap = credito.first;
-      final nCuotas = creditoMap['n_cuotas'] as int;
-      // Mark first unpaid cuota as paid
-      final cuotas = await db.query('cuota_programada',
+      // Marcar primera cuota pendiente como pagada
+      final cuotas = await txnDb.query('cuota_programada',
           where: 'credito_id = ? AND estado = ?',
           whereArgs: [creditoId, 'PENDIENTE'],
           orderBy: 'numero ASC',
           limit: 1);
       if (cuotas.isNotEmpty) {
-        await db.update('cuota_programada',
+        await txnDb.update('cuota_programada',
             {'estado': 'PAGADO'},
             where: 'id = ?',
             whereArgs: [cuotas.first['id']]);
       }
-    }
+    });
 
     return pago;
   }
 
+  /// Revierte un pago existente.
+  ///
+  /// Transacción atómica:
+  /// 1. Verifica jornada abierta
+  /// 2. Verifica que el pago original existe
+  /// 3. Inserta el reversal
+  /// 4. Revierte la cuota_programada a PENDIENTE
   static Future<Pago> reversarPago(String pagoId, String jornadaId, String cobradorId,
       String negocioId, String motivo) async {
     final db = await database;
-    await _checkJornadaAbierta(db, jornadaId);
 
-    // Get original payment
+    // Verificar jornada abierta
+    await JornadaGuard.requireOpen(jornadaId);
+
+    // Obtener pago original
     final pagos = await db.query('pago', limit: 1, where: 'id = ?', whereArgs: [pagoId]);
-    if (pagos.isEmpty) throw Exception('Pago no encontrado');
+    if (pagos.isEmpty) {
+      throw PagoNoEncontradoException(pagoId);
+    }
     final pagoOriginal = Pago.fromMap(pagos.first);
+
+    // Validar que es un pago (no otro reversal)
+    if (pagoOriginal.tipo != 'PAYMENT') {
+      throw PagoInvalidoParaReversionException(pagoId);
+    }
 
     final clave = _uuid.v4();
     final reversal = Pago(
@@ -86,22 +100,26 @@ class PagoService {
       reversalOfPaymentId: pagoId,
     );
 
-    await db.insert('pago', reversal.toMap());
+    // Transacción atómica: reversal + cuota
+    await db.transaction((txn) async {
+      final txnDb = txn;
+      await txnDb.insert('pago', reversal.toMap());
 
-    // Revert cuota to PENDIENTE
-    if (pagoOriginal.creditoId != null) {
-      final cuotas = await db.query('cuota_programada',
-          where: 'credito_id = ? AND estado = ?',
-          whereArgs: [pagoOriginal.creditoId, 'PAGADO'],
-          orderBy: 'numero DESC',
-          limit: 1);
-      if (cuotas.isNotEmpty) {
-        await db.update('cuota_programada',
-            {'estado': 'PENDIENTE'},
-            where: 'id = ?',
-            whereArgs: [cuotas.first['id']]);
+      // Revertir cuota a PENDIENTE
+      if (pagoOriginal.creditoId != null) {
+        final cuotas = await txnDb.query('cuota_programada',
+            where: 'credito_id = ? AND estado = ?',
+            whereArgs: [pagoOriginal.creditoId, 'PAGADO'],
+            orderBy: 'numero DESC',
+            limit: 1);
+        if (cuotas.isNotEmpty) {
+          await txnDb.update('cuota_programada',
+              {'estado': 'PENDIENTE'},
+              where: 'id = ?',
+              whereArgs: [cuotas.first['id']]);
+        }
       }
-    }
+    });
 
     return reversal;
   }

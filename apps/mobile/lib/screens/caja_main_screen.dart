@@ -4,7 +4,6 @@
 
 import 'package:flutter/material.dart';
 import '../database/database.dart';
-import '../navigation.dart';
 import '../theme/theme.dart';
 
 class CajaMainScreen extends StatefulWidget {
@@ -23,7 +22,6 @@ class _CajaMainScreenState extends State<CajaMainScreen> {
   int _ahorro = 0;
   int _esperado = 0;
   int _contado = 0;
-  String _jornadaId = '';
 
   @override
   void initState() {
@@ -51,7 +49,6 @@ class _CajaMainScreenState extends State<CajaMainScreen> {
 
     setState(() {
       _jornadaAbierta = true;
-      _jornadaId = jornadaId;
       _esperado = j['esperado'] as int? ?? 0;
       _contado = j['contado'] as int? ?? 0;
     });

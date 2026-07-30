@@ -1,6 +1,6 @@
-import 'package:sqflite/sqflite.dart';
 import 'package:intl/intl.dart';
 import '../database/database.dart';
+import '../domain/domain_exceptions.dart';
 import '../models/models.dart';
 import 'caja_service.dart';
 
@@ -41,10 +41,13 @@ class JornadaService {
 
   static Future<Jornada> cerrarJornada(String jornadaId, int contado, String diferenciaMotivo) async {
     final db = await database;
-    final jornadaMap = await db.query('jornada', limit: 1, where: 'id = ?', whereArgs: [jornadaId]);
-    if (jornadaMap.isEmpty) throw Exception('Jornada no encontrada');
 
-    final jornada = Jornada.fromMap(jornadaMap.first);
+    // Verify jornada exists
+    final jornadas = await db.query('jornada', limit: 1, where: 'id = ?', whereArgs: [jornadaId]);
+    if (jornadas.isEmpty) {
+      throw JornadaNoEncontradaException(jornadaId);
+    }
+
     final caja = await CajaService.calcularCaja(jornadaId);
     final esperado = caja['efectivo_esperado'] as int;
     final diferencia = contado - esperado;
@@ -58,6 +61,7 @@ class JornadaService {
       'cerrada_local_el': DateTime.now().toIso8601String(),
     }, where: 'id = ?', whereArgs: [jornadaId]);
 
+    final jornada = Jornada.fromMap(jornadas.first);
     jornada.estado = 'CLOSED_LOCAL_PENDING_SYNC';
     jornada.contado = contado;
     jornada.diferencia = diferencia;

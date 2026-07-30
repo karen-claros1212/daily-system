@@ -134,29 +134,7 @@ class AppThemeExtension extends ThemeExtension<AppThemeExtension> {
     required this.spacingLg,
   });
 
-  static const AppThemeExtension _default = AppThemeExtension(
-    primary: AppColors.primary,
-    accent: AppColors.accent,
-    tertiary: AppColors.tertiary,
-    danger: AppColors.danger,
-    success: AppColors.success,
-    warning: AppColors.warning,
-    surface: AppColors.surface,
-    surfaceContainer: AppColors.surfaceContainer,
-    outline: AppColors.outline,
-    outlineVariant: AppColors.outlineVariant,
-    textPrimary: AppColors.textPrimary,
-    textSecondary: AppColors.textSecondary,
-    shapeSm: Shapes.sm,
-    shapeMd: Shapes.md,
-    shapeLg: Shapes.lg,
-    shapeXl: Shapes.xl,
-    spacingSm: Spacing.sm,
-    spacingMd: Spacing.md,
-    spacingLg: Spacing.lg,
-  );
-
-  /// Access the theme extension from context.
+ /// Access the theme extension from context.
   static AppThemeExtension of(BuildContext context) {
     final ext = Theme.of(context).extension<AppThemeExtension>();
     return ext ?? const AppThemeExtension(

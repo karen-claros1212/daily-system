@@ -31,7 +31,6 @@ class _InicioScreenState extends State<InicioScreen> {
   bool _cargando = true;
   bool _jornadaAbierta = false;
   String _rutaNombre = '';
-  String _rutaId = '';
   int _recaudoHoy = 0;
   int _clientesPendientes = 0;
   int _clientesVisitados = 0;
@@ -73,7 +72,6 @@ class _InicioScreenState extends State<InicioScreen> {
       setState(() {
         _jornadaAbierta = true;
         _aperturaBase = j['opening_base'] as int? ?? 0;
-        _rutaId = jornadaId;
       });
 
       // Recaudo real = PAYMENTS - REVERSALS

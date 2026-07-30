@@ -3,8 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../database/database.dart';
-import '../models/models.dart';
-import '../services/jornada_service.dart';
 import '../theme/theme.dart';
 import 'historial_screen.dart';
 

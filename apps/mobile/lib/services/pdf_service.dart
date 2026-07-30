@@ -116,7 +116,6 @@ class PdfService {
 
   static Future<void> imprimirPdf(String filePath) async {
     await Printing.layoutPdf(onLayout: (PdfPageFormat format) async {
-      final pdf = pw.Document();
       // Re-read and print
       final bytes = await File(filePath).readAsBytes();
       return bytes;

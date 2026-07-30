@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:sqflite/sqflite.dart';
-import 'package:uuid/uuid.dart';
 import '../database/database.dart';
 import '../theme/theme.dart';
-import '../services/sync_queue_service.dart';
-import '../models/models.dart';
-
-final _uuidMov = Uuid();
+import '../services/movimiento_service.dart';
+import '../domain/domain_exceptions.dart';
 
 class MovimientosScreen extends StatefulWidget {
   final String jornadaId;
@@ -50,44 +46,49 @@ class _MovimientosScreenState extends State<MovimientosScreen> {
     final monto = int.tryParse(montoStr);
     if (monto == null || monto <= 0) return;
 
+    try {
+      final cobradorId = await _getCobradorId();
+      final negocioId = await _getNegocioId();
+      await MovimientoService.registrarMovimiento(
+        jornadaId: widget.jornadaId,
+        tipo: _tipo,
+        monto: monto,
+        nota: _notaController.text.trim(),
+        cobradorId: cobradorId,
+        negocioId: negocioId,
+      );
+      _montoController.clear();
+      _notaController.clear();
+      setState(() {
+        _mostrarForm = false;
+      });
+      _cargarMovimientos();
+    } on JornadaNoEncontradaException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())));
+    } on JornadaCerradaException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al registrar movimiento: $e')));
+    }
+  }
+
+  Future<String> _getCobradorId() async {
+    final jornadas = await _getJornadaRaw();
+    return (jornadas['cobrador_id'] as String?) ?? '';
+  }
+
+  Future<String> _getNegocioId() async {
+    final jornadas = await _getJornadaRaw();
+    return (jornadas['negocio_id'] as String?) ?? '';
+  }
+
+  Future<Map<String, dynamic>> _getJornadaRaw() async {
     final db = await database;
     final jornadas = await db.query('jornada', limit: 1, where: 'id = ?', whereArgs: [widget.jornadaId]);
-    if (jornadas.isEmpty) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Jornada no encontrada')));
-      return;
-    }
-    final estado = jornadas.first['estado'] as String;
-    if (estado != 'OPEN') {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pueden registrar movimientos en una jornada cerrada (estado: $estado)')));
-      return;
-    }
-    final id = _uuidMov.v4();
-    final now = DateTime.now().toIso8601String();
-    final negocioId = jornadas.first['negocio_id'] as String?;
-    await db.insert('movimiento', {
-      'id': id,
-      'negocio_id': negocioId,
-      'jornada_id': widget.jornadaId,
-      'tipo': _tipo,
-      'monto': monto,
-      'nota': _notaController.text.trim(),
-      'creado_el': now,
-    });
-
-    await SyncQueueService.enqueue('movimiento', id, {
-      'tipo': _tipo,
-      'monto': monto,
-      'nota': _notaController.text.trim(),
-    });
-
-    _montoController.clear();
-    _notaController.clear();
-    setState(() {
-      _mostrarForm = false;
-    });
-    _cargarMovimientos();
+    return jornadas.first;
   }
 
   @override

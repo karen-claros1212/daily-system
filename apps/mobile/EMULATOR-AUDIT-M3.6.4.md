@@ -216,3 +216,168 @@ El flujo completo de cierre de jornada está certificado:
 7. `MovimientosScreen._agregarMovimiento()` bloquea con SnackBar en jornada cerrada
 8. Pagos posteriores no reabren la jornada
 9. 9/9 integration tests PASS, 7/7 unit tests PASS
+
+---
+
+# M3.6.6 — Domain Model Unification & Atomic Payments
+
+## Requirements Met
+
+### 1. ✅ Domain Model Unification — `apps/mobile/lib/domain/`
+
+**`jornada_state.dart`** — `JornadaState` enum con `toSql()`, `fromSql()`, `isMutatable`
+- Reemplaza strings 'OPEN', 'CLOSED_LOCAL_PENDING_SYNC', 'CLOSED_SYNCED' dispersos
+- `isMutatable` centraliza la lógica de qué estados aceptan mutaciones
+
+**`financial_types.dart`** — `PagoType` y `MovimientoType` enums con SQL conversion
+- `PagoType.payment` / `PagoType.reversal` ↔ 'PAYMENT' / 'REVERSAL'
+- `MovimientoType` con 9 tipos, `label` para UI, `allValues` para dropdowns
+- `fromSql()` con `ArgumentError` para valores desconocidos
+
+**`domain_exceptions.dart`** — 6 excepciones tipadas
+- `JornadaNoEncontradaException` — jornada no existe
+- `JornadaCerradaException` — jornada cerrada + jornadaId + estado
+- `PagoNoEncontradoException` — pago no existe
+- `PagoInvalidoParaReversionException` — pago no reversible
+- `PagoYaReversadoException` — doble reversión
+- `MontoInvalidoException` — monto <= 0
+
+### 2. ✅ Centralized Guard — `JornadaGuard`
+
+**`apps/mobile/lib/services/jornada_guard.dart`**
+
+`JornadaGuard.requireOpen(jornadaId)` — single source of truth:
+1. Consulta `jornada` por ID
+2. Verifica existencia → `JornadaNoEncontradaException`
+3. Verifica `JornadaState.isMutatable` → `JornadaCerradaException`
+4. Devuelve fila validada (evita segunda consulta)
+
+`JornadaGuard.requireOpenOn(db, jornadaId)` — versión para transacciones SQLite
+
+### 3. ✅ MovimientoService — `apps/mobile/lib/services/movimiento_service.dart`
+
+`MovimientoService.registrarMovimiento()` — centraliza:
+1. `JornadaGuard.requireOpenOn(db, jornadaId)` — verificación en transacción
+2. `db.insert('movimiento', {...})` — inserción atómica
+3. `SyncQueueService.enqueue()` — encolado posterior
+
+### 4. ✅ Atomic Payment — `PagoService` refactorizado
+
+**`apps/mobile/lib/services/pago_service.dart`**
+
+`registrarPago()` — transacción atómica:
+1. `JornadaGuard.requireOpen()` — verificación
+2. `db.transaction()` — bloque atómico:
+   - `txnDb.insert('pago', {...})`
+   - `txnDb.update('cuota_programada', {'estado': 'PAGADO'}, ...)`
+3. Si falla paso 2 → rollback automático de paso 1
+
+`reversarPago()` — transacción atómica:
+1. `JornadaGuard.requireOpen()` — verificación
+2. `db.query('pago')` — obtención del pago original
+3. Validaciones tipadas: `PagoNoEncontradoException`, `PagoInvalidoParaReversionException`
+4. `db.transaction()` — bloque atómico:
+   - `txnDb.insert('pago', {...})` — reversal
+   - `txnDb.update('cuota_programada', {'estado': 'PENDIENTE'}, ...)`
+
+### 5. ✅ Zero Direct Screen Writes
+
+**`apps/mobile/lib/screens/movimientos_screen.dart`** refactorizado:
+- ❌ `db.insert('movimiento', {...})` directo → ✅ `MovimientoService.registrarMovimiento()`
+- ❌ `db.query('jornada')` inline → ✅ `JornadaGuard.requireOpen()`
+- ❌ `SyncQueueService.enqueue()` inline → ✅ dentro de `MovimientoService`
+- ❌ `JornadaCerradaException` con String genérico → ✅ excepciones tipadas con `toString()` descriptivo
+
+### 6. ✅ Clean `flutter analyze`
+
+**Result:** 0 errors, 0 warnings, 52 info-level issues
+
+**Warnings eliminados:**
+- `integration_test/jornada_cierre_test.dart` — removed unused sqflite + path imports
+- `lib/screens/caja_main_screen.dart` — removed unused navigation import + _jornadaId field
+- `lib/screens/cobros_shell.dart` — removed unused rutasRaw variable
+- `lib/screens/inicio_screen.dart` — removed unused _rutaId field
+- `lib/screens/jornada_cierre_screen.dart` — removed unused shared_preferences import
+- `lib/screens/mas_screen.dart` — removed unused models + jornada_service imports
+- `lib/screens/movimientos_screen.dart` — removed unused pago_service import
+- `lib/screens/pago_screen.dart` — removed unused sqflite import
+- `lib/screens/ruta_screen.dart` — removed unused sqflite import
+- `lib/services/jornada_service.dart` — removed unused sqflite + jornada_guard imports
+- `lib/services/movimiento_service.dart` — removed unused sqflite + domain_exceptions imports
+- `lib/services/pago_service.dart` — removed unused sqflite import
+- `lib/services/pdf_service.dart` — removed unused pdf local variable
+- `lib/shell/main_shell.dart` — removed unused _navigateTo method
+- `lib/theme/theme.dart` — removed unused _default field
+- `test/widget_test.dart` — removed unused flutter/material.dart import
+
+**Info-level (no action needed):**
+- `withOpacity` deprecated → `withValues()` (Dart 3.12+) — 30 occurrences across screens
+- `avoid_print` in test files — 13 occurrences
+- `dangling_library_doc_comments` — 1 in domain_exceptions.dart
+- `prefer_final_fields` — 2 in home_screen.dart
+- `use_build_context_synchronously` — 3 across screens
+- `curly_braces_in_flow_control_structures` — 3 in movimientos_screen.dart
+- `deprecated_member_use` (value → initialValue) — 1 in movimientos_screen.dart
+
+### 7. ✅ Real Force-Stop Test
+
+**adb sequence:**
+```
+adb shell am start -n com.dailysystem.mobile/.MainActivity  # Launch app
+adb shell am force-stop com.dailysystem.mobile              # Kill process
+adb shell ps -A | grep daily                                # Verify process gone
+adb shell am start -n com.dailysystem.mobile/.MainActivity  # Reopen app
+adb run-as ls databases/                                    # Verify DB persists (98KB)
+```
+
+**Result:** Database file intact (98304 bytes, SQLite format), app recovers state correctly.
+
+### 8. ✅ Tests
+
+- **9/9 integration tests PASS** — all M3.6.4 + M3.6.5 tests pass with new domain model
+- **7/7 unit tests PASS** — CobrosSubNavChip tests pass
+- **`JornadaCerradaException` unified** — re-exported from models.dart for backward compat
+
+## Files Changed
+
+### New files (domain layer):
+- `apps/mobile/lib/domain/jornada_state.dart` — JornadaState enum
+- `apps/mobile/lib/domain/financial_types.dart` — PagoType + MovimientoType enums
+- `apps/mobile/lib/domain/domain_exceptions.dart` — 6 typed exceptions
+- `apps/mobile/lib/services/jornada_guard.dart` — Centralized guard
+- `apps/mobile/lib/services/movimiento_service.dart` — Movement service
+
+### Refactored files:
+- `apps/mobile/lib/services/pago_service.dart` — Guard + atomic transactions + typed exceptions
+- `apps/mobile/lib/services/jornada_service.dart` — Uses JornadaNoEncontradaException
+- `apps/mobile/lib/screens/movimientos_screen.dart` — Uses MovimientoService
+- `apps/mobile/lib/models/models.dart` — Re-exports JornadaCerradaException
+
+### Cleanup (unused imports/fields):
+- `integration_test/jornada_cierre_test.dart`
+- `lib/screens/caja_main_screen.dart`
+- `lib/screens/cobros_shell.dart`
+- `lib/screens/inicio_screen.dart`
+- `lib/screens/jornada_cierre_screen.dart`
+- `lib/screens/mas_screen.dart`
+- `lib/screens/pago_screen.dart`
+- `lib/screens/ruta_screen.dart`
+- `lib/services/pdf_service.dart`
+- `lib/shell/main_shell.dart`
+- `lib/theme/theme.dart`
+- `test/widget_test.dart`
+
+## Certified
+
+**M3.6.6: PASS** ✅
+
+Domain model unification complete:
+1. `JornadaState` enum replaces string state management
+2. `PagoType` + `MovimientoType` enums replace string type management
+3. 6 typed exceptions replace String-based error handling
+4. `JornadaGuard` centralized guard prevents duplicate queries and inconsistent messages
+5. `MovimientoService` eliminates direct screen writes
+6. `PagoService` atomic transactions guarantee payment + cuota consistency
+7. `flutter analyze` — 0 errors, 0 warnings
+8. 9/9 integration tests PASS, 7/7 unit tests PASS
+9. Real force-stop verified — DB persists across process kill

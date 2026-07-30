@@ -26,10 +26,6 @@ class _MainShellState extends State<MainShell> {
   int _cobrosKey = 0;
   CobrosSection _cobrosSection = CobrosSection.seleccionarRuta;
 
-  void _navigateTo(MainSection section) {
-    setState(() => _currentSection = section);
-  }
-
   void _openCobros(CobrosSection section) {
     setState(() {
       _currentSection = MainSection.cobros;

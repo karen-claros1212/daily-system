@@ -55,7 +55,7 @@ class _CobrosShellState extends State<CobrosShell> {
 
     if (_section == CobrosSection.seleccionarRuta) {
       // Load available routes for selection
-      final rutasRaw = await db.query('ruta', where: 'activa = ?', whereArgs: [1]);
+      await db.query('ruta', where: 'activa = ?', whereArgs: [1]);
       setState(() {
         _cargando = false;
       });
