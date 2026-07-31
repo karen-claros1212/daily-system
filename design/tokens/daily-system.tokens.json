@@ -1,0 +1,190 @@
+{
+  "name": "Daily System",
+  "version": "1.0.0",
+  "description": "Shared design tokens for Daily System — mobile and web",
+
+  "brand": {
+    "concept": "D built from a continuous route line with nodes and a check mark",
+    "meaning": {
+      "D": "Daily — cada día",
+      "línea": "ruta = trabajo de campo",
+      "puntos": "clientes o paradas",
+      "check": "pago confirmado / jornada completada"
+    }
+  },
+
+  "colors": {
+    "light": {
+      "primary":       { "value": "#0B4654", "description": "Petrol blue — trust, main brand" },
+      "primaryLight":   { "value": "#125466", "description": "Elevated petrol" },
+      "primaryDark":    { "value": "#083340", "description": "Deep petrol for dark mode" },
+      "primaryContainer": { "value": "#B0D4DE", "description": "Primary container light" },
+      "onPrimary":      { "value": "#FFFFFF", "description": "Text on primary" },
+      "onPrimaryContainer": { "value": "#071920", "description": "Text on primary container" },
+
+      "accent":         { "value": "#0F6B55", "description": "Operational emerald" },
+      "accentLight":    { "value": "#14916F", "description": "Elevated emerald" },
+      "accentContainer": { "value": "#B2DFD6", "description": "Accent container light" },
+      "onAccent":       { "value": "#FFFFFF", "description": "Text on accent" },
+
+      "tertiary":       { "value": "#D7A33D", "description": "Gold emphasis — premium detail" },
+      "tertiaryLight":  { "value": "#E8C568", "description": "Light gold" },
+      "tertiaryDark":   { "value": "#9A7328", "description": "Dark gold" },
+      "tertiaryContainer": { "value": "#F5E6C8", "description": "Tertiary container" },
+      "onTertiary":     { "value": "#3D2E0A", "description": "Text on tertiary" },
+
+      "success":        { "value": "#0F6B55", "description": "Success green" },
+      "successContainer": { "value": "#C8E6C9" },
+      "onSuccess":      { "value": "#FFFFFF" },
+
+      "warning":        { "value": "#8A5A00", "description": "Warning amber" },
+      "warningContainer": { "value": "#FFF3CD" },
+      "onWarning":      { "value": "#3D2E0A" },
+
+      "error":          { "value": "#B3261E", "description": "Error red" },
+      "errorContainer": { "value": "#F9DEDC" },
+      "onError":        { "value": "#FFFFFF" },
+
+      "surface":        { "value": "#F6F8F7", "description": "Light background" },
+      "surfaceContainer": { "value": "#EDEDED", "description": "Surface container" },
+      "surfaceVariant": { "value": "#E0E0E0", "description": "Surface variant / borders" },
+      "outline":        { "value": "#B0B0B0", "description": "Outline border" },
+      "outlineVariant": { "value": "#797979", "description": "Outline variant / secondary text" },
+
+      "textPrimary":    { "value": "#17242B", "description": "Primary text" },
+      "textSecondary":  { "value": "#5F6368", "description": "Secondary text" },
+      "textDisabled":   { "value": "#B0B0B0", "description": "Disabled text" },
+
+      "shadow":         { "value": "#000000", "alpha": 0.08 },
+      "overlay":        { "value": "#000000", "alpha": 0.3 }
+    },
+
+    "dark": {
+      "primary":        { "value": "#8CD4E8", "description": "Light mode primary inverted" },
+      "primaryLight":   { "value": "#A8DFF0", "description": "Lighter primary" },
+      "primaryDark":    { "value": "#5BB8D4", "description": "Darker primary" },
+      "primaryContainer": { "value": "#0B4654", "description": "Primary container dark" },
+      "onPrimary":      { "value": "#071920", "description": "Text on primary dark" },
+      "onPrimaryContainer": { "value": "#B0D4DE", "description": "Text on primary container dark" },
+
+      "accent":         { "value": "#7ED8C0", "description": "Light mode accent inverted" },
+      "accentLight":    { "value": "#A0E8D6", "description": "Lighter accent" },
+      "accentContainer": { "value": "#0F6B55", "description": "Accent container dark" },
+      "onAccent":       { "value": "#072A1F", "description": "Text on accent dark" },
+
+      "tertiary":       { "value": "#E8C568", "description": "Gold emphasis light" },
+      "tertiaryLight":  { "value": "#F0D88A", "description": "Lighter gold" },
+      "tertiaryDark":   { "value": "#D7A33D", "description": "Dark gold" },
+      "tertiaryContainer": { "value": "#5A4418", "description": "Tertiary container dark" },
+      "onTertiary":     { "value": "#3D2E0A", "description": "Text on tertiary dark" },
+
+      "success":        { "value": "#7ED8C0", "description": "Success light" },
+      "successContainer": { "value": "#0F6B55" },
+      "onSuccess":      { "value": "#072A1F" },
+
+      "warning":        { "value": "#F0D88A", "description": "Warning light" },
+      "warningContainer": { "value": "#5A4418" },
+      "onWarning":      { "value": "#3D2E0A" },
+
+      "error":          { "value": "#F29993", "description": "Error light" },
+      "errorContainer": { "value": "#8C1D18" },
+      "onError":        { "value": "#690E0A" },
+
+      "surface":        { "value": "#0E1A21", "description": "Dark background" },
+      "surfaceContainer": { "value": "#17242B", "description": "Dark surface container" },
+      "surfaceVariant": { "value": "#3A4A52", "description": "Dark surface variant" },
+      "outline":        { "value": "#5A6A72", "description": "Dark outline" },
+      "outlineVariant": { "value": "#798A92", "description": "Dark outline variant" },
+
+      "textPrimary":    { "value": "#E0E0E0", "description": "Primary text dark" },
+      "textSecondary":  { "value": "#9AA0A6", "description": "Secondary text dark" },
+      "textDisabled":   { "value": "#5A6A72", "description": "Disabled text dark" },
+
+      "shadow":         { "value": "#000000", "alpha": 0.3 },
+      "overlay":        { "value": "#000000", "alpha": 0.5 }
+    }
+  },
+
+  "typography": {
+    "fontFamily": "Inter Variable",
+    "fontFallback": "Roboto Flex",
+    "tabularNumbers": true,
+    "scales": {
+      "display":    { "fontSize": 32, "fontWeight": 700, "lineHeight": 38 },
+      "headline":   { "fontSize": 26, "fontWeight": 700, "lineHeight": 32 },
+      "titleL":     { "fontSize": 20, "fontWeight": 600, "lineHeight": 26 },
+      "titleM":     { "fontSize": 17, "fontWeight": 600, "lineHeight": 22 },
+      "bodyL":      { "fontSize": 16, "fontWeight": 400, "lineHeight": 24 },
+      "bodyM":      { "fontSize": 14, "fontWeight": 400, "lineHeight": 20 },
+      "labelL":     { "fontSize": 14, "fontWeight": 600, "lineHeight": 18 },
+      "labelM":     { "fontSize": 12, "fontWeight": 600, "lineHeight": 16 },
+      "moneyHero":  { "fontSize": 32, "fontWeight": 700, "lineHeight": 38, "features": ["tnum"] },
+      "moneyNormal": { "fontSize": 18, "fontWeight": 700, "lineHeight": 24, "features": ["tnum"] }
+    }
+  },
+
+  "shapes": {
+    "sm": 8.0,
+    "md": 12.0,
+    "lg": 16.0,
+    "xl": 24.0
+  },
+
+  "spacing": {
+    "xs": 4.0,
+    "sm": 8.0,
+    "md": 16.0,
+    "lg": 24.0,
+    "xl": 32.0,
+    "xxl": 48.0
+  },
+
+  "elevation": {
+    "level0": { "description": "Normal surfaces" },
+    "level1": { "description": "Floating card / bar", "shadowOpacity": 0.08 },
+    "level2": { "description": "Modal / bottom sheet", "shadowOpacity": 0.15 }
+  },
+
+  "motion": {
+    "fast":       { "duration": 150, "unit": "ms" },
+    "normal":     { "duration": 250, "unit": "ms" },
+    "long":       { "duration": 400, "unit": "ms", "use": "screen transitions only" },
+    "curveEmphasized": "easeOutCubic",
+    "curveDecelerated": "easeOut"
+  },
+
+  "breakpoints": {
+    "compact":  { "max": 599, "unit": "dp", "description": "Phone portrait" },
+    "medium":   { "min": 600, "max": 839, "unit": "dp", "description": "Tablet portrait / large phone landscape" },
+    "expanded": { "min": 840, "unit": "dp", "description": "Tablet landscape / desktop" }
+  },
+
+  "touchTargets": {
+    "minWidth": 48,
+    "minHeight": 48,
+    "unit": "dp"
+  },
+
+  "iconSizes": {
+    "small": 20,
+    "medium": 24,
+    "large": 32,
+    "unit": "dp"
+  },
+
+  "maxWidths": {
+    "form": 600,
+    "reading": 720,
+    "unit": "dp"
+  },
+
+  "states": {
+    "loading":   { "description": "Skeleton geometry matching content" },
+    "empty":     { "description": "Empty state with illustration + CTA" },
+    "error":     { "description": "Recoverable error with explanation + retry" },
+    "offline":   { "description": "Saved locally, pending sync" },
+    "syncing":   { "description": "Sync in progress" },
+    "synced":    { "description": "All synced" },
+    "success":   { "description": "Action completed" }
+  }
+}

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily System — Caja</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo-symbol">D</div>
+      <span>Daily System</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="index.html">Dashboard</a></li>
+      <li><a href="cartera.html">Cartera</a></li>
+      <li><a href="caja.html" class="active">Caja</a></li>
+      <li><a href="reportes.html">Reportes</a></li>
+    </ul>
+  </nav>
+  <main class="main-content">
+    <header class="top-bar">
+      <h1>Caja / Conciliación</h1>
+    </header>
+    <div class="caja-summary">
+      <div class="metric-card">
+        <div class="metric-label">Dinero esperado</div>
+        <div class="metric-value money">$120.000</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Dinero contado</div>
+        <div class="metric-value">$115.000</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Diferencia</div>
+        <div class="metric-value" style="color:var(--ds-warning);">-$5.000</div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

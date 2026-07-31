@@ -1,0 +1,102 @@
+/* Daily System Design Tokens */
+/* Generated from design/tokens/daily-system.tokens.json */
+
+:root {
+  /* ── Light Mode ── */
+  --ds-primary: #0B4654;
+  --ds-primary-light: #125466;
+  --ds-primary-dark: #083340;
+  --ds-primary-container: #B0D4DE;
+  --ds-on-primary: #FFFFFF;
+  --ds-on-primary-container: #071920;
+  --ds-accent: #0F6B55;
+  --ds-accent-light: #14916F;
+  --ds-accent-container: #B2DFD6;
+  --ds-on-accent: #FFFFFF;
+  --ds-tertiary: #D7A33D;
+  --ds-tertiary-light: #E8C568;
+  --ds-tertiary-dark: #9A7328;
+  --ds-tertiary-container: #F5E6C8;
+  --ds-on-tertiary: #3D2E0A;
+  --ds-success: #0F6B55;
+  --ds-success-container: #C8E6C9;
+  --ds-on-success: #FFFFFF;
+  --ds-warning: #8A5A00;
+  --ds-warning-container: #FFF3CD;
+  --ds-on-warning: #3D2E0A;
+  --ds-error: #B3261E;
+  --ds-error-container: #F9DEDC;
+  --ds-on-error: #FFFFFF;
+  --ds-surface: #F6F8F7;
+  --ds-surface-container: #EDEDED;
+  --ds-surface-variant: #E0E0E0;
+  --ds-outline: #B0B0B0;
+  --ds-outline-variant: #797979;
+  --ds-text-primary: #17242B;
+  --ds-text-secondary: #5F6368;
+  --ds-text-disabled: #B0B0B0;
+  --ds-shadow: #000000;
+  --ds-overlay: #000000;
+
+  /* ── Dark Mode ── */
+:root[data-theme="dark"] {
+  --ds-primary: #8CD4E8;
+  --ds-primary-light: #A8DFF0;
+  --ds-primary-dark: #5BB8D4;
+  --ds-primary-container: #0B4654;
+  --ds-on-primary: #071920;
+  --ds-on-primary-container: #B0D4DE;
+  --ds-accent: #7ED8C0;
+  --ds-accent-light: #A0E8D6;
+  --ds-accent-container: #0F6B55;
+  --ds-on-accent: #072A1F;
+  --ds-tertiary: #E8C568;
+  --ds-tertiary-light: #F0D88A;
+  --ds-tertiary-dark: #D7A33D;
+  --ds-tertiary-container: #5A4418;
+  --ds-on-tertiary: #3D2E0A;
+  --ds-success: #7ED8C0;
+  --ds-success-container: #0F6B55;
+  --ds-on-success: #072A1F;
+  --ds-warning: #F0D88A;
+  --ds-warning-container: #5A4418;
+  --ds-on-warning: #3D2E0A;
+  --ds-error: #F29993;
+  --ds-error-container: #8C1D18;
+  --ds-on-error: #690E0A;
+  --ds-surface: #0E1A21;
+  --ds-surface-container: #17242B;
+  --ds-surface-variant: #3A4A52;
+  --ds-outline: #5A6A72;
+  --ds-outline-variant: #798A92;
+  --ds-text-primary: #E0E0E0;
+  --ds-text-secondary: #9AA0A6;
+  --ds-text-disabled: #5A6A72;
+  --ds-shadow: #000000;
+  --ds-overlay: #000000;
+}
+
+  /* ── Shapes ── */
+  --ds-shape-sm: 8.0px;
+  --ds-shape-md: 12.0px;
+  --ds-shape-lg: 16.0px;
+  --ds-shape-xl: 24.0px;
+
+  /* ── Spacing ── */
+  --ds-spacing-xs: 4.0px;
+  --ds-spacing-sm: 8.0px;
+  --ds-spacing-md: 16.0px;
+  --ds-spacing-lg: 24.0px;
+  --ds-spacing-xl: 32.0px;
+  --ds-spacing-xxl: 48.0px;
+
+  /* ── Motion ── */
+  --ds-motion-fast: 150ms;
+  --ds-motion-normal: 250ms;
+  --ds-motion-long: 400ms;
+
+  /* ── Breakpoints ── */
+  --ds-breakpoint-compact: 599px;
+  --ds-breakpoint-medium: 600px;
+  --ds-breakpoint-expanded: 840px;
+}

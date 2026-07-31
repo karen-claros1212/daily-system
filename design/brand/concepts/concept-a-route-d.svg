@@ -1,0 +1,17 @@
+<!-- Daily System — Brand Concept A: Route D -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Background -->
+  <rect width="100" height="100" rx="20" fill="#0B4654"/>
+  
+  <!-- Route line forming D shape -->
+  <path d="M35 15 L35 85" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" fill="none"/>
+  <path d="M35 15 C80 15, 90 50, 85 85 C75 95, 35 95, 35 85" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" fill="none"/>
+  
+  <!-- Route nodes -->
+  <circle cx="35" cy="15" r="5" fill="#D7A33D"/>
+  <circle cx="70" cy="50" r="5" fill="#0F6B55"/>
+  <circle cx="35" cy="85" r="5" fill="#D7A33D"/>
+  
+  <!-- Check mark at middle node -->
+  <path d="M66 50 L69 53 L76 45" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

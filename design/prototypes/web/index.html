@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily System — Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo-symbol">D</div>
+      <span>Daily System</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="index.html" class="active">Dashboard</a></li>
+      <li><a href="cartera.html">Cartera</a></li>
+      <li><a href="caja.html">Caja</a></li>
+      <li><a href="reportes.html">Reportes</a></li>
+    </ul>
+  </nav>
+  <main class="main-content">
+    <header class="top-bar">
+      <h1>Dashboard</h1>
+      <div class="user-info">Carlos M. — Admin</div>
+    </header>
+    <div class="dashboard">
+      <div class="metric-card">
+        <div class="metric-label">Rutas activas</div>
+        <div class="metric-value">3</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Cobrado hoy</div>
+        <div class="metric-value money">$245.000</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Clientes pendientes</div>
+        <div class="metric-value warning">12</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Jornadas cerradas</div>
+        <div class="metric-value success">28/30</div>
+      </div>
+      <div class="alert-card">
+        <div class="alert-icon">⚠️</div>
+        <div>
+          <div class="alert-title">3 clientes requieren atención</div>
+          <div class="alert-desc">Mora mayor a 15 días</div>
+        </div>
+      </div>
+      <div class="route-card">
+        <div class="route-header">
+          <h3>Ruta Norte</h3>
+          <span class="route-badge success">82% recaudo</span>
+        </div>
+        <div class="route-stats">
+          <span>18/22 pagos</span>
+          <span>$180.000 cobrado</span>
+        </div>
+      </div>
+      <div class="caja-card">
+        <div class="caja-header">
+          <h3>Caja de Carlos</h3>
+          <span class="route-badge warning">Pendiente de entrega</span>
+        </div>
+        <div class="caja-stats">
+          <span>Esperado: $120.000</span>
+          <span>Contado: $115.000</span>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
