@@ -155,7 +155,7 @@ String _generateDartTokens(Map<String, dynamic> tokens) {
   sb.writeln('  static Color get darkDanger => darkerror;');
   sb.writeln('  static Color get darkSuccess => darksuccess;');
   sb.writeln('  static Color get darkWarning => darkwarning;');
-  sb.writeln('  static Color get darkShadow => const Color(0x000000);');
+  sb.writeln('  static Color get darkShadow => const Color(0xFF000000);');
   sb.writeln('  static Color get shadowColor => shadow.withValues(alpha: 0.08);');
   sb.writeln('');
   
@@ -200,7 +200,7 @@ String _generateDartTokens(Map<String, dynamic> tokens) {
     sb.writeln('    fontWeight: FontWeight.w${scale['fontWeight']},');
     sb.writeln('    height: ${scale['lineHeight'] / scale['fontSize']},');
     if (scale.containsKey('features') && (scale['features'] as List).contains('tnum')) {
-      sb.writeln('    fontFeatures: const [FontFeature.tabularFigures()],');
+      sb.writeln('    fontFeatures: [FontFeature.tabularFigures()],');
     }
     sb.writeln('  );');
   }

@@ -32,12 +32,12 @@ class _HistorialScreenState extends State<HistorialScreen> {
     }
   }
 
-  Color _estadoColor(String estado) {
+  Color _estadoColor(String estado, ThemeData theme) {
     switch (estado) {
-      case 'CLOSED_SYNCED': return const Color(0xFF2E7D32);
-      case 'CLOSED_LOCAL_PENDING_SYNC': return const Color(0xFF1565C0);
-      case 'OPEN': return const Color(0xFFF57F17);
-      default: return const Color(0xFF79747E);
+      case 'CLOSED_SYNCED': return theme.colorScheme.secondary;
+      case 'CLOSED_LOCAL_PENDING_SYNC': return theme.colorScheme.primary;
+      case 'OPEN': return theme.colorScheme.tertiary;
+      default: return theme.colorScheme.onSurfaceVariant;
     }
   }
 
@@ -61,21 +61,22 @@ class _HistorialScreenState extends State<HistorialScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Historial de Jornadas'),
         elevation: 0,
       ),
-      body: _cargando ? const Center(child: CircularProgressIndicator()) :
+      body: _cargando ? Center(child: CircularProgressIndicator(color: theme.colorScheme.primary)) :
       _jornadas.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.history, size: 64, color: const Color(0xFF79747E).withValues(alpha: 0.5)),
+                  Icon(Icons.history, size: 64, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
                   const SizedBox(height: 16),
-                  const Text('No hay jornadas en el historial',
-                      style: TextStyle(color: Color(0xFF79747E))),
+                  Text('No hay jornadas en el historial',
+                      style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
                 ],
               ),
             )
@@ -85,7 +86,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
               separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 final j = _jornadas[index];
-                final color = _estadoColor(j.estado);
+                final color = _estadoColor(j.estado, theme);
                 return premiumCard(
                   child: Row(children: [
                     Container(
@@ -102,8 +103,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(j.fecha,
-                              style: const TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.w600)),
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
                           const SizedBox(height: 2),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -118,8 +118,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                       ),
                     ),
                     Text(formatMoney(j.contado),
-                        style: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF2E7D32))),
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: theme.colorScheme.secondary)),
                   ]),
                 );
               },

@@ -32,12 +32,12 @@ class _HojaVivaScreenState extends State<HojaVivaScreen> {
     }
   }
 
-  Color _semaforoColor(String semaforo) {
+  Color _semaforoColor(String semaforo, ThemeData theme) {
     switch (semaforo) {
-      case 'VERDE': return const Color(0xFF2E7D32);
-      case 'AMARILLO': return const Color(0xFFF9A825);
-      case 'ROJO': return const Color(0xFFC62828);
-      default: return const Color(0xFF9E9E9E);
+      case 'VERDE': return theme.colorScheme.secondary;
+      case 'AMARILLO': return theme.colorScheme.tertiary;
+      case 'ROJO': return theme.colorScheme.error;
+      default: return theme.colorScheme.onSurfaceVariant;
     }
   }
 
@@ -52,26 +52,24 @@ class _HojaVivaScreenState extends State<HojaVivaScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Hoja Viva'),
         elevation: 0,
       ),
-      body: _cargando ? const Center(child: CircularProgressIndicator()) :
-      _clientes.isEmpty ? Center(child: const Text('No hay clientes en esta ruta')) :
+      body: _cargando ? Center(child: CircularProgressIndicator(color: theme.colorScheme.primary)) :
+      _clientes.isEmpty ? Center(child: Text('No hay clientes en esta ruta', style: TextStyle(color: theme.colorScheme.onSurfaceVariant))) :
       Padding(
         padding: const EdgeInsets.all(16),
         child: Column(children: [
           // Summary chips
           Row(children: [
-            _chip('VERDE', _clientes.where((c) => c['semaforo'] == 'VERDE').length,
-                const Color(0xFF2E7D32)),
+            _chip(theme, 'VERDE', _clientes.where((c) => c['semaforo'] == 'VERDE').length, theme.colorScheme.secondary),
             const SizedBox(width: 8),
-            _chip('AMARILLO', _clientes.where((c) => c['semaforo'] == 'AMARILLO').length,
-                const Color(0xFFF9A825)),
+            _chip(theme, 'AMARILLO', _clientes.where((c) => c['semaforo'] == 'AMARILLO').length, theme.colorScheme.tertiary),
             const SizedBox(width: 8),
-            _chip('ROJO', _clientes.where((c) => c['semaforo'] == 'ROJO').length,
-                const Color(0xFFC62828)),
+            _chip(theme, 'ROJO', _clientes.where((c) => c['semaforo'] == 'ROJO').length, theme.colorScheme.error),
           ]),
           const SizedBox(height: 16),
           // Client list
@@ -80,7 +78,7 @@ class _HojaVivaScreenState extends State<HojaVivaScreen> {
               itemCount: _clientes.length,
               itemBuilder: (context, index) {
                 final c = _clientes[index];
-                final color = _semaforoColor(c['semaforo'] as String);
+                final color = _semaforoColor(c['semaforo'] as String, theme);
                 return Padding(padding: const EdgeInsets.only(bottom: 8),
                   child: premiumCard(
                     child: Column(children: [
@@ -101,35 +99,23 @@ class _HojaVivaScreenState extends State<HojaVivaScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(c['cliente_nombre'] as String,
-                                  style: const TextStyle(
-                                      fontSize: 15, fontWeight: FontWeight.w600)),
+                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
                               Text(_semaforoLabel(c['semaforo'] as String),
                                   style: TextStyle(fontSize: 12, color: color)),
                             ],
                           ),
                         ),
-                        const Icon(Icons.chevron_right, color: Color(0xFFCAC4D0)),
+                        Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant),
                       ]),
                       // Expandable details
                       const SizedBox(height: 8),
                       Row(
                         children: [
                           Expanded(
-                            child: _detailChip('Cuota', formatMoney(c['cuota'] as int)),
+                            child: _detailChip(theme, 'Cuota', formatMoney(c['cuota'] as int)),
                           ),
                           Expanded(
-                            child: _detailChip('Saldo', formatMoney(c['saldo'] as int)),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _detailChip('Mora', '${c['mora_legacy']} cuotas'),
-                          ),
-                          Expanded(
-                            child: _detailChip('Pico', formatMoney(c['pico'] as int)),
+                            child: _detailChip(theme, 'Saldo', formatMoney(c['saldo'] as int)),
                           ),
                         ],
                       ),
@@ -137,10 +123,21 @@ class _HojaVivaScreenState extends State<HojaVivaScreen> {
                       Row(
                         children: [
                           Expanded(
-                            child: _detailChip('Pagadas', '${c['cuotas_pagadas']}/${c['n_cuotas']}'),
+                            child: _detailChip(theme, 'Mora', '${c['mora_legacy']} cuotas'),
                           ),
                           Expanded(
-                            child: _detailChip('Total', formatMoney(c['total'] as int)),
+                            child: _detailChip(theme, 'Pico', formatMoney(c['pico'] as int)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _detailChip(theme, 'Pagadas', '${c['cuotas_pagadas']}/${c['n_cuotas']}'),
+                          ),
+                          Expanded(
+                            child: _detailChip(theme, 'Total', formatMoney(c['total'] as int)),
                           ),
                         ],
                       ),
@@ -155,7 +152,7 @@ class _HojaVivaScreenState extends State<HojaVivaScreen> {
     );
   }
 
-  Widget _chip(String label, int count, Color color) {
+  Widget _chip(ThemeData theme, String label, int count, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -171,15 +168,15 @@ class _HojaVivaScreenState extends State<HojaVivaScreen> {
     );
   }
 
-  Widget _detailChip(String label, String value) {
+  Widget _detailChip(ThemeData theme, String label, String value) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F5F0),
+        color: theme.colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text('$label: $value',
-          style: const TextStyle(fontSize: 11, color: Color(0xFF79747E))),
+          style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
     );
   }
 }

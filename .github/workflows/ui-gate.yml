@@ -9,9 +9,6 @@ on:
 jobs:
   ui-gate:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/mobile
 
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb534c0cce42f22e73f01b # v4.2.2
@@ -25,19 +22,23 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
+        working-directory: apps/mobile
 
-      - name: Token generator check
-        run: |
-          cd ../..
-          dart run tool/generate_design_tokens.dart --check
+      - name: Token generator check (root)
+        run: dart run tool/generate_design_tokens.dart --check
+
+      - name: Generator unit tests
+        run: dart test apps/mobile/test/generator_test.dart
+        working-directory: .
 
       - name: Flutter analyze (strict)
         run: flutter analyze
+        working-directory: apps/mobile
 
-      - name: Flutter test
+      - name: Flutter test (widget + golden + semantics + generator)
         run: flutter test
+        working-directory: apps/mobile
 
-      - name: Validate opaque colors
-        run: |
-          dart run tool/generate_design_tokens.dart
-          grep -r "Color(0x0" lib/theme/generated/ | grep -v "0xFF" && exit 1 || echo "All colors opaque: PASS"
+      - name: Validate opaque colors (no grep)
+        run: dart test apps/mobile/test/generator_test.dart
+        working-directory: .

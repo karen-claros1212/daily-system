@@ -32,6 +32,7 @@ class _MasScreenState extends State<MasScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Más'),
@@ -46,7 +47,7 @@ class _MasScreenState extends State<MasScreen> {
               Container(
                 width: 56, height: 56,
                 decoration: BoxDecoration(
-                  color: AppColors.primary,
+                  color: theme.colorScheme.primary,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Icon(Icons.person, color: Colors.white, size: 28),
@@ -57,13 +58,13 @@ class _MasScreenState extends State<MasScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(widget.cobradorNombre,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
                     Text('Cobrador',
-                        style: const TextStyle(fontSize: 13, color: AppColors.outlineVariant)),
+                        style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurfaceVariant)),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColors.outline),
+              Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant),
             ]),
           ),
           const SizedBox(height: 20),
@@ -77,24 +78,24 @@ class _MasScreenState extends State<MasScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
+                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.history, color: AppColors.primary, size: 22),
+                child: Icon(Icons.history, color: theme.colorScheme.primary, size: 22),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Historial de Jornadas',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    Text('Historial de Jornadas',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
                     Text('$_jornadasCount jornadas registradas',
-                        style: const TextStyle(fontSize: 12, color: AppColors.outlineVariant)),
+                        style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColors.outline),
+              Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant),
             ]),
           ),
           const SizedBox(height: 12),
@@ -106,17 +107,17 @@ class _MasScreenState extends State<MasScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.secondary.withValues(alpha: 0.1),
+                  color: theme.colorScheme.secondary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.settings, color: AppColors.secondary, size: 22),
+                child: Icon(Icons.settings, color: theme.colorScheme.secondary, size: 22),
               ),
               const SizedBox(width: 14),
               Expanded(
-                child: const Text('Configuración',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                child: Text('Configuración',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
               ),
-              const Icon(Icons.chevron_right, color: AppColors.outline),
+              Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant),
             ]),
           ),
           const SizedBox(height: 12),
@@ -125,20 +126,20 @@ class _MasScreenState extends State<MasScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.tertiary.withValues(alpha: 0.1),
+                  color: theme.colorScheme.tertiary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.info_outline, color: AppColors.tertiaryDark, size: 22),
+                child: Icon(Icons.info_outline, color: theme.colorScheme.tertiary, size: 22),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Acerca de',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                    const Text('Daily System v1.0',
-                        style: TextStyle(fontSize: 12, color: AppColors.outlineVariant)),
+                    Text('Acerca de',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+                    Text('Daily System v1.0',
+                        style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
                   ],
                 ),
               ),
@@ -154,7 +155,7 @@ class _MasScreenState extends State<MasScreen> {
               await prefs.clear();
               if (context.mounted) Navigator.popUntil(context, (r) => r.isFirst);
             },
-            color: AppColors.danger,
+            color: theme.colorScheme.error,
             icon: Icons.logout,
           ),
         ]),

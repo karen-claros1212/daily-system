@@ -157,7 +157,7 @@ class DailyTokens {
   static Color get darkDanger => darkerror;
   static Color get darkSuccess => darksuccess;
   static Color get darkWarning => darkwarning;
-  static Color get darkShadow => const Color(0x000000);
+  static Color get darkShadow => const Color(0xFF000000);
   static Color get shadowColor => shadow.withValues(alpha: 0.08);
 
   // ═══ Shapes ═══
@@ -230,13 +230,13 @@ class DailyTokens {
     fontSize: 32,
     fontWeight: FontWeight.w700,
     height: 1.1875,
-    fontFeatures: const [FontFeature.tabularFigures()],
+    fontFeatures: [FontFeature.tabularFigures()],
   );
   static const moneyNormalTextStyle = TextStyle(
     fontSize: 18,
     fontWeight: FontWeight.w700,
     height: 1.3333333333333333,
-    fontFeatures: const [FontFeature.tabularFigures()],
+    fontFeatures: [FontFeature.tabularFigures()],
   );
 
   // ═══ Breakpoints (dp) ═══

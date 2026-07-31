@@ -56,21 +56,22 @@ class _RutaScreenState extends State<RutaScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Seleccionar Ruta'),
         elevation: 0,
       ),
-      body: _cargando ? const Center(child: CircularProgressIndicator()) :
-      _rutas.isEmpty ? Center(child: const Text('No hay rutas disponibles')) :
+      body: _cargando ? Center(child: CircularProgressIndicator(color: theme.colorScheme.primary)) :
+      _rutas.isEmpty ? Center(child: Text('No hay rutas disponibles', style: TextStyle(color: theme.colorScheme.onSurfaceVariant))) :
       Padding(
         padding: const EdgeInsets.all(16),
         child: Column(children: [
-          const Text('Elige la ruta del día',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          Text('Elige la ruta del día',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
           const SizedBox(height: 4),
           Text('Cobrador: $_cobradorNombre',
-              style: const TextStyle(fontSize: 13, color: Color(0xFF79747E))),
+              style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 20),
           Expanded(
             child: ListView.builder(
@@ -84,10 +85,10 @@ class _RutaScreenState extends State<RutaScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
+                          color: theme.colorScheme.secondary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.route, color: Color(0xFF2E7D32), size: 24),
+                        child: Icon(Icons.route, color: theme.colorScheme.secondary, size: 24),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -95,14 +96,13 @@ class _RutaScreenState extends State<RutaScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(ruta.nombre,
-                                style: const TextStyle(
-                                    fontSize: 15, fontWeight: FontWeight.w600)),
-                            const Text('Ruta activa',
-                                style: TextStyle(fontSize: 12, color: Color(0xFF79747E))),
+                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+                            Text('Ruta activa',
+                                style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
                           ],
                         ),
                       ),
-                      const Icon(Icons.chevron_right, color: Color(0xFFCAC4D0)),
+                      Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant),
                     ]),
                   ),
                 );
@@ -193,6 +193,7 @@ class _RutaActivaScreenState extends State<RutaActivaScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.ruta.nombre),
@@ -221,15 +222,15 @@ class _RutaActivaScreenState extends State<RutaActivaScreen>
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          border: Border(top: BorderSide(color: const Color(0xFFE7E0EC), width: 0.5)),
+          border: Border(top: BorderSide(color: theme.colorScheme.surfaceContainerHighest, width: 0.5)),
         ),
         child: BottomNavigationBar(
           currentIndex: _pageIndex,
           onTap: _onTabChanged,
           type: BottomNavigationBarType.fixed,
-          backgroundColor: const Color(0xFFFDFDF7),
-          selectedItemColor: const Color(0xFF2E7D32),
-          unselectedItemColor: const Color(0xFF79747E),
+          backgroundColor: theme.colorScheme.surface,
+          selectedItemColor: theme.colorScheme.secondary,
+          unselectedItemColor: theme.colorScheme.onSurfaceVariant,
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Hoja Viva'),
             BottomNavigationBarItem(icon: Icon(Icons.payment), label: 'Pago'),
