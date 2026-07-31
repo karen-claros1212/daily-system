@@ -1,0 +1,43 @@
+name: Bug Report
+description: Report a bug in Daily System
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Descripción del bug
+      description: ¿Qué pasó?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Pasos para reproducir
+      description: |
+        1. Ir a '...'
+        2. Click en '...'
+        3. Ver error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamiento esperado
+      description: ¿Qué esperabas ver?
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Capturas
+      description: Si aplica, agrega capturas de pantalla
+  - type: input
+    id: device
+    attributes:
+      label: Dispositivo
+      description: Modelo, sistema operativo, versión
+  - type: input
+    id: app-version
+    attributes:
+      label: Versión de la app
+      description: Versión o SHA del commit

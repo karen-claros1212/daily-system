@@ -1,0 +1,43 @@
+name: UI Gate
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  ui-gate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Token generator check
+        run: |
+          cd ../..
+          dart run tool/generate_design_tokens.dart --check
+
+      - name: Flutter analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Flutter test
+        run: flutter test
+
+      - name: Validate opaque colors
+        run: |
+          dart run tool/generate_design_tokens.dart
+          grep -r "Color(0x0" lib/theme/generated/ | grep -v "0xFF" && exit 1 || echo "All colors opaque: PASS"
