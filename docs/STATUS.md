@@ -1,9 +1,11 @@
 # STATUS — Daily System
 
 **Proyecto:** daily-system
-**Última actualización:** 2026-07-28
+**Última actualización:** 2026-07-31
 **Rama:** master
+**HEAD:** b6d48bb (M3.6.6-F + ruff linting)
 **Repo:** https://github.com/karen-claros1212/daily-system
+**Commits:** 37
 
 ---
 
@@ -11,12 +13,13 @@
 
 | Campo | Valor |
 |---|---|
-| **Estado general** | M0 completado, preparando M1 |
-| **Hito actual** | M0 — FUNDACIÓN EJECUTABLE ✅ |
-| **Progreso total** | M0: 20/20 (100%) |
-| **Commits** | 7 |
-| **Tests pasando** | 28/28 |
-| **PostgreSQL** | Corriendo (cobro-postgres, puerto 7103) |
+| **Estado general** | M0-M3 completos, M2 gate finalizado |
+| **Hito actual** | M3.6.6-F — Visual Alpha Premium + Offline Alpha |
+| **Progreso total** | M0: 22/22 ✅, M1: 8/8 ✅, M2: 6/6 ✅, M3: 6/6 ✅ |
+| **Tests pasando** | 138/138 |
+| **PostgreSQL** | Corriendo (cobro-postgres, Docker) |
+| **Alembic** | head = m3_dispositivo (aplicado) |
+| **ruff** | 0 errors (130 UP045 auto-fixed) |
 | **Documento maestro** | docs/DOCUMENTO-MAESTRO-Plataforma-Cobro-Colombia-v1.3-CERRADO.md |
 
 ---
@@ -24,7 +27,7 @@
 ## Hito M0 — Fundación ejecutable ✅
 
 **Estado:** COMPLETADO
-**Progreso:** 20/20 (100%)
+**Progreso:** 22/22 (100%)
 
 ### Entregables
 
@@ -50,10 +53,74 @@
 
 ---
 
-## Hito M1 — Hoja viva y pagos
+## Hito M1 — Hoja viva y pagos ✅
 
-**Estado:** PENDIENTE
-**Depende de:** M0 completo
+**Estado:** COMPLETADO
+**Progreso:** 8/8 (100%)
+
+### Entregables
+
+| # | Requisito | Estado | Commit |
+|---|---|---|---|
+| M1.1 | Calcular crédito (cuota × días) | ✅ | e2d8e37 |
+| M1.2 | Calcular caja (asignar pagos) | ✅ | e2d8e37 |
+| M1.3 | Hoja viva del día | ✅ | e2d8e37 |
+| M1.4 | Registrar pago parcial | ✅ | e2d8e37 |
+| M1.5 | Reversar pago | ✅ | e2d8e37 |
+| M1.6 | Historial de pagos | ✅ | e2d8e37 |
+| M1.7 | Cálculo de pico y residuo | ✅ | 965e0da |
+| M1.8 | Renegociación básica | ✅ | 965e0da |
+
+---
+
+## Hito M2 — Jornada, caja y TERMINAR JORNADA ✅ (GATE FINAL)
+
+**Estado:** COMPLETADO
+**Progreso:** 6/6 (100%)
+
+### Entregables
+
+| # | Requisito | Estado | Commit |
+|---|---|---|---|
+| M2.1 | Iniciar jornada | ✅ | 485671e |
+| M2.2 | Cerrar jornada | ✅ | 485671e |
+| M2.3 | Total recaudado por jornada | ✅ | 3f59bd3 |
+| M2.4 | Movimientos de caja | ✅ | 3f59bd3 |
+| M2.5 | Reporte de jornada | ✅ | 86779e8 |
+| M2.6 | Anular jornada | ✅ | 2826590 |
+
+### Notas M2
+- Una jornada solo puede cerrar si todas las cuotas del día están cubiertas o marcadas como impagas
+- El pico (abono % cuota) se registra como abono a la siguiente cuota
+- Idempotencia obligatoria en apertura de jornada
+- Hash reproducible de snapshot de jornada
+- Migrations: init → m2_apertura_idempotency → m2_jornada_caja → head
+- **M2 Gate Final:** 138 tests passing, alembic head = m3_dispositivo, PostgreSQL applied
+
+---
+
+## Hito M3 — Suscripción, Telegram e inversionista ✅
+
+**Estado:** COMPLETADO
+**Progreso:** 6/6 (100%)
+
+### Entregables
+
+| # | Requisito | Estado | Commit |
+|---|---|---|---|
+| M3.1 | Planes y suscripciones | ✅ | 871d1de |
+| M3.2 | Bot Telegram (cobrador) | ✅ | 871d1de |
+| M3.3 | Bot Telegram (inversionista) | ✅ | 871d1de |
+| M3.4 | Panel inversionista (web) | ✅ | 871d1de |
+| M3.5 | Reporte diario automático | ✅ | 871d1de |
+| M3.6 | Límite de rutas por plan | ✅ | e44b09e |
+
+### Notas M3
+- Plan free: 1 ruta, 100 clientes
+- Plan básico: 5 rutas, 500 clientes
+- Plan pro: rutas ilimitadas, clientes ilimitados
+- M3.6.x: Flutter Offline Alpha + Visual Alpha Premium
+- M3.6.6: Domain model unification — JornadaGuard, atomic payments, typed exceptions
 
 ---
 
@@ -83,14 +150,22 @@
 - DOCUMENTO-MAESTRO-Plataforma-Cobro-Colombia-v1.3-CERRADO.md guardado
 - Commit: 724a644
 
+### Sesión 2026-07-31 — M2 gate final + ruff linting
+- 138 tests passing (M0-M3 all complete)
+- Alembic migrations applied to PostgreSQL (head = m3_dispositivo)
+- ruff --fix: 130 UP045 auto-fixed, 0 errors
+- STATUS.md updated with M2 gate final evidence
+- Commit: b6d48bb
+
 ---
 
 ## Archivos por tipo
 
 | Tipo | Cantidad | Estado |
 |---|---|---|
-| Código Python | 15 | Normalizado |
-| Tests | 3 | 28/28 passing |
+| Código Python | 34 | Normalizado (ruff clean) |
+| Tests | 6 | 138/138 passing |
+| Migraciones | 4 | init → m2_apertura → m2_jornada → m3_dispositivo |
 | Infraestructura | 3 | docker-compose + init.sql + .env.example |
 | Documentación | 8 | AGENTS.md, README, docs/*.md, ADR |
 | Configuración | 3 | .gitignore, opencode.json, requirements.txt |
@@ -110,7 +185,7 @@
 
 ## Próximos Pasos
 
-1. Commit de normalización de nombres
-2. Renombrar infraestructura (ADR-INFRA-NAMING, cuando se requiera)
-3. M1: Hoja viva y pagos
-4. `graphify . --update` después de cambios de código
+1. Graphify re-run (deepseek balance insufficient, retry with different backend)
+2. M4: Importación OCR (pendiente)
+3. M5: Score, chatbot e inteligencia (pendiente)
+4. M6: Producción y despliegue (pendiente)

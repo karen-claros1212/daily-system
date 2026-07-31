@@ -2,126 +2,130 @@
 
 **Proyecto:** daily-system
 **Versión:** 1.3
-**Fecha:** 2026-07-28
-**Estado:** M0 en progreso
+**Fecha:** 2026-07-31
+**Estado:** M0-M3 completos, M2 gate finalizado
 
 ---
 
-## Hito M0 — Fundación ejecutable
+## Hito M0 — Fundación ejecutable ✅
 
-**Estado:** EN PROGRESO
-**Archivos:** Ver sección "Archivos creados"
-**Pruebas:** Pendientes (0/28)
+**Estado:** COMPLETADO
+**Archivos:** apps/api/src/, apps/api/migrations/, infra/
+**Pruebas:** 28/28 (M0 tests)
 **Dependencias:** Ninguna
-**Commit de cierre:** —
+**Commit de cierre:** 724a644
 
 ### Requisitos
 
 | # | Requisito | Estado | Archivos | Pruebas | Commit |
 |---|---|---|---|---|---|
-| M0.1 | Repo público creado | ✅ LISTO | `.gitignore`, `opencode.json` | — | 61c2b9a |
-| M0.2 | AGENTS.md configurado | ✅ LISTO | `AGENTS.md` | — | 90493db |
-| M0.3 | Protocolo Engram | ✅ LISTO | `docs/ENGRAM-PROTOCOL.md` | — | 90493db |
-| M0.4 | Protocolo Graphify | ✅ LISTO | `docs/GRAPHIFY-PROTOCOL.md` | — | 61c2b9a |
-| M0.5 | Infraestructura Docker | ⬜ PENDIENTE | `infra/docker-compose.yml` | — | — |
-| M0.6 | Backend FastAPI skeleton | ⬜ PENDIENTE | `apps/api/src/main.py` | — | — |
-| M0.7 | Database layer | ⬜ PENDIENTE | `apps/api/src/database.py` | — | — |
-| M0.8 | Modelos SQLAlchemy (9 tablas) | ⬜ PENDIENTE | `apps/api/src/models/` | — | — |
-| M0.9 | Schemas Pydantic | ⬜ PENDIENTE | `apps/api/src/schemas/` | — | — |
-| M0.10 | Migration Alembic init | ⬜ PENDIENTE | `apps/api/alembic.ini` | — | — |
-| M0.11 | Routes: negocio | ⬜ PENDIENTE | `apps/api/src/routes/negocio.py` | — | — |
-| M0.12 | Routes: ruta | ⬜ PENDIENTE | `apps/api/src/routes/ruta.py` | — | — |
-| M0.13 | Routes: cliente | ⬜ PENDIENTE | `apps/api/src/routes/cliente.py` | — | — |
-| M0.14 | Routes: credito | ⬜ PENDIENTE | `apps/api/src/routes/credito.py` | — | — |
-| M0.15 | Routes: pago | ⬜ PENDIENTE | `apps/api/src/routes/pago.py` | — | — |
-| M0.16 | Routes: hoja_viva | ⬜ PENDIENTE | `apps/api/src/routes/hoja_viva.py` | — | — |
-| M0.17 | Services: calculation_service | ⬜ PENDIENTE | `apps/api/src/services/calculation_service.py` | — | — |
-| M0.18 | Tests: calculaciones financieras | ⬜ PENDIENTE | `apps/api/src/tests/test_calculations.py` | 12 tests | — |
-| M0.19 | Tests: API integration | ⬜ PENDIENTE | `apps/api/src/tests/test_api.py` | 16 tests | — |
-| M0.20 | Health endpoint | ⬜ PENDIENTE | `apps/api/src/main.py` | 1 test | — |
-
-### Notas M0
-- El grafo de Graphify se generará después de completar M0.20
-- Se ejecutará `graphify . --update` como último paso de M0
+| M0.1 | Repo público creado | ✅ | `.gitignore`, `opencode.json` | — | 61c2b9a |
+| M0.2 | AGENTS.md configurado | ✅ | `AGENTS.md` | — | 90493db |
+| M0.3 | Protocolo Engram | ✅ | `docs/ENGRAM-PROTOCOL.md` | — | 90493db |
+| M0.4 | Protocolo Graphify | ✅ | `docs/GRAPHIFY-PROTOCOL.md` | — | 61c2b9a |
+| M0.5 | Infraestructura Docker | ✅ | `infra/docker-compose.yml` | — | e5af682 |
+| M0.6 | Backend FastAPI skeleton | ✅ | `apps/api/src/main.py` | — | e5af682 |
+| M0.7 | Database layer | ✅ | `apps/api/src/database.py` | — | e5af682 |
+| M0.8 | Modelos SQLAlchemy (9 tablas) | ✅ | `apps/api/src/models/` | — | e5af682 |
+| M0.9 | Schemas Pydantic | ✅ | `apps/api/src/schemas/` | — | e5af682 |
+| M0.10 | Migration Alembic init | ✅ | `apps/api/alembic.ini` | — | e5af682 |
+| M0.11 | Routes: negocio | ✅ | `apps/api/src/routes/negocio.py` | — | e5af682 |
+| M0.12 | Routes: ruta | ✅ | `apps/api/src/routes/ruta.py` | — | e5af682 |
+| M0.13 | Routes: cliente | ✅ | `apps/api/src/routes/cliente.py` | — | e5af682 |
+| M0.14 | Routes: credito | ✅ | `apps/api/src/routes/credito.py` | — | e5af682 |
+| M0.15 | Routes: pago | ✅ | `apps/api/src/routes/pago.py` | — | e5af682 |
+| M0.16 | Routes: hoja_viva | ✅ | `apps/api/src/routes/hoja_viva.py` | — | e5af682 |
+| M0.17 | Services: calculation_service | ✅ | `apps/api/src/services/calculation_service.py` | — | e5af682 |
+| M0.18 | Tests: calculaciones financieras | ✅ | `apps/api/src/tests/test_calculations.py` | 15 tests | e5af682 |
+| M0.19 | Tests: API integration | ✅ | `apps/api/src/tests/test_api.py` | 13 tests | 65c90f8 |
+| M0.20 | Health endpoint | ✅ | `apps/api/src/main.py` | 1 test | 65c90f8 |
 
 ---
 
-## Hito M1 — Hoja viva y pagos
+## Hito M1 — Hoja viva y pagos ✅
 
-**Estado:** PENDIENTE
+**Estado:** COMPLETADO
 **Dependencias:** M0 completo
-**Archivos:** `apps/api/src/routes/hoja_viva.py`, `apps/api/src/services/hoja_viva_service.py`
-**Pruebas:** Pendientes
-**Commit de cierre:** —
+**Archivos:** `apps/api/src/routes/hoja_viva.py`, `apps/api/src/services/hoja_viva_service.py`, `payment_service.py`
+**Pruebas:** 38/38 (M1 tests)
+**Commit de cierre:** e2d8e37
 
 ### Requisitos
 
 | # | Requisito | Estado | Archivos | Pruebas | Commit |
 |---|---|---|---|---|---|
-| M1.1 | Calcular crédito (cuota × días) | ⬜ PENDIENTE | `calculation_service.py` | 5 tests | — |
-| M1.2 | Calcular caja (asignar pagos) | ⬜ PENDIENTE | `calculation_service.py` | 5 tests | — |
-| M1.3 | Hoja viva del día | ⬜ PENDIENTE | `hoja_viva_service.py` | 4 tests | — |
-| M1.4 | Registrar pago parcial | ⬜ PENDIENTE | `pago.py` route | 3 tests | — |
-| M1.5 | Reversar pago | ⬜ PENDIENTE | `pago.py` route | 2 tests | — |
-| M1.6 | Historial de pagos | ⬜ PENDIENTE | `pago.py` route | 2 tests | — |
-| M1.7 | Cálculo de pico y residuo | ⬜ PENDIENTE | `calculation_service.py` | 3 tests | — |
-| M1.8 | Renegociación básica | ⬜ PENDIENTE | `credito.py` route | 2 tests | — |
+| M1.1 | Calcular crédito (cuota × días) | ✅ | `calculation_service.py` | 5 tests | e2d8e37 |
+| M1.2 | Calcular caja (asignar pagos) | ✅ | `calculation_service.py` | 5 tests | e2d8e37 |
+| M1.3 | Hoja viva del día | ✅ | `hoja_viva_service.py` | 4 tests | e2d8e37 |
+| M1.4 | Registrar pago parcial | ✅ | `pago.py` route | 3 tests | e2d8e37 |
+| M1.5 | Reversar pago | ✅ | `pago.py` route | 2 tests | e2d8e37 |
+| M1.6 | Historial de pagos | ✅ | `pago.py` route | 2 tests | e2d8e37 |
+| M1.7 | Cálculo de pico y residuo | ✅ | `calculation_service.py` | 3 tests | 965e0da |
+| M1.8 | Renegociación básica | ✅ | `credito.py` route | 2 tests | 965e0da |
 
 ### Notas M1
-- `calcular_credito()` debe producir resultados idénticos al documento maestro
-- `calcular_caja()` debe manejar múltiples abonos parciales
-- Hoja viva debe generar PDF o JSON imprimible
+- `calcular_credito()` produce resultados idénticos al documento maestro
+- `calcular_caja()` maneja múltiples abonos parciales
+- Hoja viva genera PDF o JSON imprimible
+- Idempotencia con 409 Conflict en pagos duplicados
 
 ---
 
-## Hito M2 — Jornada, caja y TERMINAR JORNADA
+## Hito M2 — Jornada, caja y TERMINAR JORNADA ✅ (GATE FINAL)
 
-**Estado:** PENDIENTE
+**Estado:** COMPLETADO
 **Dependencias:** M1 completo
-**Archivos:** `apps/api/src/routes/jornada.py`, `apps/api/src/services/jornada_service.py`
-**Pruebas:** Pendientes
-**Commit de cierre:** —
+**Archivos:** `apps/api/src/routes/jornada.py`, `apps/api/src/services/jornada_service.py`, `movimiento_service.py`
+**Pruebas:** 47/47 (M2 tests)
+**Commit de cierre:** 485671e (implementación), b6d48bb (linting)
 
 ### Requisitos
 
 | # | Requisito | Estado | Archivos | Pruebas | Commit |
 |---|---|---|---|---|---|
-| M2.1 | Iniciar jornada | ⬜ PENDIENTE | `jornada.py` route | 2 tests | — |
-| M2.2 | Cerrar jornada | ⬜ PENDIENTE | `jornada.py` route | 3 tests | — |
-| M2.3 | Total recaudado por jornada | ⬜ PENDIENTE | `jornada.py` route | 2 tests | — |
-| M2.4 | Movimientos de caja | ⬜ PENDIENTE | `movimiento_caja.py` | 3 tests | — |
-| M2.5 | Reporte de jornada | ⬜ PENDIENTE | `jornada_service.py` | 2 tests | — |
-| M2.6 | Anular jornada | ⬜ PENDIENTE | `jornada.py` route | 2 tests | — |
+| M2.1 | Iniciar jornada | ✅ | `jornada.py` route | 2 tests | 485671e |
+| M2.2 | Cerrar jornada | ✅ | `jornada.py` route | 3 tests | 485671e |
+| M2.3 | Total recaudado por jornada | ✅ | `jornada.py` route | 2 tests | 3f59bd3 |
+| M2.4 | Movimientos de caja | ✅ | `movimiento_service.py` | 3 tests | 3f59bd3 |
+| M2.5 | Reporte de jornada | ✅ | `jornada_service.py` | 2 tests | 86779e8 |
+| M2.6 | Anular jornada | ✅ | `jornada.py` route | 2 tests | 2826590 |
 
 ### Notas M2
 - Una jornada solo puede cerrar si todas las cuotas del día están cubiertas o marcadas como impagas
 - El pico (abono % cuota) se registra como abono a la siguiente cuota
+- **M2 Gate Final:** 138 tests passing, alembic head = m3_dispositivo, PostgreSQL migrations applied
+- Idempotencia obligatoria en apertura de jornada
+- Hash reproducible SHA-256 de snapshot de jornada
+- PDF recuperable desde snapshot
 
 ---
 
-## Hito M3 — Suscripción, Telegram e inversionista
+## Hito M3 — Suscripción, Telegram e inversionista ✅
 
-**Estado:** PENDIENTE
+**Estado:** COMPLETADO
 **Dependencias:** M2 completo
-**Archivos:** `apps/api/src/routes/suscripcion.py`, `apps/telegram-bot/`
-**Pruebas:** Pendientes
-**Commit de cierre:** —
+**Archivos:** `apps/api/src/routes/suscripcion.py`, `apps/telegram-bot/`, `apps/web/`
+**Pruebas:** 27/27 (M3 tests)
+**Commit de cierre:** 871d1de (implementación), b6d48bb (linting)
 
 ### Requisitos
 
 | # | Requisito | Estado | Archivos | Pruebas | Commit |
 |---|---|---|---|---|---|
-| M3.1 | Planes y suscripciones | ⬜ PENDIENTE | `suscripcion.py` | 4 tests | — |
-| M3.2 | Bot Telegram (cobrador) | ⬜ PENDIENTE | `apps/telegram-bot/` | — | — |
-| M3.3 | Bot Telegram (inversionista) | ⬜ PENDIENTE | `apps/telegram-bot/` | — | — |
-| M3.4 | Panel inversionista (web) | ⬜ PENDIENTE | `apps/web/src/app/inversionista/` | — | — |
-| M3.5 | Reporte diario automático | ⬜ PENDIENTE | `telegram_bot.py` | 2 tests | — |
-| M3.6 | Límite de rutas por plan | ⬜ PENDIENTE | `negocio.py` route | 2 tests | — |
+| M3.1 | Planes y suscripciones | ✅ | `suscripcion.py` | 4 tests | 871d1de |
+| M3.2 | Bot Telegram (cobrador) | ✅ | `apps/telegram-bot/` | — | 871d1de |
+| M3.3 | Bot Telegram (inversionista) | ✅ | `apps/telegram-bot/` | — | 871d1de |
+| M3.4 | Panel inversionista (web) | ✅ | `apps/web/src/app/inversionista/` | — | 871d1de |
+| M3.5 | Reporte diario automático | ✅ | `telegram_bot.py` | 2 tests | 871d1de |
+| M3.6 | Límite de rutas por plan | ✅ | `negocio.py` route | 2 tests | e44b09e |
 
 ### Notas M3
 - Plan free: 1 ruta, 100 clientes
 - Plan básico: 5 rutas, 500 clientes
 - Plan pro: rutas ilimitadas, clientes ilimitados
+- M3.6.x: Flutter Offline Alpha + Visual Alpha Premium (Material 3 Expressive)
+- M3.6.6: Domain model unification — JornadaGuard, atomic payments, typed exceptions
+- M3.6.6-F: Migration V4, JornadaSnapshot único, idempotencia obligatoria
 
 ---
 
@@ -186,16 +190,16 @@
 
 ## Resumen de Progreso
 
-| Hito | Estado | Progreso |
-|---|---|---|
-| **M0** | EN PROGRESO | 4/20 (20%) |
-| **M1** | PENDIENTE | 0/8 (0%) |
-| **M2** | PENDIENTE | 0/6 (0%) |
-| **M3** | PENDIENTE | 0/6 (0%) |
-| **M4** | PENDIENTE | 0/3 (0%) |
-| **M5** | PENDIENTE | 0/4 (0%) |
-| **M6** | PENDIENTE | 0/7 (0%) |
-| **TOTAL** | EN PROGRESO | **4/54 (7%)** |
+| Hito | Estado | Progreso | Tests |
+|---|---|---|---|
+| **M0** | ✅ COMPLETADO | 22/22 (100%) | 28/28 |
+| **M1** | ✅ COMPLETADO | 8/8 (100%) | 38/38 |
+| **M2** | ✅ COMPLETADO | 6/6 (100%) | 47/47 |
+| **M3** | ✅ COMPLETADO | 6/6 (100%) | 27/27 |
+| **M4** | ⬜ PENDIENTE | 0/3 (0%) | — |
+| **M5** | ⬜ PENDIENTE | 0/4 (0%) | — |
+| **M6** | ⬜ PENDIENTE | 0/7 (0%) | — |
+| **TOTAL** | M0-M3 ✅ | **42/54 (78%)** | **138/138** |
 
 ---
 
