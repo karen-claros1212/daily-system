@@ -18,10 +18,13 @@ class DailyLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = color ?? DailyTokens.primary;
-    return CustomPaint(
-      size: Size(size, size),
-      painter: _DailyLogoPainter(color: c),
-      key: key,
+    // ExcludeSemantics: "Daily System" text is adjacent and serves as the semantic label
+    return ExcludeSemantics(
+      child: CustomPaint(
+        size: Size(size, size),
+        painter: _DailyLogoPainter(color: c),
+        key: key,
+      ),
     );
   }
 }

@@ -14,10 +14,10 @@ jobs:
         working-directory: apps/mobile
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@b4ffde65f46336ab88eb534c0cce42f22e73f01b # v4.2.2
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@b611c0dad3767a764ae17aa60ea91d15296fc38f # v2.14.0
         with:
           flutter-version: '3.44.0'
           channel: 'stable'
@@ -31,8 +31,8 @@ jobs:
           cd ../..
           dart run tool/generate_design_tokens.dart --check
 
-      - name: Flutter analyze
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Flutter analyze (strict)
+        run: flutter analyze
 
       - name: Flutter test
         run: flutter test

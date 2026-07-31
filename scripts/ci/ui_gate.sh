@@ -9,10 +9,10 @@ cd "$(dirname "$0")/../.."
 echo "[1/4] Checking design tokens..."
 dart run tool/generate_design_tokens.dart --check
 
-# 2. Flutter analyze
+# 2. Flutter analyze (strict — no warnings or infos allowed)
 echo "[2/4] Running flutter analyze..."
 cd apps/mobile
-flutter analyze --no-fatal-infos --no-fatal-warnings
+flutter analyze
 
 # 3. Flutter test
 echo "[3/4] Running flutter test..."

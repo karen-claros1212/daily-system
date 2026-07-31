@@ -235,10 +235,9 @@ String _generateCssTokens(Map<String, dynamic> tokens) {
   sb.writeln('/* Daily System Design Tokens */');
   sb.writeln('/* Generated from design/tokens/daily-system.tokens.json */');
   sb.writeln('');
-  sb.writeln(':root {');
   
-  // Light mode CSS custom properties
-  sb.writeln('  /* ── Light Mode ── */');
+  // ── Light mode (default) ──
+  sb.writeln(':root {');
   final light = colors['light'] as Map<String, dynamic>;
   for (final entry in light.entries) {
     final key = entry.key;
@@ -246,10 +245,27 @@ String _generateCssTokens(Map<String, dynamic> tokens) {
     final hex = val['value'] as String;
     sb.writeln('  --ds-${_kebab(key)}: ${hex};');
   }
+  // Shapes, spacing, motion, breakpoints — shared between themes
+  for (final entry in shapes.entries) {
+    sb.writeln('  --ds-shape-${entry.key}: ${entry.value}px;');
+  }
+  for (final entry in spacing.entries) {
+    sb.writeln('  --ds-spacing-${entry.key}: ${entry.value}px;');
+  }
+  for (final entry in motion.entries) {
+    if (entry.key == 'duration' || entry.key == 'fast' || entry.key == 'normal' || entry.key == 'long') {
+      final dur = entry.value is Map ? (entry.value as Map)['duration'] : entry.value;
+      sb.writeln('  --ds-motion-${entry.key}: ${dur}ms;');
+    }
+  }
+  for (final entry in breakpoints.entries) {
+    final val = entry.value as Map<String, dynamic>;
+    sb.writeln('  --ds-breakpoint-${entry.key}: ${val['min'] ?? val['max']}px;');
+  }
+  sb.writeln('}');
   sb.writeln('');
   
-  // Dark mode
-  sb.writeln('  /* ── Dark Mode ── */');
+  // ── Dark mode override ──
   sb.writeln(':root[data-theme="dark"] {');
   final dark = colors['dark'] as Map<String, dynamic>;
   for (final entry in dark.entries) {
@@ -257,39 +273,6 @@ String _generateCssTokens(Map<String, dynamic> tokens) {
     final val = entry.value as Map<String, dynamic>;
     final hex = val['value'] as String;
     sb.writeln('  --ds-${_kebab(key)}: ${hex};');
-  }
-  sb.writeln('}');
-  sb.writeln('');
-  
-  // Shapes
-  sb.writeln('  /* ── Shapes ── */');
-  for (final entry in shapes.entries) {
-    sb.writeln('  --ds-shape-${entry.key}: ${entry.value}px;');
-  }
-  sb.writeln('');
-  
-  // Spacing
-  sb.writeln('  /* ── Spacing ── */');
-  for (final entry in spacing.entries) {
-    sb.writeln('  --ds-spacing-${entry.key}: ${entry.value}px;');
-  }
-  sb.writeln('');
-  
-  // Motion
-  sb.writeln('  /* ── Motion ── */');
-  for (final entry in motion.entries) {
-    if (entry.key == 'duration' || entry.key == 'fast' || entry.key == 'normal' || entry.key == 'long') {
-      final dur = entry.value is Map ? (entry.value as Map)['duration'] : entry.value;
-      sb.writeln('  --ds-motion-${entry.key}: ${dur}ms;');
-    }
-  }
-  sb.writeln('');
-  
-  // Breakpoints
-  sb.writeln('  /* ── Breakpoints ── */');
-  for (final entry in breakpoints.entries) {
-    final val = entry.value as Map<String, dynamic>;
-    sb.writeln('  --ds-breakpoint-${entry.key}: ${val['min'] ?? val['max']}px;');
   }
   sb.writeln('}');
 

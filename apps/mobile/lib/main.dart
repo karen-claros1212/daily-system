@@ -7,6 +7,9 @@ import 'theme/theme.dart';
 import 'ui/components/daily_logo.dart';
 import 'ui/components/daily_primary_button.dart';
 
+// ═══ Demo flag — set to false to hide demo info in release builds ═══
+const bool kDailyDemo = bool.fromEnvironment('DAILY_DEMO', defaultValue: true);
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initDatabase();
@@ -119,13 +122,19 @@ class _LoginScreenState extends State<_LoginScreen> with SingleTickerProviderSta
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // theme.brightness checked via theme.colorScheme.onSurface for accessibility
+    
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [AppColors.primary.withValues(alpha: 0.08), AppColors.surface],
+            colors: [
+              theme.colorScheme.primary.withValues(alpha: 0.08),
+              theme.colorScheme.surface,
+            ],
           ),
         ),
         child: SafeArea(
@@ -137,18 +146,18 @@ class _LoginScreenState extends State<_LoginScreen> with SingleTickerProviderSta
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Daily logo
-                  const DailyLogo(size: 80),
+                  DailyLogo(size: 80),
                   const SizedBox(height: 32),
                   
                   // Brand name
-                  const Text('Daily System',
+                  Text('Daily System',
                       style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary)),
+                          color: theme.colorScheme.onSurface)),
                   const SizedBox(height: 8),
                   
                   // Tagline
                   Text('Tu ruta, tus cobros y tu caja, incluso sin internet.',
-                      style: TextStyle(fontSize: 16, color: AppColors.outlineVariant)),
+                      style: TextStyle(fontSize: 16, color: theme.colorScheme.onSurfaceVariant)),
                   const SizedBox(height: 48),
                   
                   // Login button
@@ -157,13 +166,14 @@ class _LoginScreenState extends State<_LoginScreen> with SingleTickerProviderSta
                     onPressed: widget.onLogin,
                     icon: Icons.login,
                   ),
-                  const SizedBox(height: 16),
-                  
-                  // Demo info
-                  Text('Demo: datos precargados',
-                      style: const TextStyle(fontSize: 12, color: AppColors.outline)),
-                  Text('5 clientes • 5 créditos • 1 ruta',
-                      style: const TextStyle(fontSize: 12, color: AppColors.outline)),
+                  if (kDailyDemo) ...[
+                    const SizedBox(height: 16),
+                    // Demo info — conditional on DAILY_DEMO constant
+                    Text('Demo: datos precargados',
+                        style: TextStyle(fontSize: 12, color: theme.colorScheme.outlineVariant)),
+                    Text('5 clientes • 5 créditos • 1 ruta',
+                        style: TextStyle(fontSize: 12, color: theme.colorScheme.outlineVariant)),
+                  ],
                 ],
               ),
             ),
