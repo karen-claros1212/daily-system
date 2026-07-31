@@ -1,13 +1,11 @@
 """Alembic environment configuration."""
 
-import sys
 import os
+import sys
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 # Set default API_DATABASE_URL for alembic if not set
 os.environ.setdefault("API_DATABASE_URL", os.getenv("DATABASE_URL", "postgresql://placeholder:placeholder@localhost:5432/placeholder"))
@@ -16,7 +14,7 @@ os.environ.setdefault("API_DATABASE_URL", os.getenv("DATABASE_URL", "postgresql:
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.database import Base
-from src.models import *  # noqa: F401, F403
+from src.models import *
 
 # Alembic Config object
 config = context.config

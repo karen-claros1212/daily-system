@@ -5,24 +5,24 @@ converts domain errors to HTTP responses.
 """
 
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from uuid import UUID
 
-from src.database import get_db, get_db_transaction
-from src.schemas import PagoCreate, PagoReversalCreate, PagoResponse
-from src.auth.deps import get_request_context
 from src.auth.context import RequestContext
+from src.auth.deps import get_request_context
+from src.database import get_db, get_db_transaction
+from src.schemas import PagoCreate, PagoResponse, PagoReversalCreate
 from src.services.payment_service import (
     PaymentError,
-    PaymentNotFoundError,
-    PaymentRouteError,
     PaymentIdempotencyError,
+    PaymentNotFoundError,
     PaymentReversalError,
-    register_payment,
+    PaymentRouteError,
     get_payment,
     list_payments,
+    register_payment,
     reverse_payment,
 )
 

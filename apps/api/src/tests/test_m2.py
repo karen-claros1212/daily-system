@@ -21,10 +21,10 @@ from src.services.jornada_service import (
     sincronizar_cierre,
 )
 from src.services.movimiento_service import (
-    MovimientoNaturalezaInvalida,
-    MovimientoTipoInvalido,
     MovimientoAjusteError,
+    MovimientoNaturalezaInvalida,
     MovimientoNotaObligatoria,
+    MovimientoTipoInvalido,
     register_movimiento,
     validate_naturaleza,
     validate_tipo,
@@ -461,8 +461,8 @@ class TestJornadaSync:
 
     def test_sincronizar_validates_snapshot(self, db_session):
         """Sincronizar validates snapshot and is idempotent on CLOSED_SYNCED."""
-        import json
         import hashlib
+        import json
         stored_j = db_session.query(Jornada).filter(Jornada.id == self.jornada.id).first()
         stored_snapshot = stored_j.cierre_snapshot_json
         canonical = json.dumps(stored_snapshot, sort_keys=True, separators=(",", ":"), default=str)
@@ -950,8 +950,8 @@ class TestSincronizarHashValidation:
 
     def test_sincronizar_transicion_local_pending_sync(self, db_session):
         """Sincronizar transiciona CLOSED_LOCAL_PENDING_SYNC → CLOSED_SYNCED."""
-        import json
         import hashlib
+        import json
         ctx = RequestContext(
             user_id=uuid4(),
             negocio_id=self.nid,
@@ -996,8 +996,8 @@ class TestSincronizarHashValidation:
 
     def test_sincronizar_reintento_closed_synced_identico(self, db_session):
         """Reintento en CLOSED_SYNCED con snapshot idéntico es exitoso."""
-        import json
         import hashlib
+        import json
         j = self._open_and_close(db_session, date(2026, 7, 18), 100000, "sync-retry")
         j = db_session.query(Jornada).filter(Jornada.id == j.id).first()
         stored_snapshot = j.cierre_snapshot_json
@@ -1033,8 +1033,8 @@ class TestSincronizarHashValidation:
 
     def test_sincronizar_reintento_closed_synced_diferente(self, db_session):
         """Reintento en CLOSED_SYNCED con snapshot diferente produce error."""
-        import json
         import hashlib
+        import json
         j = self._open_and_close(db_session, date(2026, 7, 19), 100000, "sync-retry2")
         j = db_session.query(Jornada).filter(Jornada.id == j.id).first()
         stored_snapshot = j.cierre_snapshot_json
@@ -1540,8 +1540,9 @@ class TestSchemasClavesNoVacias:
 
     def test_jornada_create_clave_vacia(self):
         """JornadaCreate con clave_idempotencia vacía produce error."""
-        from src.schemas import JornadaCreate
         from pydantic import ValidationError
+
+        from src.schemas import JornadaCreate
         with pytest.raises(ValidationError):
             JornadaCreate(
                 ruta_id=uuid4(),
@@ -1551,8 +1552,9 @@ class TestSchemasClavesNoVacias:
 
     def test_jornada_create_clave_whitespace(self):
         """JornadaCreate con clave_idempotencia whitespace produce error en schema."""
-        from src.schemas import JornadaCreate
         from pydantic import ValidationError
+
+        from src.schemas import JornadaCreate
         with pytest.raises(ValidationError):
             JornadaCreate(
                 ruta_id=uuid4(),
@@ -1562,7 +1564,7 @@ class TestSchemasClavesNoVacias:
 
     def test_open_jornada_rechaza_clave_whitespace(self, db_session):
         """open_jornada rechaza clave solo espacios (no la convierte a None)."""
-        from src.services.jornada_service import open_jornada, JornadaError
+        from src.services.jornada_service import JornadaError, open_jornada
         ctx = RequestContext(
             user_id=uuid4(),
             negocio_id=self.nid,
@@ -1585,8 +1587,9 @@ class TestSchemasClavesNoVacias:
 
     def test_jornada_cierre_create_clave_vacia(self):
         """JornadaCierreCreate con idempotencia_cierre vacía produce error."""
-        from src.schemas import JornadaCierreCreate
         from pydantic import ValidationError
+
+        from src.schemas import JornadaCierreCreate
         with pytest.raises(ValidationError):
             JornadaCierreCreate(
                 efectivo_contado=100000,
@@ -1595,8 +1598,9 @@ class TestSchemasClavesNoVacias:
 
     def test_movimiento_create_clave_vacia(self):
         """MovimientoCreate con clave_idempotencia vacía produce error."""
-        from src.schemas import MovimientoCreate
         from pydantic import ValidationError
+
+        from src.schemas import MovimientoCreate
         with pytest.raises(ValidationError):
             MovimientoCreate(
                 jornada_id=uuid4(),

@@ -11,7 +11,7 @@ from uuid import UUID
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from src.models import Dispositivo, Negocio
+from src.models import Dispositivo
 
 
 class DispositivoError(Exception):

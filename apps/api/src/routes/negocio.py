@@ -1,8 +1,8 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from uuid import UUID
 
 from src.database import get_db, get_db_transaction
 from src.models import Negocio

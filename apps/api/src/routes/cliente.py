@@ -1,14 +1,14 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from uuid import UUID
 
+from src.auth.context import RequestContext
+from src.auth.deps import get_request_context
 from src.database import get_db, get_db_transaction
 from src.models import Cliente
 from src.schemas import ClienteCreate, ClienteResponse
-from src.auth.deps import get_request_context
-from src.auth.context import RequestContext
 
 
 def _uuid_eq(column, val: str | UUID):

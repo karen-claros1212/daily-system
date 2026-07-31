@@ -1,10 +1,11 @@
 """M1 tests: route isolation, calendar, reversals, hoja viva."""
 
-import pytest
 from datetime import date
 from uuid import uuid4
 
-from src.models import Negocio, Ruta, Cliente, Credito, CuotaProgramada, Pago
+import pytest
+
+from src.models import Cliente, Credito, Negocio, Pago, Ruta
 from src.services.calculation_service import calcular_mora_legacy, calcular_renovacion
 
 

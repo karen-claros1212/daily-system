@@ -3,9 +3,9 @@
 from datetime import date
 from uuid import uuid4
 
-from src.models import Negocio, Ruta, Cliente, Credito, Pago, Renovacion
-from src.services.schedule_service import generate_schedule_for_id
+from src.models import Cliente, Credito, Negocio, Ruta
 from src.services.renewal_service import renew_credito
+from src.services.schedule_service import generate_schedule_for_id
 
 
 class TestReversalEndpoint:

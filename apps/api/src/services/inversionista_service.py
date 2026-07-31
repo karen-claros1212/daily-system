@@ -4,14 +4,14 @@ Returns read-only aggregated data without PII.
 Investor sees only totals, no individual debtor data.
 """
 
-from datetime import date, datetime, timezone
+from datetime import date
 from uuid import UUID
 
-from sqlalchemy import Case, Date, func, select
-from sqlalchemy.orm import Session
 from sqlalchemy import case as sa_case
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
-from src.models import Credito, Jornada, Pago, Renovacion, Ruta, Usuario
+from src.models import Credito, Jornada, Pago, Ruta, Usuario
 
 
 def get_inversionista_summary(

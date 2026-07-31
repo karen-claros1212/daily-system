@@ -8,8 +8,8 @@ Adds:
 - jornada: apertura_idempotency_key with UNIQUE(negocio_id, apertura_idempotency_key)
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "m2_apertura_idempotency"

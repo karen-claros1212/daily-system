@@ -4,10 +4,8 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy.orm import Session
 
 from src.models import Dispositivo, Negocio
-
 
 # === Fixtures ===
 

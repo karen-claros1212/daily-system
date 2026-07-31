@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 from sqlalchemy.orm import Session
 
 from src.auth.context import RequestContext
-from src.models import MovimientoCaja, Credito, Renovacion, Jornada
+from src.models import Credito, Jornada, MovimientoCaja, Renovacion
 from src.services.jornada_service import (
     _uuid_eq,
 )

@@ -1,20 +1,20 @@
-from pydantic import BaseModel, Field, model_validator, field_validator
+from datetime import date, datetime
 from typing import Optional
-from datetime import datetime, date
 from uuid import UUID
 
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # --- Negocio ---
 
 class NegocioCreate(BaseModel):
     nombre: str = Field(..., min_length=1, max_length=255)
-    nit: Optional[str] = None
+    nit: str | None = None
 
 
 class NegocioResponse(BaseModel):
     id: UUID
     nombre: str
-    nit: Optional[str]
+    nit: str | None
     pais: str
     moneda: str
     plan: str
@@ -29,7 +29,7 @@ class NegocioResponse(BaseModel):
 class UsuarioCreate(BaseModel):
     nombre: str = Field(..., min_length=1)
     rol: str = Field(..., pattern="^(INVERSIONISTA|ADMINISTRADOR|COBRADOR)$")
-    documento: Optional[str] = None
+    documento: str | None = None
 
 
 class UsuarioResponse(BaseModel):
@@ -37,7 +37,7 @@ class UsuarioResponse(BaseModel):
     negocio_id: UUID
     rol: str
     nombre: str
-    documento: Optional[str]
+    documento: str | None
     activo: int
     creado_el: datetime
 
@@ -48,14 +48,14 @@ class UsuarioResponse(BaseModel):
 
 class RutaCreate(BaseModel):
     nombre: str = Field(..., min_length=1, max_length=100)
-    cobrador_id: Optional[UUID] = None
+    cobrador_id: UUID | None = None
 
 
 class RutaResponse(BaseModel):
     id: UUID
     negocio_id: UUID
     nombre: str
-    cobrador_id: Optional[UUID]
+    cobrador_id: UUID | None
     activa: int
     version: int
     creado_el: datetime
@@ -68,11 +68,11 @@ class RutaResponse(BaseModel):
 class ClienteCreate(BaseModel):
     primer_apellido: str
     nombres: str
-    tipo_documento: Optional[str] = None
-    documento_normalizado: Optional[str] = None
-    telefono_1: Optional[str] = None
-    direccion: Optional[str] = None
-    ciudad: Optional[str] = None
+    tipo_documento: str | None = None
+    documento_normalizado: str | None = None
+    telefono_1: str | None = None
+    direccion: str | None = None
+    ciudad: str | None = None
 
 
 class ClienteResponse(BaseModel):
@@ -80,10 +80,10 @@ class ClienteResponse(BaseModel):
     negocio_id: UUID
     primer_apellido: str
     nombres: str
-    documento_normalizado: Optional[str]
+    documento_normalizado: str | None
     identity_status: str
-    direccion: Optional[str]
-    ciudad: Optional[str]
+    direccion: str | None
+    ciudad: str | None
     creado_el: datetime
 
     model_config = {"from_attributes": True}
@@ -113,7 +113,7 @@ class CreditoResponse(BaseModel):
     periodicidad: str
     fecha_inicio: date
     estado: str
-    tasa_efectiva_anual: Optional[float]
+    tasa_efectiva_anual: float | None
     residuo_redondeo: int
     version: int
     creado_el: datetime
@@ -125,10 +125,10 @@ class CreditoResponse(BaseModel):
 
 class PagoCreate(BaseModel):
     credito_id: UUID
-    jornada_id: Optional[UUID] = None
+    jornada_id: UUID | None = None
     monto: int = Field(..., gt=0)
     clave_idempotencia: str = Field(..., min_length=1)
-    nota: Optional[str] = None
+    nota: str | None = None
 
 
 class PagoReversalCreate(BaseModel):
@@ -138,11 +138,11 @@ class PagoReversalCreate(BaseModel):
 class PagoResponse(BaseModel):
     id: UUID
     negocio_id: UUID
-    credito_id: Optional[UUID]
-    jornada_id: Optional[UUID]
+    credito_id: UUID | None
+    jornada_id: UUID | None
     tipo: str
     monto: int
-    registrado_el_dispositivo: Optional[datetime]
+    registrado_el_dispositivo: datetime | None
     recibido_el_servidor: datetime
     clave_idempotencia: str
 
@@ -162,7 +162,7 @@ class JornadaResponse(BaseModel):
     esperado: int
     contado: int
     diferencia: int
-    diferencia_motivo: Optional[str]
+    diferencia_motivo: str | None
     sobrante_manana: int
     creado_el: datetime
 
@@ -243,12 +243,12 @@ class JornadaCierreResponse(BaseModel):
     efectivo_esperado: int
     efectivo_contado: int
     diferencia: int
-    diferencia_motivo: Optional[str]
+    diferencia_motivo: str | None
     sobrante_manana: int
-    cierre_idempotency_key: Optional[str]
+    cierre_idempotency_key: str | None
     cierre_version: int
-    cerrada_local_el: Optional[datetime]
-    snapshot_hash: Optional[str]
+    cerrada_local_el: datetime | None
+    snapshot_hash: str | None
 
     model_config = {"from_attributes": True}
 
@@ -256,7 +256,7 @@ class JornadaCierreResponse(BaseModel):
 class JornadaSyncResponse(BaseModel):
     jornada_id: UUID
     estado: str
-    sincronizada_el: Optional[datetime]
+    sincronizada_el: datetime | None
     snapshot_valido: bool
 
 
@@ -271,14 +271,14 @@ class JornadaResponse(BaseModel):
     esperado: int
     contado: int
     diferencia: int
-    diferencia_motivo: Optional[str]
+    diferencia_motivo: str | None
     sobrante_manana: int
-    cierre_idempotency_key: Optional[str]
+    cierre_idempotency_key: str | None
     cierre_version: int
-    cerrada_por: Optional[UUID]
-    cerrada_local_el: Optional[datetime]
-    recibida_servidor_el: Optional[datetime]
-    sincronizada_el: Optional[datetime]
+    cerrada_por: UUID | None
+    cerrada_local_el: datetime | None
+    recibida_servidor_el: datetime | None
+    sincronizada_el: datetime | None
     creado_el: datetime
 
     model_config = {"from_attributes": True}
@@ -289,14 +289,14 @@ class JornadaResponse(BaseModel):
 class MovimientoCreate(BaseModel):
     jornada_id: UUID
     tipo: str = Field(..., pattern="^(GASOLINA|OFICINA|AHORRO|VALE|ENTREGA|RECIBIDO|DESEMBOLSO|AJUSTE|OTRO)$")
-    naturaleza: Optional[str] = Field(default=None, pattern="^(GASTO|CUSTODIA|CUENTA_POR_COBRAR|TRASLADO_ENTRADA|TRASLADO_SALIDA|DESEMBOLSO|AJUSTE)$")
+    naturaleza: str | None = Field(default=None, pattern="^(GASTO|CUSTODIA|CUENTA_POR_COBRAR|TRASLADO_ENTRADA|TRASLADO_SALIDA|DESEMBOLSO|AJUSTE)$")
     monto: int = Field(..., gt=0)
-    nota: Optional[str] = None
+    nota: str | None = None
     clave_idempotencia: str = Field(..., min_length=1, max_length=100)
-    credito_id: Optional[UUID] = None
-    renovacion_id: Optional[UUID] = None
-    ajuste_de_movimiento_id: Optional[UUID] = None
-    motivo: Optional[str] = None
+    credito_id: UUID | None = None
+    renovacion_id: UUID | None = None
+    ajuste_de_movimiento_id: UUID | None = None
+    motivo: str | None = None
 
     @field_validator("clave_idempotencia", mode="before")
     @classmethod
@@ -315,14 +315,14 @@ class MovimientoResponse(BaseModel):
     tipo: str
     naturaleza: str
     monto: int
-    nota: Optional[str]
-    clave_idempotencia: Optional[str]
-    registrado_el_dispositivo: Optional[datetime]
-    recibido_el_servidor: Optional[datetime]
-    dispositivo_id: Optional[UUID]
-    credito_id: Optional[UUID]
-    renovacion_id: Optional[UUID]
-    creado_por: Optional[UUID]
+    nota: str | None
+    clave_idempotencia: str | None
+    registrado_el_dispositivo: datetime | None
+    recibido_el_servidor: datetime | None
+    dispositivo_id: UUID | None
+    credito_id: UUID | None
+    renovacion_id: UUID | None
+    creado_por: UUID | None
     creado_el: datetime
 
     model_config = {"from_attributes": True}
@@ -350,21 +350,21 @@ class CadenaCajaResponse(BaseModel):
 
 class DispositivoCreate(BaseModel):
     huella: str = Field(..., min_length=1, max_length=64)
-    modelo: Optional[str] = None
-    plataforma: Optional[str] = None
+    modelo: str | None = None
+    plataforma: str | None = None
 
 
 class DispositivoResponse(BaseModel):
     id: UUID
     negocio_id: UUID
-    usuario_id: Optional[UUID]
+    usuario_id: UUID | None
     huella: str
-    modelo: Optional[str]
-    plataforma: Optional[str]
-    autorizado_por: Optional[UUID]
-    autorizado_el: Optional[datetime]
-    revocado_el: Optional[datetime]
-    ultima_validacion_servidor: Optional[datetime]
+    modelo: str | None
+    plataforma: str | None
+    autorizado_por: UUID | None
+    autorizado_el: datetime | None
+    revocado_el: datetime | None
+    ultima_validacion_servidor: datetime | None
     activo: int
     creado_el: datetime
 
@@ -377,7 +377,7 @@ class SuscripcionStatusResponse(BaseModel):
     negocio_id: UUID
     estado_suscripcion: str
     plan: str
-    paid_through_at: Optional[datetime]
+    paid_through_at: datetime | None
     activa: bool
 
 

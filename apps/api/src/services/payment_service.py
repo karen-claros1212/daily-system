@@ -6,13 +6,13 @@ The router receives schemas, gets RequestContext, calls the service, and convert
 domain errors to HTTP responses. No financial rules live in the router.
 """
 
-from datetime import date, datetime, timezone, timedelta
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from src.models import Pago, Credito, Negocio, CuotaProgramada
 from src.auth.context import RequestContext
+from src.models import Credito, CuotaProgramada, Negocio, Pago
 from src.services.hoja_viva_service import today_bogota
 
 BOGOTA_TZ = timezone(timedelta(hours=-5))
@@ -20,7 +20,6 @@ BOGOTA_TZ = timezone(timedelta(hours=-5))
 
 class PaymentError(Exception):
     """Domain error raised by payment service."""
-    pass
 
 
 class PaymentNotFoundError(PaymentError):
@@ -29,17 +28,14 @@ class PaymentNotFoundError(PaymentError):
 
 class PaymentRouteError(PaymentError):
     """Payment belongs to a different route than the cobrador's."""
-    pass
 
 
 class PaymentIdempotencyError(PaymentError):
     """Conflict: same idempotency key with different payload."""
-    pass
 
 
 class PaymentReversalError(PaymentError):
     """Cannot reverse a reversal or already reversed."""
-    pass
 
 
 def _uuid_eq(column, val):
@@ -286,7 +282,7 @@ def reverse_payment(
         return already
 
     # Generate idempotency key from client or internal
-    idem_key = data.get("clave_idempotencia", f"rev-{str(pago_id)}")
+    idem_key = data.get("clave_idempotencia", f"rev-{pago_id!s}")
 
     # Check reversal idempotency
     existing = db.query(Pago).filter(

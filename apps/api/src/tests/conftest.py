@@ -1,6 +1,7 @@
 """Pytest configuration for Daily System API."""
 
 import os
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -12,7 +13,17 @@ os.environ.setdefault("API_DATABASE_URL", "sqlite:///:memory:")
 from src.database import Base, get_db, get_db_transaction
 
 # Import models so they register with Base before tables are created
-from src.models import Negocio, Ruta, Cliente, Credito, CuotaProgramada, Jornada, Pago, MovimientoCaja, Dispositivo  # noqa: F401
+from src.models import (  # noqa: F401
+    Cliente,
+    Credito,
+    CuotaProgramada,
+    Dispositivo,
+    Jornada,
+    MovimientoCaja,
+    Negocio,
+    Pago,
+    Ruta,
+)
 
 # Use in-memory SQLite for tests (no Docker needed)
 TEST_DATABASE_URL = "sqlite:///:memory:"
@@ -49,9 +60,10 @@ def db_session(test_db):
 @pytest.fixture
 def client(db_session):
     """Provide a test client with mocked database."""
+
     from fastapi.testclient import TestClient
+
     from src.main import app
-    import sys
 
     def override_get_db():
         try:
@@ -69,7 +81,6 @@ def client(db_session):
 @pytest.fixture
 def negocio_id(db_session):
     """Create a test negocio and return its ID."""
-    from src.models import Negocio
     from uuid import uuid4
 
     n = Negocio(
@@ -88,7 +99,6 @@ def negocio_id(db_session):
 @pytest.fixture
 def ruta_id(db_session, negocio_id):
     """Create a test ruta and return its ID."""
-    from src.models import Ruta
     from uuid import uuid4
 
     r = Ruta(
@@ -105,7 +115,6 @@ def ruta_id(db_session, negocio_id):
 @pytest.fixture
 def cliente_id(db_session, negocio_id):
     """Create a test cliente and return its ID."""
-    from src.models import Cliente
     from uuid import uuid4
 
     c = Cliente(

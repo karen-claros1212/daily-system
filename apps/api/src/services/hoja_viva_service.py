@@ -1,10 +1,10 @@
 """Hoja viva service — business logic separated from HTTP concerns."""
 
-from datetime import date, datetime, timezone, timedelta
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from src.models import Credito, CuotaProgramada, Pago
 
@@ -97,8 +97,7 @@ def build_hoja_viva(
         # mora_legacy
         if credito.fecha_inicio:
             mora_legacy = (report_date - credito.fecha_inicio).days - 1 - cuotas_pagadas
-            if mora_legacy < 0:
-                mora_legacy = 0
+            mora_legacy = max(mora_legacy, 0)
         else:
             mora_legacy = 0
 

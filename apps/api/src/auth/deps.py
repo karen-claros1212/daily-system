@@ -5,9 +5,9 @@ Production: must use JWT claims from signed tokens. Do NOT deploy with query aut
 """
 
 import os
-
-from fastapi import Depends, HTTPException, Query
 from uuid import UUID
+
+from fastapi import HTTPException, Query
 
 from src.auth.context import RequestContext
 

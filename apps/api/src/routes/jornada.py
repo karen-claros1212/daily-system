@@ -1,41 +1,39 @@
 """Jornada routes — open, close, sync, caja calculation."""
 
+from datetime import date
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from uuid import UUID
-from datetime import date
 
+from src.auth.context import RequestContext
+from src.auth.deps import get_request_context
 from src.database import get_db, get_db_transaction
 from src.schemas import (
-    JornadaCreate,
-    JornadaResponse,
+    CadenaCajaResponse,
     JornadaCierreCreate,
     JornadaCierreResponse,
+    JornadaCreate,
+    JornadaResponse,
     JornadaSyncResponse,
-    CadenaCajaResponse,
-)
-from src.auth.deps import get_request_context
-from src.auth.context import RequestContext
-from src.services.jornada_service import (
-    open_jornada,
-    get_jornada,
-    get_active_jornada,
-    cerrar_jornada,
-    sincronizar_cierre,
-    preparar_siguiente_jornada,
-    check_jornada_locked,
-    update_jornada_fields,
-    JornadaClosedError,
-    JornadaNotFoundError,
-    JornadaAlreadyClosed,
-    JornadaError,
-    JornadaInvalidBase,
-    JornadaRouteError,
-    JornadaRoleError,
 )
 from src.services.caja_service import calcular_cadena_caja
+from src.services.jornada_service import (
+    JornadaAlreadyClosed,
+    JornadaClosedError,
+    JornadaError,
+    JornadaInvalidBase,
+    JornadaNotFoundError,
+    JornadaRoleError,
+    JornadaRouteError,
+    cerrar_jornada,
+    get_active_jornada,
+    get_jornada,
+    open_jornada,
+    preparar_siguiente_jornada,
+    sincronizar_cierre,
+)
 
 router = APIRouter(prefix="/api/jornadas", tags=["jornadas"])
 

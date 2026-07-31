@@ -5,10 +5,14 @@ renewal with RequestContext, payment isolation, and traceability fields.
 from datetime import date
 from uuid import uuid4
 
-from src.models import Negocio, Ruta, Cliente, Credito, CuotaProgramada, Pago
-from src.services.schedule_service import generate_schedule_for_id, validate_schedule
-from src.services.renewal_service import renew_credito, RenewalNotFoundError, RenewalRouteError
 from src.auth.context import RequestContext
+from src.models import Cliente, Credito, CuotaProgramada, Negocio, Pago, Ruta
+from src.services.renewal_service import (
+    RenewalNotFoundError,
+    RenewalRouteError,
+    renew_credito,
+)
+from src.services.schedule_service import generate_schedule_for_id, validate_schedule
 
 
 class TestCreditoAutoGeneratesSchedule:

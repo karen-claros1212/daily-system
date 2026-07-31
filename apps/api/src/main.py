@@ -3,7 +3,7 @@
 import os
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -69,8 +69,8 @@ async def suscripcion_middleware(request: Request, call_next):
         # No negocio_id in request — allow through (will be caught by endpoint)
         return await call_next(request)
 
+
     from src.models import Negocio
-    from sqlalchemy import make_url
 
     # Use the same DB connection pattern as the app
     db_url = os.getenv("API_DATABASE_URL", "sqlite:///:memory:")

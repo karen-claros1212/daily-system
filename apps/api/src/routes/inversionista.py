@@ -5,7 +5,6 @@ Returns aggregated data without PII (no debtor names, documents, or addresses).
 """
 
 from datetime import date, datetime, timezone
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session

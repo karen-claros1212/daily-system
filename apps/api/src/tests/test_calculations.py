@@ -1,9 +1,8 @@
 """Tests for financial calculations."""
 
-import pytest
 from src.services.calculation_service import (
-    calcular_credito,
     calcular_caja,
+    calcular_credito,
     calcular_renovacion,
 )
 

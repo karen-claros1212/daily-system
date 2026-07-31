@@ -2,23 +2,22 @@
 PAYMENT registration for pago_efectivo, idempotency, and Bogotá timezone.
 """
 
-from datetime import date, datetime, timezone, timedelta
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 
-from src.models import Credito, Renovacion, Pago
-from src.services.calculation_service import calcular_renovacion
-from src.services.schedule_service import generate_schedule
-from src.services.payment_service import _uuid_eq, _normalize_uuid
 from src.auth.context import RequestContext
+from src.models import Credito, Pago, Renovacion
+from src.services.calculation_service import calcular_renovacion
+from src.services.payment_service import _normalize_uuid, _uuid_eq
+from src.services.schedule_service import generate_schedule
 
 BOGOTA_TZ = timezone(timedelta(hours=-5))
 
 
 class RenewalError(Exception):
     """Domain error raised by renewal service."""
-    pass
 
 
 class RenewalNotFoundError(RenewalError):
@@ -27,7 +26,6 @@ class RenewalNotFoundError(RenewalError):
 
 class RenewalRouteError(RenewalError):
     """Renewal credit belongs to a different route."""
-    pass
 
 
 def renew_credito(
@@ -125,7 +123,7 @@ def renew_credito(
 
     # Register PAYMENT when pago_efectivo > 0
     if pago_efectivo > 0:
-        pay_key = idempotency_key or f"renew-pay-{str(old.id)}"
+        pay_key = idempotency_key or f"renew-pay-{old.id!s}"
         pago_efectivo_row = Pago(
             id=uuid4(),
             negocio_id=old.negocio_id,

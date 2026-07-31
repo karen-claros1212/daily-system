@@ -1,27 +1,27 @@
 """Movimiento routes — append-only caja movements."""
 
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from uuid import UUID
 
+from src.auth.context import RequestContext
+from src.auth.deps import get_request_context
 from src.database import get_db, get_db_transaction
 from src.schemas import MovimientoCreate, MovimientoResponse
-from src.auth.deps import get_request_context
-from src.auth.context import RequestContext
 from src.services.movimiento_service import (
-    register_movimiento,
-    list_movimientos,
-    get_movimiento,
-    MovimientoNotFoundError,
+    MovimientoAjusteError,
     MovimientoIdempotencyError,
-    MovimientoTipoInvalido,
-    MovimientoNaturalezaInvalida,
     MovimientoJornadaError,
     MovimientoMontoInvalido,
-    MovimientoAjusteError,
+    MovimientoNaturalezaInvalida,
     MovimientoNotaObligatoria,
+    MovimientoNotFoundError,
+    MovimientoTipoInvalido,
+    get_movimiento,
+    list_movimientos,
+    register_movimiento,
 )
 
 router = APIRouter(prefix="/api/movimientos", tags=["movimientos"])

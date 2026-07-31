@@ -2,12 +2,21 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
+from sqlalchemy import JSON as PostgreSQLJSON
 from sqlalchemy import (
-    Column, String, Integer, Numeric, Date, DateTime, ForeignKey,
-    Enum, Text, CheckConstraint, UniqueConstraint,
+    CheckConstraint,
+    Column,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy import JSON as PostgreSQLJSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
