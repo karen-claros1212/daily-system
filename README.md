@@ -6,15 +6,21 @@
 
 ## Estado
 
-**Alpha — Pre-APK**
+**Alpha — APK Debug Construido**
 
 | Componente | Estado |
 |---|---|
 | Backend API | Implementado |
-| Android Offline Alpha | Implementado / en pulido |
+| Android Offline Alpha | Implementado / APK debug construido |
 | Panel web productivo | Planificado |
 | Prototipo web visual | Implementado |
-| APK de prueba física | Pendiente |
+| Splash nativo (Android 12+) | ✅ Implementado |
+| Icono adaptable (adaptive) | ✅ Implementado |
+| Tema claro/oscuro | ✅ Implementado |
+| Diseño tokens (JSON → Dart + CSS) | ✅ Implementado |
+| UI Gate CI | ✅ Estricto (flutter analyze + flutter test) |
+| APK de prueba física | ✅ Debug construido |
+| Pantallas reales refactorizadas | En progreso (M4) |
 | Producción | Pendiente |
 
 ---
@@ -23,7 +29,7 @@
 
 ### Android
 
-<!-- Capturas optimizadas en docs/assets/readme/mobile/ -->
+<!-- Capturas en docs/assets/readme/mobile/ -->
 
 ### Web
 
@@ -46,8 +52,11 @@
 - Límite de rutas y clientes por plan
 - Flutter Offline Alpha con SQLite local
 - Material 3 Expressive rediseño visual
-- Sistema de diseño compartido (tokens)
+- Sistema de diseño compartido (tokens JSON → Dart + CSS)
 - Tema claro/oscuro con marca consistente
+- Splash nativo Android 12+ (SplashScreen API)
+- Icono adaptable con monochrome
+- DAILY_DEMO flag para builds de producción
 
 ---
 
@@ -58,7 +67,7 @@ daily-system/
 ├── apps/
 │   ├── mobile/          # Flutter app (Android)
 │   │   ├── lib/
-│   │   │   ├── main.dart
+│   │   │   ├── main.dart           # DAILY_DEMO, Theme.of(context)
 │   │   │   ├── database/    # SQLite, migraciones, seed
 │   │   │   ├── domain/      # Tipos financieros, excepciones
 │   │   │   ├── models/      # DTOs y modelos
@@ -68,6 +77,7 @@ daily-system/
 │   │   │   ├── shell/       # Shell principal
 │   │   │   ├── theme/       # Tokens, tema, generador
 │   │   │   └── ui/          # Componentes Daily*
+│   │   ├── android/app/     # Android manifest, themes, icons
 │   │   └── test/
 │   └── api/             # FastAPI backend
 │       ├── src/
@@ -83,7 +93,7 @@ daily-system/
 │   ├── assets/          # Capturas README optimizadas
 │   └── DOCUMENTO-MAESTRO-Plataforma-Cobro-Colombia-v1.3-CERRADO.md
 ├── scripts/
-│   ├── ci/              # ui_gate.sh
+│   ├── ci/              # ui_gate.sh (strict)
 │   └── android/         # capture_ui_evidence.sh
 ├── tool/
 │   └── generate_design_tokens.dart
@@ -114,9 +124,10 @@ uvicorn src.main:app --reload  # servidor desarrollo
 ```bash
 cd apps/mobile
 flutter pub get
-flutter analyze
-flutter test
-flutter run  # requiere dispositivo/emulador
+flutter analyze          # 7 info-level issues, 0 errors/warnings
+flutter test             # 7/7 passing
+flutter run              # requiere dispositivo/emulador
+flutter build apk --debug  # genera build/app/outputs/flutter-apk/app-debug.apk
 ```
 
 ---
@@ -124,7 +135,7 @@ flutter run  # requiere dispositivo/emulador
 ## Pruebas y gates
 
 ```bash
-# Gate de UI
+# Gate de UI (strict — no --no-fatal flags)
 scripts/ci/ui_gate.sh
 
 # Tests móviles
@@ -151,10 +162,12 @@ alembic check
 - [x] M3: Suscripción, Telegram, inversionista
 - [x] M3.6: Flutter Offline Alpha + Visual Alpha Premium
 - [x] UX/UI Premium: marca, tokens, componentes, tema
+- [x] UX/UI Phase 2: splash nativo, DAILY_DEMO, light/dark, CSS generator, gate estricto
+- [x] Splash nativo Android 12+ (SplashScreen API)
+- [x] Icono adaptable con monochrome
 - [ ] Pantallas reales refactorizadas (inicio, cobros, pago, caja, cierre)
-- [ ] Icono adaptable y splash nativo
 - [ ] Pruebas golden y semantics
-- [ ] APK de prueba física
+- [ ] APK de prueba física (verificación en dispositivo)
 - [ ] M4: Importación OCR
 - [ ] M5: Score, chatbot, inteligencia
 - [ ] M6: Producción y despliegue
