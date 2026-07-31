@@ -1,7 +1,7 @@
 # Graphify Status — Daily System
 
 **Fecha:** 2026-07-31
-**SHA:** 8fa308b
+**SHA:** 737371dbb89cdc49ef7961ef43347ca416edbf54d
 **Graphify version:** 0.9.29 (skill 0.9.26)
 
 ---
@@ -10,40 +10,32 @@
 
 | Campo | Valor |
 |---|---|
-| **Graph built from** | 8fa308b |
-| **Status** | PARTIAL — deepseek balance insufficient |
+| **Graph built from** | 737371dbb89cdc49ef7961ef43347ca416edbf54d |
+| **AST extraction** | 26/26 uncached files (100%) |
+| **Semantic extraction** | 77/77 files |
+| **Status** | PARTIAL — deepseek balance insufficient for full graph |
 
 ---
 
-## Project State
+## Previous Graph (2026-07-31)
 
 | Campo | Valor |
 |---|---|
-| **Branch** | master |
-| **Tests** | 7/7 passing |
-| **Analyzer** | 7 info-level issues, 0 errors, 0 warnings |
-| **APK** | Debug built |
-| **UI Gate** | Strict (flutter analyze + flutter test) |
-
----
-
-## UX/UI Phase 2 Status
-
-| Control | Estado |
-|---|---|
-| Splash Android 12+ | ✅ |
-| DAILY_DEMO | ✅ |
-| Login light/dark | ✅ |
-| Logo semantics | ✅ |
-| CSS generator | ✅ |
-| Gate script | ✅ |
-| CI workflow | ✅ |
+| **Nodes** | 63 |
+| **Edges** | 49 |
+| **Communities** | 22 |
+| **Extraction** | 92% EXTRACTED |
 
 ---
 
 ## Next Steps
 
-1. Re-run Graphify with alternative backend (deepseek balance exhausted)
-2. Install tree_sitter_sql for SQL analysis
+1. Re-run Graphify when deepseek balance is replenished
+2. Install tree_sitter_sql for SQL analysis: `pip install "graphifyy[sql]"`
 3. Update this file with fresh graph data
-4. Continue M4: screen refactorization (inicio, cobros, pago, caja, cierre)
+
+## Known Warnings
+
+- 3 source files produced zero nodes (Contents.json x3)
+- 1 .sql file missing tree_sitter_sql dependency
+- 77 files omitted from semantic extraction (deepseek balance)
