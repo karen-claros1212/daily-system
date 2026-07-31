@@ -108,7 +108,9 @@ String _generateDartTokens(Map<String, dynamic> tokens) {
       sb.writeln('  static const Color $key = Color(0x${hex.replaceFirst('#', '')});');
       sb.writeln('  static Color ${key}WithAlpha(double a) => ${key}.withValues(alpha: a);');
     } else {
-      sb.writeln('  static const Color $key = Color(0x${hex.replaceFirst('#', '')});');
+      // 6-digit hex → 8-digit with FF alpha (opaque)
+      final hex8 = 'FF${hex.replaceFirst('#', '')}';
+      sb.writeln('  static const Color $key = Color(0x$hex8);');
     }
   }
   sb.writeln('');
@@ -124,7 +126,9 @@ String _generateDartTokens(Map<String, dynamic> tokens) {
     if (desc != null) {
       sb.writeln('  // $desc');
     }
-    sb.writeln('  static const Color dark$key = Color(0x${hex.replaceFirst('#', '')});');
+    // 6-digit hex → 8-digit with FF alpha (opaque)
+    final hex8 = 'FF${hex.replaceFirst('#', '')}';
+    sb.writeln('  static const Color dark$key = Color(0x$hex8);');
   }
   sb.writeln('');
   
