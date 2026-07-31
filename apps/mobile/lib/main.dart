@@ -4,6 +4,8 @@ import 'database/database.dart';
 import 'models/models.dart';
 import 'shell/main_shell.dart';
 import 'theme/theme.dart';
+import 'ui/components/daily_logo.dart';
+import 'ui/components/daily_primary_button.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -75,15 +77,16 @@ class _DailySystemAppState extends State<DailySystemApp> {
       title: 'Daily System',
       debugShowCheckedModeBanner: false,
       theme: premiumTheme,
-      home: _mostrarLogin ? _LoginScreen(onLogin: _handleLogin) :
+      darkTheme: premiumDarkTheme,
+      themeMode: ThemeMode.system,
+      home: _mostrarLogin ? const _LoginScreen() :
           MainShell(cobradorId: _cobradorId, cobradorNombre: _cobradorNombre, negocioId: _negocioId),
     );
   }
 }
 
 class _LoginScreen extends StatefulWidget {
-  final Function onLogin;
-  const _LoginScreen({required this.onLogin});
+  const _LoginScreen();
 
   @override
   State<_LoginScreen> createState() => _LoginScreenState();
@@ -92,23 +95,41 @@ class _LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<_LoginScreen> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 350),
       vsync: this,
     );
     _fadeAnimation = CurvedAnimation(
       parent: _controller,
       curve: Curves.easeOutCubic,
     );
-    _scaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
-    );
     _controller.forward();
+  }
+
+  Future<void> _doLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    final db = await database;
+    final usuarios = await db.query('usuario', where: 'rol = ?', whereArgs: ['COBRADOR']);
+    if (usuarios.isNotEmpty) {
+      final cobrador = Usuario.fromMap(usuarios.first);
+      await prefs.setString('cobrador_id', cobrador.id);
+      await prefs.setString('cobrador_nombre', cobrador.nombre);
+
+      final negocios = await db.query('negocio', limit: 1);
+      if (negocios.isNotEmpty) {
+        await prefs.setString('negocio_id', negocios.first['id'] as String);
+      }
+
+      setState(() {
+        _cobradorId = cobrador.id;
+        _cobradorNombre = cobrador.nombre;
+        _mostrarLogin = false;
+      });
+    }
   }
 
   @override
@@ -131,52 +152,40 @@ class _LoginScreenState extends State<_LoginScreen> with SingleTickerProviderSta
         child: SafeArea(
           child: FadeTransition(
             opacity: _fadeAnimation,
-            child: ScaleTransition(
-              scale: _scaleAnimation,
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 80, height: 80,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.3),
-                          blurRadius: 20, offset: const Offset(0, 8),
-                        )],
-                      ),
-                      child: const Icon(Icons.account_balance_wallet,
-                          color: Colors.white, size: 40),
-                    ),
-                    const SizedBox(height: 32),
-                    const Text('Daily System',
-                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary)),
-                    const SizedBox(height: 8),
-                    Text('Cobro diario offline',
-                        style: TextStyle(fontSize: 16, color: AppColors.outlineVariant)),
-                    const SizedBox(height: 8),
-                    Text('Flutter 3.44 • Material 3',
-                        style: const TextStyle(fontSize: 12, color: AppColors.outline)),
-                    const SizedBox(height: 48),
-                    compactButton(
-                      label: 'INICIAR SESIÓN',
-                      onPressed: () async {
-                        await widget.onLogin();
-                      },
-                      color: AppColors.primary,
-                      icon: Icons.login,
-                    ),
-                    const SizedBox(height: 16),
-                    Text('Demo: datos precargados',
-                        style: const TextStyle(fontSize: 12, color: AppColors.outline)),
-                    Text('5 clientes • 5 créditos • 1 ruta',
-                        style: const TextStyle(fontSize: 12, color: AppColors.outline)),
-                  ],
-                ),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Daily logo
+                  const DailyLogo(size: 80),
+                  const SizedBox(height: 32),
+                  
+                  // Brand name
+                  const Text('Daily System',
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary)),
+                  const SizedBox(height: 8),
+                  
+                  // Tagline
+                  Text('Tu ruta, tus cobros y tu caja, incluso sin internet.',
+                      style: TextStyle(fontSize: 16, color: AppColors.outlineVariant)),
+                  const SizedBox(height: 48),
+                  
+                  // Login button
+                  DailyPrimaryButton(
+                    label: 'INICIAR SESIÓN',
+                    onPressed: _doLogin,
+                    icon: Icons.login,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Demo info
+                  Text('Demo: datos precargados',
+                      style: const TextStyle(fontSize: 12, color: AppColors.outline)),
+                  Text('5 clientes • 5 créditos • 1 ruta',
+                      style: const TextStyle(fontSize: 12, color: AppColors.outline)),
+                ],
               ),
             ),
           ),
