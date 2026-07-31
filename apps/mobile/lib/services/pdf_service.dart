@@ -82,8 +82,8 @@ class PdfService {
 
   /// Registra documento PDF en jornada_documento.
   static Future<void> _registrarDocumento(
-      String jornadaId, String estado, String? ruta, String? hashSha256,
-      String? error, String generadoEl) async {
+      String jornadaId, String estado, String? ruta, String? pdfHashSha256,
+      String? snapshotHash, String? error, String creadoEl, String generadoEl) async {
     final db = await database;
     final id = _uuidV4();
     try {
@@ -93,10 +93,11 @@ class PdfService {
         'tipo': 'PDF_CIERRE',
         'estado': estado,
         'ruta': ruta,
-        'hash_sha256': hashSha256,
+        'snapshot_hash': snapshotHash,
+        'pdf_hash_sha256': pdfHashSha256,
         'bytes_b64': null,
         'error': error,
-        'creado_el': generadoEl,
+        'creado_el': creadoEl,
         'generado_el': generadoEl,
       });
     } catch (e) {
@@ -104,7 +105,8 @@ class PdfService {
       await db.update('jornada_documento', {
         'estado': estado,
         'ruta': ruta,
-        'hash_sha256': hashSha256,
+        'snapshot_hash': snapshotHash,
+        'pdf_hash_sha256': pdfHashSha256,
         'error': error,
         'generado_el': generadoEl,
       }, where: 'jornada_id = ? AND tipo = ?', whereArgs: [jornadaId, 'PDF_CIERRE']);
@@ -114,10 +116,11 @@ class PdfService {
   /// Genera PDF recuperable desde la fila inmutable jornada_snapshot.
   ///
   /// Flujo completo:
-  /// 1. Verifica hash_content del snapshot contra hash recomputado
-  /// 2. Verifica si PDF existente existe en disco y es válido
-  /// 3. Genera PDF desde snapshot si no existe o está corrupto
-  /// 4. Registra en jornada_documento con estado GENERATED/PENDING
+  /// 1. Obtiene snapshot y valida hash_content contra hash recomputado
+  /// 2. Verifica PDF existente en disco (%PDF header + hash_sha256)
+  /// 3. Si hash mismatch → aborta con FAILED_RETRYABLE
+  /// 4. Si existe PDF válido → reutiliza
+  /// 5. Si no existe → genera desde snapshot y registra
   static Future<String> generarPdfDesdeSnapshot(String jornadaId) async {
     final db = await database;
     final now = DateTime.now().toIso8601String();
@@ -127,7 +130,7 @@ class PdfService {
         where: 'jornada_id = ?', whereArgs: [jornadaId], limit: 1);
     if (results.isEmpty) {
       await _registrarDocumento(jornadaId, 'FAILED_PERMANENT', null, null,
-          'Snapshot no encontrado para jornada: $jornadaId', now);
+          null, 'Snapshot no encontrado para jornada: $jornadaId', now, now);
       throw Exception('Snapshot no encontrado para jornada: $jornadaId');
     }
     final snap = results.first;
@@ -157,26 +160,59 @@ class PdfService {
     final diferencia = snap['diferencia'] as int? ?? 0;
     final diferenciaMotivo = snap['diferencia_motivo'] as String? ?? '';
     final storedHash = snap['hash_content'] as String?;
+    final cerradaLocalEl = snap['cerrada_local_el'] as String? ?? '';
 
     final recomputedHash = _computeCanonicalHash(
-        caja, fecha, cobradorId, rutaId, contado, diferencia, diferenciaMotivo, now);
+        jornadaId, caja, fecha, cobradorId, rutaId, contado,
+        diferencia, diferenciaMotivo, cerradaLocalEl);
 
-    // Verificar hash (solo log, no aborta)
+    // Hash mismatch → aborta generación (integridad del snapshot)
     if (storedHash != null && storedHash != recomputedHash) {
-      // Hash mismatch — snapshot puede estar corrupto
       await _registrarDocumento(jornadaId, 'FAILED_RETRYABLE', null,
-          recomputedHash, 'Hash mismatch: stored=$storedHash computed=$recomputedHash', now);
+          recomputedHash, storedHash, 'Hash mismatch: stored=$storedHash computed=$recomputedHash', now, now);
+      throw Exception('Snapshot corrupto: hash mismatch (stored=$storedHash computed=$recomputedHash)');
     }
 
     // 3. Verificar PDF existente en disco
     final existingPdfPath = await _findExistingPdf(jornadaId, storedHash);
-    if (existingPdfPath != null && await File(existingPdfPath).exists()) {
-      final fileSize = await File(existingPdfPath).length();
-      if (fileSize > 1024) {
-        // PDF existente válido (mayor que 1KB)
-        await _registrarDocumento(jornadaId, 'GENERATED', existingPdfPath,
-            storedHash, null, now);
-        return existingPdfPath;
+    if (existingPdfPath != null) {
+      final pdfFile = File(existingPdfPath);
+      if (await pdfFile.exists()) {
+        final fileSize = await pdfFile.length();
+        if (fileSize > 1024) {
+          // Verificar encabezado %PDF
+          final headerBytes = (await pdfFile.readAsBytes()).sublist(0, 5);
+          final header = String.fromCharCodes(headerBytes);
+          if (header == '%PDF-') {
+            // Verificar hash del archivo si existe storedHash
+            String? storedPdfHash;
+            if (storedHash != null) {
+              final fileBytes = await pdfFile.readAsBytes();
+              final fileSha256 = sha256.convert(fileBytes).toString();
+              // storedHash es snapshot_hash, buscar pdf_hash_sha256 en jornada_documento
+              final docResults = await db.query('jornada_documento',
+                  where: 'jornada_id = ? AND tipo = ?',
+                  whereArgs: [jornadaId, 'PDF_CIERRE'], limit: 1);
+              if (docResults.isNotEmpty) {
+                storedPdfHash = docResults.first['pdf_hash_sha256'] as String?;
+              }
+              if (storedPdfHash != null && storedPdfHash == fileSha256) {
+                // Hash coincide — PDF válido
+                await _registrarDocumento(jornadaId, 'GENERATED', existingPdfPath,
+                    fileSha256, storedHash, null, now, now);
+                return existingPdfPath;
+              }
+              // Hash no coincide pero header correcto — regenerar
+              await _registrarDocumento(jornadaId, 'FAILED_RETRYABLE', null,
+                  fileSha256, storedHash, 'PDF hash mismatch: stored=${storedPdfHash ?? 'N/A'} computed=$fileSha256', now, now);
+            } else {
+              // No hay hash almacenado, header correcto suficiente
+              await _registrarDocumento(jornadaId, 'GENERATED', existingPdfPath,
+                  null, null, null, now, now);
+              return existingPdfPath;
+            }
+          }
+        }
       }
     }
 
@@ -265,7 +301,7 @@ class PdfService {
         ],
         pw.SizedBox(height: 30),
         pw.Text('---', style: pw.TextStyle(fontSize: 10)),
-        pw.Text('Snapshot inmutable v2 — ${snap['cerrada_local_el'] ?? fecha}',
+        pw.Text('Snapshot inmutable v2 — ${cerradaLocalEl.isNotEmpty ? cerradaLocalEl : fecha}',
             style: pw.TextStyle(fontSize: 8)),
       ],
     ));
@@ -281,17 +317,47 @@ class PdfService {
       await file.writeAsBytes(bytes);
       final pdfSha256 = sha256.convert(bytes).toString();
       await _registrarDocumento(jornadaId, 'GENERATED', file.path,
-          pdfSha256, null, now);
+          pdfSha256, storedHash, null, now, now);
       return file.path;
     } catch (e) {
       await _registrarDocumento(jornadaId, 'FAILED_RETRYABLE', null,
-          null, 'Error al guardar PDF: $e', now);
+          null, storedHash, 'Error al guardar PDF: $e', now, now);
       rethrow;
     }
   }
 
   /// Busca PDF existente para esta jornada (por hash o nombre).
+  /// Primero consulta jornada_documento para obtener pdf_hash_sha256,
+  /// luego busca archivo que coincida.
   static Future<String?> _findExistingPdf(String jornadaId, String? storedHash) async {
+    final db = await database;
+    // 1. Buscar pdf_hash_sha256 en jornada_documento
+    final docResults = await db.query('jornada_documento',
+        where: 'jornada_id = ? AND tipo = ? AND estado = ?',
+        whereArgs: [jornadaId, 'PDF_CIERRE', 'GENERATED'], limit: 1);
+    String? storedPdfHash;
+    String? storedRuta;
+    if (docResults.isNotEmpty) {
+      storedPdfHash = docResults.first['pdf_hash_sha256'] as String?;
+      storedRuta = docResults.first['ruta'] as String?;
+    }
+
+    // Si tenemos ruta almacenada, verificar que existe
+    if (storedRuta != null) {
+      final pdfFile = File(storedRuta);
+      if (await pdfFile.exists()) {
+        final fileSize = await pdfFile.length();
+        if (fileSize > 1024) {
+          final headerBytes = (await pdfFile.readAsBytes()).sublist(0, 5);
+          final header = String.fromCharCodes(headerBytes);
+          if (header == '%PDF-') {
+            return storedRuta;
+          }
+        }
+      }
+    }
+
+    // 2. Buscar por nombre de archivo
     final dir = await getApplicationDocumentsDirectory();
     final prefix = 'cierre_${jornadaId}_';
     final dirHandle = Directory('${dir.path}/');
@@ -302,11 +368,15 @@ class PdfService {
         final name = entity.path.split('/').last;
         if (!name.startsWith(prefix)) continue;
         // Si tenemos hash almacenado, buscar archivo con ese hash en el nombre
+        if (storedPdfHash != null && name.contains(storedPdfHash.substring(0, 8))) {
+          return entity.path;
+        }
+        // Si tenemos storedHash (snapshot), buscar por snapshot hash
         if (storedHash != null && name.contains(storedHash.substring(0, 8))) {
           return entity.path;
         }
         // Si no hay hash, cualquier archivo con prefix cuenta
-        if (storedHash == null) {
+        if (storedPdfHash == null && storedHash == null) {
           return entity.path;
         }
       }
@@ -314,11 +384,11 @@ class PdfService {
     return null;
   }
 
-  static String _computeCanonicalHash(CajaResultado caja, String fecha,
+  static String _computeCanonicalHash(String jornadaId, CajaResultado caja, String fecha,
       String? cobradorId, String rutaId, int contado, int diferencia,
       String diferenciaMotivo, String cerradaLocalEl) {
     final canonical = const JsonEncoder.withIndent('').convert({
-      'jornada_id': '',
+      'jornada_id': jornadaId,
       'fecha': fecha,
       'cobrador_id': cobradorId,
       'ruta_id': rutaId,

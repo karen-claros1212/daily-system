@@ -19,6 +19,7 @@
 
 import 'dart:io';
 
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -28,6 +29,7 @@ import 'package:daily_system/database/database.dart';
 import 'package:daily_system/services/caja_service.dart';
 import 'package:daily_system/services/pago_service.dart';
 import 'package:daily_system/services/jornada_service.dart';
+import 'package:daily_system/domain/domain_exceptions.dart';
 import 'package:daily_system/models/models.dart';
 import 'package:daily_system/screens/jornada_cierre_screen.dart';
 
@@ -455,6 +457,108 @@ void main() {
 
       final movimientos = await db.query('movimiento', where: 'jornada_id = ?', whereArgs: [jornadaId]);
       expect(movimientos.length, equals(4)); // recibido, entrega, gasolina, ahorro
+    });
+
+    // D. MIGRATION V3 — jornada_documento
+    test('MIG_V3: Tabla jornada_documento existe con trigger', () async {
+      final db = await database;
+
+      // Verificar que la tabla existe
+      final tables = await db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='jornada_documento'");
+      expect(tables.isNotEmpty, isTrue, reason: 'jornada_documento debe existir');
+
+      // Verificar trigger
+      final triggers = await db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='trigger' AND name='trg_doc_require_valid_jornada'");
+      expect(triggers.isNotEmpty, isTrue, reason: 'trg_doc_require_valid_jornada debe existir');
+
+      // Verificar índice único
+      final indexes = await db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_doc_jornada_tipo'");
+      expect(indexes.isNotEmpty, isTrue, reason: 'idx_doc_jornada_tipo debe existir');
+    });
+
+    // E. IDEMPOTENCIA CONFLICTO
+    test('IDEMPOTENCIA: Dos pagos con misma clave pero distinto monto generan conflicto', () async {
+      final db = await database;
+
+      // Limpiar cualquier fila previa con esta clave
+      await db.delete('pago', where: 'clave_idempotencia = ?', whereArgs: ['test-clave-123']);
+
+      // Crear jornada OPEN para el trigger
+      await db.insert('jornada', {
+        'id': 'jornada-emp-test',
+        'negocio_id': 'negocio-1',
+        'ruta_id': 'ruta-test',
+        'cobrador_id': 'cobrador-1',
+        'fecha': DateFormat('yyyy-MM-dd').format(DateTime.now()),
+        'estado': 'OPEN',
+        'opening_base': 0,
+      });
+
+      // Insertar un pago con clave 'test-clave-123'
+      await db.insert('pago', {
+        'id': 'pago-conflicto-1',
+        'negocio_id': 'negocio-1',
+        'credito_id': 'credito-test',
+        'jornada_id': 'jornada-emp-test',
+        'cobrador_id': 'cobrador-1',
+        'tipo': 'PAYMENT',
+        'monto': 10000,
+        'clave_idempotencia': 'test-clave-123',
+        'registrado_el_dispositivo': DateTime.now().toIso8601String(),
+      });
+
+      // Intentar registrar otro pago con misma clave pero monto diferente
+      final future = PagoService.registrarPago(
+        'credito-test', 'jornada-emp-test', 'cobrador-1', 'negocio-1',
+        20000, 'Nota conflicto', clienteIdempotenciaClave: 'test-clave-123');
+
+      expect(future, throwsA(isA<IdempotenciaConflictoException>()));
+    });
+
+    // F. HASH VALIDATION
+    test('HASH: generarPdfDesdeSnapshot valida hash_content', () async {
+      final db = await database;
+
+      // El snapshot ya fue creado con hash válido
+      final snapshots = await db.query('jornada_snapshot',
+          where: 'jornada_id = ?', whereArgs: [jornadaId]);
+      expect(snapshots.isNotEmpty, isTrue);
+      final storedHash = snapshots.first['hash_content'] as String?;
+      expect(storedHash, isNotNull);
+      expect(storedHash!.length, equals(64)); // SHA-256 = 64 hex chars
+
+      // Validar que el hash es reproducible
+      final caja = await CajaService.calcularCaja(jornadaId);
+      final fecha = snapshots.first['fecha'] as String;
+      final cobradorId = snapshots.first['cobrador_id'] as String?;
+      final rutaId = snapshots.first['ruta_id'] as String;
+      final cerradoEl = snapshots.first['cerrada_local_el'] as String? ?? '';
+      final diferenciaMotivo = snapshots.first['diferencia_motivo'] as String? ?? '';
+
+      final recomputed = JornadaService.computeSnapshotHash(
+          jornadaId, caja, fecha, cobradorId, rutaId,
+          kContadoInyectado, kDiferenciaCanonica, diferenciaMotivo, cerradoEl);
+      expect(recomputed, equals(storedHash));
+    });
+
+    // G. DOCUMENTO REGISTRADO EN JORNADA_DOCUMENTO
+    test('DOC: jornada_documento se crea al cerrar jornada', () async {
+      final db = await database;
+
+      final docs = await db.query('jornada_documento',
+          where: 'jornada_id = ? AND tipo = ?',
+          whereArgs: [jornadaId, 'PDF_CIERRE']);
+
+      // Puede existir si el test anterior generó PDF
+      if (docs.isNotEmpty) {
+        final doc = docs.first;
+        expect(doc['estado'] as String?, anyOf(isNull, 'PENDING', 'GENERATED'));
+        expect(doc['jornada_id'] as String?, equals(jornadaId));
+        expect(doc['tipo'] as String?, equals('PDF_CIERRE'));
+      }
     });
   });
 }

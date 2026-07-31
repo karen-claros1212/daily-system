@@ -48,7 +48,7 @@ class MontoInvalidoException implements Exception {
   final int monto;
   MontoInvalidoException(this.monto);
   @override
-  String toString() => 'Monto inválido: \$monto (debe ser > 0)';
+  String toString() => 'Monto inválido: $monto (debe ser > 0)';
 }
 
 /// La clave de idempotencia ya existe pero los campos no coinciden.
@@ -60,5 +60,5 @@ class IdempotenciaConflictoException implements Exception {
   IdempotenciaConflictoException(this.clave, this.pagoExistenteId, this.nuevoMonto, this.montoExistente);
   @override
   String toString() =>
-      'Clave de idempotencia duplicada con monto distinto (clave: \$clave, existente: \$pagoExistenteId, nuevo: \$nuevoMonto, existente: \$montoExistente)';
+      'Clave de idempotencia duplicada con monto distinto (clave: $clave, existente: $pagoExistenteId, nuevo: $nuevoMonto, existente: $montoExistente)';
 }

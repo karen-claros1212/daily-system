@@ -129,11 +129,11 @@ Future<Database> clearDatabase() async {
 
   await deleteDatabase(path);
 
-  final reopened = await initDatabase();
+  _database = await initDatabase();
 
-  if (!reopened.isOpen) {
+  if (!_database!.isOpen) {
     throw StateError('La base no quedó abierta después del reset');
   }
 
-  return reopened;
+  return _database!;
 }

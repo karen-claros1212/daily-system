@@ -135,7 +135,7 @@ class JornadaService {
       'movimientos_count': caja.movimientosCount,
       'cerrada_local_el': now,
       'version_esquema': 2,
-      'hash_content': _computeSnapshotHash(jornadaId, caja, jornadaMap['fecha'] as String,
+      'hash_content': computeSnapshotHash(jornadaId, caja, jornadaMap['fecha'] as String,
           jornadaMap['cobrador_id'] as String?,
           jornadaMap['ruta_id'] as String,
           contado, diferencia, diferenciaMotivo, now),
@@ -144,7 +144,7 @@ class JornadaService {
 
   static String _snapshotId(String jornadaId) => 'snapshot_$jornadaId';
 
-  static String _computeSnapshotHash(String jornadaId, CajaResultado caja, String fecha,
+  static String computeSnapshotHash(String jornadaId, CajaResultado caja, String fecha,
       String? cobradorId, String rutaId, int contado, int diferencia,
       String diferenciaMotivo, String cerradaLocalEl) {
     final canonical = const JsonEncoder.withIndent('').convert({

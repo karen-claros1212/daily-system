@@ -1,5 +1,5 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 import '../database/database.dart';
 import '../services/pago_service.dart';
 import '../theme/theme.dart';
@@ -21,15 +21,11 @@ class _PagoScreenState extends State<PagoScreen> {
   final _notaController = TextEditingController();
   Map<String, dynamic>? _creditoSeleccionado;
   bool _registrando = false;
+  String? _idempotenciaKey;
 
-  String _generarClaveIdempotencia(String creditoId, int monto) {
-    final canonical = const JsonEncoder.withIndent('').convert({
-      'jornada_id': widget.jornadaId,
-      'credito_id': creditoId,
-      'monto': monto,
-      'app': 'daily_system',
-    });
-    return canonical;
+  String _iniciarIdempotencia() {
+    _idempotenciaKey ??= const Uuid().v4();
+    return _idempotenciaKey!;
   }
 
   @override
@@ -71,7 +67,7 @@ class _PagoScreenState extends State<PagoScreen> {
     setState(() => _registrando = true);
     try {
       final creditoId = _creditoSeleccionado!['credito_id'] as String;
-      final clave = _generarClaveIdempotencia(creditoId, monto);
+      final clave = _iniciarIdempotencia();
       await PagoService.registrarPago(
         creditoId,
         widget.jornadaId,
@@ -89,6 +85,7 @@ class _PagoScreenState extends State<PagoScreen> {
         setState(() {
           _creditoSeleccionado = null;
           _registrando = false;
+          _idempotenciaKey = null;
         });
         _cargarCreditos();
       }
