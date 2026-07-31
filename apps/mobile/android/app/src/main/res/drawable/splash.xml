@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Solid brand background -->
+    <item android:drawable="@color/ic_launcher_background"/>
+    
+    <!-- Centered logo symbol -->
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@drawable/ic_launcher_foreground"/>
+    </item>
+</layer-list>

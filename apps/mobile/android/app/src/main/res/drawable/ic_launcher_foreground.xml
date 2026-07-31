@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Route D: vertical stem -->
+    <path
+        android:name="route_stem"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:strokeColor="#FFFFFF"
+        android:pathData="M38 20 L38 88"/>
+    
+    <!-- Route D: curved right side -->
+    <path
+        android:name="route_curve"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:strokeColor="#FFFFFF"
+        android:pathData="M38 20 C82 20, 92 54, 86 88 C76 98, 38 98, 38 88"/>
+    
+    <!-- Top node -->
+    <path
+        android:name="node_top"
+        android:fillColor="#D7A33D"
+        android:pathData="M38 16 A4 4 0 1 1 38 24 A4 4 0 1 1 38 16"/>
+    
+    <!-- Middle node (check point) -->
+    <path
+        android:name="node_middle"
+        android:fillColor="#0F6B55"
+        android:pathData="M72 50 A4 4 0 1 1 72 58 A4 4 0 1 1 72 50"/>
+    
+    <!-- Bottom node -->
+    <path
+        android:name="node_bottom"
+        android:fillColor="#D7A33D"
+        android:pathData="M38 84 A4 4 0 1 1 38 92 A4 4 0 1 1 38 84"/>
+    
+    <!-- Check mark at middle node -->
+    <path
+        android:name="check_mark"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeColor="#FFFFFF"
+        android:pathData="M68 51 L71 54 L78 46"/>
+</vector>
