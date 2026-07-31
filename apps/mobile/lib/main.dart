@@ -79,14 +79,15 @@ class _DailySystemAppState extends State<DailySystemApp> {
       theme: premiumTheme,
       darkTheme: premiumDarkTheme,
       themeMode: ThemeMode.system,
-      home: _mostrarLogin ? const _LoginScreen() :
+      home: _mostrarLogin ? _LoginScreen(onLogin: _handleLogin) :
           MainShell(cobradorId: _cobradorId, cobradorNombre: _cobradorNombre, negocioId: _negocioId),
     );
   }
 }
 
 class _LoginScreen extends StatefulWidget {
-  const _LoginScreen();
+  final Future<void> Function() onLogin;
+  const _LoginScreen({required this.onLogin});
 
   @override
   State<_LoginScreen> createState() => _LoginScreenState();
@@ -108,28 +109,6 @@ class _LoginScreenState extends State<_LoginScreen> with SingleTickerProviderSta
       curve: Curves.easeOutCubic,
     );
     _controller.forward();
-  }
-
-  Future<void> _doLogin() async {
-    final prefs = await SharedPreferences.getInstance();
-    final db = await database;
-    final usuarios = await db.query('usuario', where: 'rol = ?', whereArgs: ['COBRADOR']);
-    if (usuarios.isNotEmpty) {
-      final cobrador = Usuario.fromMap(usuarios.first);
-      await prefs.setString('cobrador_id', cobrador.id);
-      await prefs.setString('cobrador_nombre', cobrador.nombre);
-
-      final negocios = await db.query('negocio', limit: 1);
-      if (negocios.isNotEmpty) {
-        await prefs.setString('negocio_id', negocios.first['id'] as String);
-      }
-
-      setState(() {
-        _cobradorId = cobrador.id;
-        _cobradorNombre = cobrador.nombre;
-        _mostrarLogin = false;
-      });
-    }
   }
 
   @override
@@ -175,7 +154,7 @@ class _LoginScreenState extends State<_LoginScreen> with SingleTickerProviderSta
                   // Login button
                   DailyPrimaryButton(
                     label: 'INICIAR SESIÓN',
-                    onPressed: _doLogin,
+                    onPressed: widget.onLogin,
                     icon: Icons.login,
                   ),
                   const SizedBox(height: 16),
