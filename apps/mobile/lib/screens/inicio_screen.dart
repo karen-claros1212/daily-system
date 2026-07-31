@@ -106,6 +106,9 @@ class _InicioScreenState extends State<InicioScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // theme.brightness used via theme.colorScheme for accessibility
+    
     if (_cargando) {
       return Scaffold(
         body: Container(
@@ -113,21 +116,28 @@ class _InicioScreenState extends State<InicioScreen> {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [AppColors.primary.withValues(alpha: 0.05), AppColors.surface],
+              colors: [
+                theme.colorScheme.primary.withValues(alpha: 0.05),
+                theme.colorScheme.surface,
+              ],
             ),
           ),
-          child: const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+          child: Center(child: CircularProgressIndicator(color: theme.colorScheme.primary)),
         ),
       );
     }
 
     return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [AppColors.primary.withValues(alpha: 0.05), AppColors.surface],
+            colors: [
+              theme.colorScheme.primary.withValues(alpha: 0.05),
+              theme.colorScheme.surface,
+            ],
           ),
         ),
         child: SafeArea(
@@ -138,7 +148,9 @@ class _InicioScreenState extends State<InicioScreen> {
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  color: _jornadaAbierta ? AppColors.accent : AppColors.secondary,
+                  color: _jornadaAbierta
+                      ? theme.colorScheme.secondary
+                      : theme.colorScheme.surfaceContainerHighest,
                   child: Row(children: [
                     Icon(_jornadaAbierta ? Icons.check_circle : Icons.wifi_off,
                         color: Colors.white, size: 18),
@@ -164,7 +176,7 @@ class _InicioScreenState extends State<InicioScreen> {
                         Container(
                           width: 48, height: 48,
                           decoration: BoxDecoration(
-                            color: AppColors.primary,
+                            color: theme.colorScheme.primary,
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: const Icon(Icons.person, color: Colors.white, size: 24),
@@ -175,32 +187,32 @@ class _InicioScreenState extends State<InicioScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(widget.cobradorNombre,
-                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
                               Text(_rutaNombre.isNotEmpty ? _rutaNombre : 'Sin ruta',
-                                  style: const TextStyle(fontSize: 13, color: AppColors.outlineVariant)),
+                                  style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurfaceVariant)),
                             ],
                           ),
                         ),
-                        _buildLogoutButton(),
+                        _buildLogoutButton(theme),
                       ]),
                     ),
                     const SizedBox(height: 20),
 
                     if (_jornadaAbierta) ...[
                       // Real stats
-                      const Text('Resumen del día',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      Text('Resumen del día',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
                       const SizedBox(height: 12),
                       Row(
                         children: [
                           Expanded(
-                            child: _statCard(Icons.payment, 'Recaudado', formatMoney(_recaudoHoy),
-                                color: AppColors.accent),
+                            child: _statCard(theme, Icons.payment, 'Recaudado', formatMoney(_recaudoHoy),
+                                color: theme.colorScheme.secondary),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: _statCard(Icons.people, 'Pendientes', '$_clientesPendientes',
-                                color: AppColors.tertiary),
+                            child: _statCard(theme, Icons.people, 'Pendientes', '$_clientesPendientes',
+                                color: theme.colorScheme.tertiary),
                           ),
                         ],
                       ),
@@ -208,38 +220,38 @@ class _InicioScreenState extends State<InicioScreen> {
                       Row(
                         children: [
                           Expanded(
-                            child: _statCard(Icons.check_circle, 'Visitados', '$_clientesVisitados',
-                                color: AppColors.primary),
+                            child: _statCard(theme, Icons.check_circle, 'Visitados', '$_clientesVisitados',
+                                color: theme.colorScheme.primary),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: _statCard(Icons.account_balance_wallet, 'Apertura', formatMoney(_aperturaBase),
-                                color: AppColors.secondary),
+                            child: _statCard(theme, Icons.account_balance_wallet, 'Apertura', formatMoney(_aperturaBase),
+                                color: theme.colorScheme.onSurfaceVariant),
                           ),
                         ],
                       ),
                       const SizedBox(height: 20),
 
                       // Actions
-                      const Text('Acciones',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      Text('Acciones',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
                       const SizedBox(height: 12),
-                      _actionTile(Icons.people, 'Hoja Viva',
-                          'Ver cartera y semáforos', AppColors.accent,
+                      _actionTile(theme, Icons.people, 'Hoja Viva',
+                          'Ver cartera y semáforos', theme.colorScheme.secondary,
                           () => widget.onOpenCobros(CobrosSection.hojaViva)),
-                      _actionTile(Icons.payment, 'Cobrar',
-                          'Seleccionar cliente y abono', AppColors.primary,
+                      _actionTile(theme, Icons.payment, 'Cobrar',
+                          'Seleccionar cliente y abono', theme.colorScheme.primary,
                           () => widget.onOpenCobros(CobrosSection.pago)),
-                      _actionTile(Icons.receipt_long, 'Movimientos',
-                          'Gastos, ahorro, vales', AppColors.tertiaryDark,
+                      _actionTile(theme, Icons.receipt_long, 'Movimientos',
+                          'Gastos, ahorro, vales', theme.colorScheme.tertiary,
                           () => widget.onOpenCobros(CobrosSection.movimientos)),
-                      _actionTile(Icons.calculate, 'Caja',
-                          'Efectivo esperado vs contado', AppColors.secondary,
+                      _actionTile(theme, Icons.calculate, 'Caja',
+                          'Efectivo esperado vs contado', theme.colorScheme.onSurfaceVariant,
                           () => setState(() => widget.onOpenCobros(CobrosSection.caja))),
                       const SizedBox(height: 12),
                       // TERMINAR JORNADA — with onTap
                       premiumCard(
-                        bgColor: AppColors.danger,
+                        bgColor: theme.colorScheme.error,
                         onTap: () => widget.onOpenCobros(CobrosSection.cerrarJornada),
                         child: Row(children: [
                           Container(
@@ -267,16 +279,16 @@ class _InicioScreenState extends State<InicioScreen> {
                       ),
                     ] else ...[
                       // No jornada — select route
-                      const Text('Bienvenido',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      Text('Bienvenido',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
                       const SizedBox(height: 8),
                       Text('Selecciona una ruta para comenzar tu jornada de cobro.',
-                          style: const TextStyle(fontSize: 14, color: AppColors.outlineVariant)),
+                          style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurfaceVariant)),
                       const SizedBox(height: 20),
                       compactButton(
                         label: 'SELECCIONAR RUTA',
                         onPressed: () => widget.onOpenCobros(CobrosSection.seleccionarRuta),
-                        color: AppColors.primary,
+                        color: theme.colorScheme.primary,
                         icon: Icons.route,
                       ),
                     ],
@@ -291,19 +303,19 @@ class _InicioScreenState extends State<InicioScreen> {
     );
   }
 
-  Widget _statCard(IconData icon, String label, String value, {required Color color}) {
+  Widget _statCard(ThemeData theme, IconData icon, String label, String value, {required Color color}) {
     return premiumCard(
       padding: const EdgeInsets.all(12),
       child: Column(children: [
         Icon(icon, size: 24, color: color),
         const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.outlineVariant)),
+        Text(label, style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
         Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: color)),
       ]),
     );
   }
 
-  Widget _actionTile(IconData icon, String title,
+  Widget _actionTile(ThemeData theme, IconData icon, String title,
       String subtitle, Color color, VoidCallback onTap) {
     return Padding(padding: const EdgeInsets.only(bottom: 8),
       child: premiumCard(
@@ -322,20 +334,20 @@ class _InicioScreenState extends State<InicioScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.outlineVariant)),
+                Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+                Text(subtitle, style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
               ],
             ),
           ),
-          const Icon(Icons.chevron_right, color: AppColors.outline, size: 20),
+          Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant, size: 20),
         ]),
       ),
     );
   }
 
-  Widget _buildLogoutButton() {
+  Widget _buildLogoutButton(ThemeData theme) {
     return IconButton(
-      icon: const Icon(Icons.logout, size: 20, color: AppColors.outlineVariant),
+      icon: Icon(Icons.logout, size: 20, color: theme.colorScheme.onSurfaceVariant),
       onPressed: () async {
         final prefs = await SharedPreferences.getInstance();
         await prefs.clear();

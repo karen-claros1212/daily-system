@@ -54,12 +54,8 @@ class _JornadaCierreScreenState extends State<JornadaCierreScreen> {
     try {
       await JornadaService.cerrarJornada(widget.jornada.id, efectivo,
           _motivoController.text.trim());
-
       setState(() => _jornadaCerrada = true);
-
-      // PDF recuperable desde snapshot inmutable
       await PdfService.generarPdfDesdeSnapshot(widget.jornada.id);
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Jornada cerrada \u2713')));
@@ -75,6 +71,9 @@ class _JornadaCierreScreenState extends State<JornadaCierreScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final successColor = theme.colorScheme.secondary;
+    final warningColor = theme.colorScheme.tertiary;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Jornada'),
@@ -86,13 +85,15 @@ class _JornadaCierreScreenState extends State<JornadaCierreScreen> {
         child: Column(children: [
           // Status
           premiumCard(
-            bgColor: _jornadaCerrada ? const Color(0xFFE8F5E9) : const Color(0xFFFFF8E1),
+            bgColor: _jornadaCerrada
+                ? successColor.withValues(alpha: 0.1)
+                : warningColor.withValues(alpha: 0.15),
             child: Column(children: [
               Row(children: [
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: _jornadaCerrada ? const Color(0xFF2E7D32) : const Color(0xFFF9A825),
+                    color: _jornadaCerrada ? successColor : warningColor,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(_jornadaCerrada ? Icons.check_circle : Icons.hourglass_empty,
@@ -106,9 +107,9 @@ class _JornadaCierreScreenState extends State<JornadaCierreScreen> {
                       Text(_jornadaCerrada ? 'JORNADA CERRADA' : 'JORNADA ABIERTA',
                           style: TextStyle(
                               fontSize: 16, fontWeight: FontWeight.w600,
-                              color: _jornadaCerrada ? const Color(0xFF2E7D32) : const Color(0xFFF57F17))),
+                              color: _jornadaCerrada ? successColor : warningColor)),
                       Text('Estado: ${widget.jornada.estado}',
-                          style: const TextStyle(fontSize: 12, color: Color(0xFF79747E))),
+                          style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
                     ],
                   ),
                 ),
@@ -118,18 +119,17 @@ class _JornadaCierreScreenState extends State<JornadaCierreScreen> {
           const SizedBox(height: 20),
 
           if (!_jornadaCerrada && _caja != null) ...[
-            // Summary cards
             Row(
               children: [
                 Expanded(
                   child: premiumCard(
                     padding: const EdgeInsets.all(12),
                     child: Column(children: [
-                      const Icon(Icons.payment, size: 20, color: Color(0xFF2E7D32)),
+                      Icon(Icons.payment, size: 20, color: successColor),
                       const SizedBox(height: 4),
-                      const Text('Recaudo', style: TextStyle(fontSize: 11, color: Color(0xFF79747E))),
+                      Text('Recaudo', style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
                       Text(formatMoney(_caja!.recaudoReal),
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF2E7D32))),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: successColor)),
                     ]),
                   ),
                 ),
@@ -138,11 +138,11 @@ class _JornadaCierreScreenState extends State<JornadaCierreScreen> {
                   child: premiumCard(
                     padding: const EdgeInsets.all(12),
                     child: Column(children: [
-                      const Icon(Icons.account_balance_wallet, size: 20, color: Color(0xFF1565C0)),
+                      Icon(Icons.account_balance_wallet, size: 20, color: theme.colorScheme.primary),
                       const SizedBox(height: 4),
-                      const Text('Esperado', style: TextStyle(fontSize: 11, color: Color(0xFF79747E))),
+                      Text('Esperado', style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
                       Text(formatMoney(_caja!.efectivoEsperado),
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1565C0))),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: theme.colorScheme.primary)),
                     ]),
                   ),
                 ),
@@ -150,19 +150,19 @@ class _JornadaCierreScreenState extends State<JornadaCierreScreen> {
             ),
             const SizedBox(height: 20),
 
-            // Efectivo contado
             premiumCard(
               child: Column(children: [
-                const Text('Efectivo contado',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                Text('Efectivo contado',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
                 const SizedBox(height: 10),
                 TextField(
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Contado (COP)',
-                    prefixIcon: Icon(Icons.money, size: 20),
+                    labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                    prefixIcon: Icon(Icons.money, size: 20, color: theme.colorScheme.onSurfaceVariant),
                   ),
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
                   onChanged: (v) {
                     final val = int.tryParse(v);
                     if (val != null) setState(() => _efectivoContado = val);
@@ -170,30 +170,31 @@ class _JornadaCierreScreenState extends State<JornadaCierreScreen> {
                 ),
                 const SizedBox(height: 10),
                 TextField(controller: _motivoController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                         labelText: 'Motivo de diferencia (opcional)',
-                        prefixIcon: Icon(Icons.note, size: 20))),
+                        labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                        prefixIcon: Icon(Icons.note, size: 20, color: theme.colorScheme.onSurfaceVariant))),
                 const SizedBox(height: 16),
                 compactButton(
                   label: 'TERMINAR JORNADA',
                   onPressed: _cerrarJornada,
-                  color: const Color(0xFFC62828),
+                  color: theme.colorScheme.error,
                   isLoading: _cerrando,
                 ),
               ]),
             ),
           ] else if (_jornadaCerrada) ...[
             premiumCard(
-              bgColor: const Color(0xFFE8F5E9),
+              bgColor: successColor.withValues(alpha: 0.1),
               child: Column(children: [
-                const Text('Jornada cerrada localmente',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF2E7D32))),
+                Text('Jornada cerrada localmente',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: successColor)),
                 const SizedBox(height: 4),
-                const Text('Pendiente de sincronización',
-                    style: TextStyle(fontSize: 12, color: Color(0xFFF57F17))),
+                Text('Pendiente de sincronización',
+                    style: TextStyle(fontSize: 12, color: warningColor)),
                 const SizedBox(height: 12),
                 statRow('Contado', formatMoney(_efectivoContado),
-                    valueColor: const Color(0xFF2E7D32)),
+                    valueColor: successColor),
               ]),
             ),
           ],

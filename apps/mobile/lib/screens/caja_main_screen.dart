@@ -31,16 +31,12 @@ class _CajaMainScreenState extends State<CajaMainScreen> {
 
   Future<void> _cargarCaja() async {
     final db = await database;
-
-    // Find active jornada
     final jornadas = await db.query('jornada',
         where: 'estado = ?', whereArgs: ['OPEN'],
         orderBy: 'fecha DESC', limit: 1);
 
     if (jornadas.isEmpty) {
-      setState(() {
-        _cargando = false;
-      });
+      setState(() => _cargando = false);
       return;
     }
 
@@ -53,28 +49,24 @@ class _CajaMainScreenState extends State<CajaMainScreen> {
       _contado = j['contado'] as int? ?? 0;
     });
 
-    // Recaudo real (payments only)
     final recaudo = await db.rawQuery('''
       SELECT COALESCE(SUM(monto), 0) as total
       FROM pago WHERE jornada_id = ? AND tipo = 'PAYMENT'
     ''', [jornadaId]);
     _recaudoReal = recaudo.first['total'] as int? ?? 0;
 
-    // Reversales
     final rev = await db.rawQuery('''
       SELECT COALESCE(SUM(monto), 0) as total
       FROM pago WHERE jornada_id = ? AND tipo = 'REVERSAL'
     ''', [jornadaId]);
     _reversales = rev.first['total'] as int? ?? 0;
 
-    // Movimientos gastos
     final gastos = await db.rawQuery('''
       SELECT COALESCE(SUM(monto), 0) as total
       FROM movimiento WHERE jornada_id = ? AND naturaleza = 'GASTO'
     ''', [jornadaId]);
     _gastos = gastos.first['total'] as int? ?? 0;
 
-    // Ahorro
     final ahorro = await db.rawQuery('''
       SELECT COALESCE(SUM(monto), 0) as total
       FROM movimiento WHERE jornada_id = ? AND tipo = 'AHORRO'
@@ -88,6 +80,7 @@ class _CajaMainScreenState extends State<CajaMainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Caja'),
@@ -97,17 +90,16 @@ class _CajaMainScreenState extends State<CajaMainScreen> {
       _jornadaAbierta ? SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(children: [
-          // Summary cards
           Row(
             children: [
               Expanded(
-                child: _cajaCard('Recaudo Real', formatMoney(_recaudoReal),
-                    color: AppColors.accent, icon: Icons.payment),
+                child: _cajaCard(theme, 'Recaudo Real', formatMoney(_recaudoReal),
+                    color: theme.colorScheme.secondary, icon: Icons.payment),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: _cajaCard('Esperado', formatMoney(_esperado),
-                    color: AppColors.primary, icon: Icons.account_balance_wallet),
+                child: _cajaCard(theme, 'Esperado', formatMoney(_esperado),
+                    color: theme.colorScheme.primary, icon: Icons.account_balance_wallet),
               ),
             ],
           ),
@@ -115,50 +107,49 @@ class _CajaMainScreenState extends State<CajaMainScreen> {
           Row(
             children: [
               Expanded(
-                child: _cajaCard('Reversales', formatMoney(_reversales),
-                    color: AppColors.danger, icon: Icons.reply),
+                child: _cajaCard(theme, 'Reversales', formatMoney(_reversales),
+                    color: theme.colorScheme.error, icon: Icons.reply),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: _cajaCard('Gastos', formatMoney(_gastos),
-                    color: AppColors.danger, icon: Icons.money_off),
+                child: _cajaCard(theme, 'Gastos', formatMoney(_gastos),
+                    color: theme.colorScheme.error, icon: Icons.money_off),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          _cajaCard('Ahorro', formatMoney(_ahorro),
-              color: AppColors.tertiary, icon: Icons.savings, wide: true),
+          _cajaCard(theme, 'Ahorro', formatMoney(_ahorro),
+              color: theme.colorScheme.tertiary, icon: Icons.savings, wide: true),
           const SizedBox(height: 16),
-          // Difference card — uses contado, not recaudo
           premiumCard(
-            bgColor: diferencia >= 0 ? AppColors.accentContainer : const Color(0xFFFFEBEE),
+            bgColor: diferencia >= 0 ? theme.colorScheme.secondaryContainer : theme.colorScheme.errorContainer.withValues(alpha: 0.3),
             child: Column(children: [
-              const Text('Diferencia',
-                  style: TextStyle(fontSize: 13, color: AppColors.outlineVariant)),
+              Text('Diferencia',
+                  style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurfaceVariant)),
               Text(formatMoney(diferencia),
                   style: TextStyle(
                     fontSize: 28, fontWeight: FontWeight.w700,
-                    color: diferencia >= 0 ? AppColors.accent : AppColors.danger,
+                    color: diferencia >= 0 ? theme.colorScheme.secondary : theme.colorScheme.error,
                   )),
               const SizedBox(height: 4),
               Text('Contado: \$${formatMoney(_contado)} · Esperado: \$${formatMoney(_esperado)}',
-                  style: const TextStyle(fontSize: 11, color: AppColors.outlineVariant)),
+                  style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
             ]),
           ),
           const SizedBox(height: 20),
-          // Contado input (editable)
           premiumCard(
             child: Column(children: [
-              const Text('Efectivo contado',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              Text('Efectivo contado',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
               const SizedBox(height: 10),
               TextField(
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Contado (COP)',
-                  prefixIcon: Icon(Icons.money, size: 20),
+                  labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                  prefixIcon: Icon(Icons.money, size: 20, color: theme.colorScheme.onSurfaceVariant),
                 ),
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
                 onChanged: (v) {
                   final val = int.tryParse(v);
                   if (val != null && val != _contado) {
@@ -169,17 +160,17 @@ class _CajaMainScreenState extends State<CajaMainScreen> {
             ]),
           ),
         ]),
-      ) : const Center(child: Text('No hay jornada abierta')),
+      ) : Center(child: Text('No hay jornada abierta', style: TextStyle(color: theme.colorScheme.onSurfaceVariant))),
     );
   }
 
-  Widget _cajaCard(String label, String value, {required Color color, required IconData icon, bool wide = false}) {
+  Widget _cajaCard(ThemeData theme, String label, String value, {required Color color, required IconData icon, bool wide = false}) {
     return premiumCard(
       padding: const EdgeInsets.all(12),
       child: Column(children: [
         Icon(icon, size: 24, color: color),
         const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.outlineVariant)),
+        Text(label, style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
         Text(value, style: TextStyle(fontSize: wide ? 20 : 18, fontWeight: FontWeight.w700, color: color)),
       ]),
     );

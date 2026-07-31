@@ -54,25 +54,16 @@ class _CobrosShellState extends State<CobrosShell> {
     final prefs = await SharedPreferences.getInstance();
 
     if (_section == CobrosSection.seleccionarRuta) {
-      // Load available routes for selection
       await db.query('ruta', where: 'activa = ?', whereArgs: [1]);
-      setState(() {
-        _cargando = false;
-      });
+      setState(() => _cargando = false);
     } else {
-      // Load active route/jornada
       final rutaId = prefs.getString('ruta_id') ?? '';
       if (rutaId.isNotEmpty) {
         final rutas = await db.query('ruta', where: 'id = ?', whereArgs: [rutaId]);
         if (rutas.isNotEmpty) {
-          setState(() {
-            _ruta = Ruta.fromMap(rutas.first);
-          });
-
+          setState(() => _ruta = Ruta.fromMap(rutas.first));
           final jornada = await JornadaService.getJornadaAbierta(rutaId);
-          if (jornada != null) {
-            setState(() => _jornada = jornada);
-          }
+          if (jornada != null) setState(() => _jornada = jornada);
         }
       }
       setState(() => _cargando = false);
@@ -98,7 +89,6 @@ class _CobrosShellState extends State<CobrosShell> {
         final cobrador = Usuario.fromMap(usuarios.first);
         final negocios = await db.query('negocio', limit: 1);
         final negocioId = negocios.isNotEmpty ? negocios.first['id'] as String : '';
-
         final newJornada = await JornadaService.abrirJornada(ruta.id, cobrador.id, negocioId, 0);
         setState(() {
           _ruta = ruta;
@@ -107,17 +97,14 @@ class _CobrosShellState extends State<CobrosShell> {
         });
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _cargando ? const Center(child: CircularProgressIndicator()) :
-      _buildState(),
+      body: _cargando ? const Center(child: CircularProgressIndicator()) : _buildState(),
     );
   }
 
@@ -126,14 +113,10 @@ class _CobrosShellState extends State<CobrosShell> {
       case CobrosSection.seleccionarRuta:
         return _buildRouteSelection();
       case CobrosSection.cerrarJornada:
-        if (_jornada != null) {
-          return JornadaCierreScreen(jornada: _jornada!, cobradorNombre: widget.cobradorNombre);
-        }
+        if (_jornada != null) return JornadaCierreScreen(jornada: _jornada!, cobradorNombre: widget.cobradorNombre);
         return const Center(child: Text('No hay jornada abierta'));
       default:
-        if (_ruta == null || _jornada == null) {
-          return _buildRouteSelection();
-        }
+        if (_ruta == null || _jornada == null) return _buildRouteSelection();
         return _buildActiveState();
     }
   }
@@ -152,17 +135,15 @@ class _CobrosShellState extends State<CobrosShell> {
                   Container(
                     width: 64, height: 64,
                     decoration: BoxDecoration(
-                      color: AppColors.primary,
+                      color: Theme.of(context).colorScheme.primary,
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: const Icon(Icons.route, color: Colors.white, size: 32),
                   ),
                   const SizedBox(height: 16),
-                  const Text('Seleccionar Ruta',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                  const Text('Seleccionar Ruta', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 4),
-                  Text('Elige la ruta del día',
-                      style: const TextStyle(fontSize: 13, color: AppColors.outlineVariant)),
+                  Text('Elige la ruta del día', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                 ]),
               ),
               const SizedBox(height: 20),
@@ -174,24 +155,22 @@ class _CobrosShellState extends State<CobrosShell> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.route, color: AppColors.primary, size: 24),
+                      child: Icon(Icons.route, color: Theme.of(context).colorScheme.primary, size: 24),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(ruta.nombre,
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                          const Text('Ruta activa',
-                              style: TextStyle(fontSize: 12, color: AppColors.outlineVariant)),
+                          Text(ruta.nombre, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface)),
+                          Text('Ruta activa', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                         ],
                       ),
                     ),
-                    const Icon(Icons.chevron_right, color: AppColors.outline),
+                    Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ]),
                 ),
               )),
@@ -206,22 +185,19 @@ class _CobrosShellState extends State<CobrosShell> {
                 Container(
                   width: 64, height: 64,
                   decoration: BoxDecoration(
-                    color: AppColors.primary,
+                    color: Theme.of(context).colorScheme.primary,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: const Icon(Icons.route, color: Colors.white, size: 32),
                 ),
                 const SizedBox(height: 16),
-                const Text('Seleccionar Ruta',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                const Text('Seleccionar Ruta', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
-                Text('Elige la ruta del día',
-                    style: const TextStyle(fontSize: 13, color: AppColors.outlineVariant)),
+                Text('Elige la ruta del día', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
               ]),
             ),
             const SizedBox(height: 20),
-            const Text('No hay rutas configuradas',
-                style: TextStyle(color: AppColors.outlineVariant)),
+            Text('No hay rutas configuradas', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ]),
         );
       },
@@ -235,13 +211,14 @@ class _CobrosShellState extends State<CobrosShell> {
   }
 
   Widget _buildActiveState() {
+    final theme = Theme.of(context);
     return Column(
       children: [
         // Route header
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          color: AppColors.primary,
+          color: theme.colorScheme.primary,
           child: Row(children: [
             IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -252,10 +229,8 @@ class _CobrosShellState extends State<CobrosShell> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_ruta!.nombre,
-                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                  Text('Jornada del ${_jornada!.fecha}',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                  Text(_ruta!.nombre, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                  Text('Jornada del ${_jornada!.fecha}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
                 ],
               ),
             ),
@@ -266,29 +241,26 @@ class _CobrosShellState extends State<CobrosShell> {
           margin: const EdgeInsets.all(16),
           child: Row(
             children: [
-              _subNavChip('Hoja Viva', _section == CobrosSection.hojaViva, AppColors.accent,
+              _subNavChip(context, 'Hoja Viva', _section == CobrosSection.hojaViva, theme.colorScheme.secondary,
                   () => setState(() => _section = CobrosSection.hojaViva)),
               const SizedBox(width: 8),
-              _subNavChip('Cobrar', _section == CobrosSection.pago, AppColors.primary,
+              _subNavChip(context, 'Cobrar', _section == CobrosSection.pago, theme.colorScheme.primary,
                   () => setState(() => _section = CobrosSection.pago)),
               const SizedBox(width: 8),
-              _subNavChip('Movimientos', _section == CobrosSection.movimientos, AppColors.tertiaryDark,
+              _subNavChip(context, 'Movimientos', _section == CobrosSection.movimientos, theme.colorScheme.tertiary,
                   () => setState(() => _section = CobrosSection.movimientos)),
               const SizedBox(width: 8),
-              _subNavChip('Caja', _section == CobrosSection.caja, AppColors.secondary,
+              _subNavChip(context, 'Caja', _section == CobrosSection.caja, theme.colorScheme.onSurfaceVariant,
                   () => setState(() => _section = CobrosSection.caja)),
             ],
           ),
         ),
-        // Content
-        Expanded(
-          child: _buildSubContent(),
-        ),
+        Expanded(child: _buildSubContent()),
       ],
     );
   }
 
-  Widget _subNavChip(String label, bool selected, Color color, VoidCallback onTap) {
+  Widget _subNavChip(BuildContext context, String label, bool selected, Color color, VoidCallback onTap) {
     final key = ValueKey('cobros-section-${label.toLowerCase().replaceAll(' ', '-')}');
     return Expanded(
       child: Semantics(

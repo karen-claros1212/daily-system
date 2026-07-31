@@ -100,6 +100,8 @@ class _PagoScreenState extends State<PagoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final successColor = theme.colorScheme.secondary;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Registrar Pago'),
@@ -112,8 +114,8 @@ class _PagoScreenState extends State<PagoScreen> {
           // Creditor selector
           premiumCard(
             child: Column(children: [
-              const Text('Seleccionar deudor',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              Text('Seleccionar deudor',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
               const SizedBox(height: 10),
               DropdownButton<Map<String, dynamic>>(
                 isExpanded: true,
@@ -137,19 +139,19 @@ class _PagoScreenState extends State<PagoScreen> {
           // Amount
           premiumCard(
             child: Column(children: [
-              const Text('Monto del abono',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              Text('Monto del abono',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
               const SizedBox(height: 10),
               TextField(
                 controller: _montoController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Monto (COP)',
-                  prefixIcon: Icon(Icons.attach_money, size: 20),
+                  labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                  prefixIcon: Icon(Icons.attach_money, size: 20, color: theme.colorScheme.onSurfaceVariant),
                 ),
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
                 onChanged: (v) {
-                  // Regenerar clave de idempotencia cuando cambia el monto
                   if (_registrando && v.isNotEmpty) {
                     setState(() => _idempotenciaKey = null);
                   }
@@ -158,24 +160,25 @@ class _PagoScreenState extends State<PagoScreen> {
               const SizedBox(height: 10),
               TextField(
                 controller: _notaController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Nota (opcional)',
-                  prefixIcon: Icon(Icons.note, size: 20),
+                  labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                  prefixIcon: Icon(Icons.note, size: 20, color: theme.colorScheme.onSurfaceVariant),
                 ),
               ),
               const SizedBox(height: 16),
               compactButton(
                 label: 'REGISTRAR PAGO',
                 onPressed: _registrarPago,
-                color: const Color(0xFF2E7D32),
+                color: successColor,
                 isLoading: _registrando,
               ),
             ]),
           ),
           const SizedBox(height: 20),
           // Creditor list
-          const Text('Deudores activos',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          Text('Deudores activos',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
           const SizedBox(height: 10),
           ..._creditos.map((c) {
             final nombre = '${c['primer_apellido']} ${c['nombres']}';
@@ -186,10 +189,10 @@ class _PagoScreenState extends State<PagoScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
+                      color: successColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.person, color: Color(0xFF2E7D32), size: 20),
+                    child: Icon(Icons.person, color: successColor, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -197,14 +200,14 @@ class _PagoScreenState extends State<PagoScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(nombre,
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
                         Text('Cuota: \$${formatMoney(c['cuota'] as int)}',
-                            style: const TextStyle(fontSize: 12, color: Color(0xFF79747E))),
+                            style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
                       ],
                     ),
                   ),
                   Text('\$${formatMoney(c['total'] as int)}',
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
                 ]),
               ),
             );
