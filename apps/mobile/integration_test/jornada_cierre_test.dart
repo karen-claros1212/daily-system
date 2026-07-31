@@ -29,6 +29,7 @@ import 'package:daily_system/database/database.dart';
 import 'package:daily_system/services/caja_service.dart';
 import 'package:daily_system/services/pago_service.dart';
 import 'package:daily_system/services/jornada_service.dart';
+import 'package:daily_system/services/pdf_service.dart';
 import 'package:daily_system/domain/domain_exceptions.dart';
 import 'package:daily_system/models/models.dart';
 import 'package:daily_system/screens/jornada_cierre_screen.dart';
@@ -87,7 +88,7 @@ void main() {
     test('CAJA 1: Pago + reversal + movimientos', () async {
       final db = await database;
 
-      await PagoService.registrarPago(creditoId, jornadaId, cobradorId, negocioId, kPagoMonto, 'Pago');
+      await PagoService.registrarPago(creditoId, jornadaId, cobradorId, negocioId, kPagoMonto, 'Pago', 'pago-test-1');
       final pagos = await db.query('pago', where: 'jornada_id = ?', whereArgs: [jornadaId]);
       expect(pagos.length, greaterThanOrEqualTo(1));
 
@@ -218,7 +219,7 @@ void main() {
       await db.update('jornada', {'opening_carry': kOpeningCarry}, where: 'id = ?', whereArgs: [jornadaId]);
 
       // Inyectar datos
-      await PagoService.registrarPago(creditoId, jornadaId, cobradorId, negocioId, kPagoMonto, 'Pago UI');
+      await PagoService.registrarPago(creditoId, jornadaId, cobradorId, negocioId, kPagoMonto, 'Pago UI', 'pago-test-2');
       final pagos = await db.query('pago', where: 'jornada_id = ?', whereArgs: [jornadaId]);
       final pagoId = pagos.first['id'] as String;
       await PagoService.reversarPago(pagoId, jornadaId, cobradorId, negocioId, 'Reversal UI');
@@ -330,7 +331,7 @@ void main() {
 
       // Intentar registrar un pago adicional — debe lanzar JornadaCerradaException
       expect(
-        () => PagoService.registrarPago(creditoId, jornadaId, cobradorId, negocioId, 1000, 'Pago post-cierre'),
+        () => PagoService.registrarPago(creditoId, jornadaId, cobradorId, negocioId, 1000, 'Pago post-cierre', 'pago-test-3'),
         throwsA(isA<JornadaCerradaException>()),
         reason: 'PagoService.registrarPago() debe lanzar JornadaCerradaException en jornada cerrada',
       );
@@ -410,7 +411,7 @@ void main() {
       await db.update('jornada', {'opening_carry': kOpeningCarry}, where: 'id = ?', whereArgs: [jornadaId]);
 
       // Inyectar datos
-      await PagoService.registrarPago(creditoId, jornadaId, cobradorId, negocioId, kPagoMonto, 'Pago persistencia');
+      await PagoService.registrarPago(creditoId, jornadaId, cobradorId, negocioId, kPagoMonto, 'Pago persistencia', 'pago-test-4');
       final pagos = await db.query('pago', where: 'jornada_id = ?', whereArgs: [jornadaId]);
       final pagoId = pagos.first['id'] as String;
       await PagoService.reversarPago(pagoId, jornadaId, cobradorId, negocioId, 'Reversal persistencia');
@@ -513,7 +514,7 @@ void main() {
       // Intentar registrar otro pago con misma clave pero monto diferente
       final future = PagoService.registrarPago(
         'credito-test', 'jornada-emp-test', 'cobrador-1', 'negocio-1',
-        20000, 'Nota conflicto', clienteIdempotenciaClave: 'test-clave-123');
+        20000, 'Nota conflicto', 'test-clave-123');
 
       expect(future, throwsA(isA<IdempotenciaConflictoException>()));
     });
@@ -538,9 +539,26 @@ void main() {
       final cerradoEl = snapshots.first['cerrada_local_el'] as String? ?? '';
       final diferenciaMotivo = snapshots.first['diferencia_motivo'] as String? ?? '';
 
-      final recomputed = JornadaService.computeSnapshotHash(
-          jornadaId, caja, fecha, cobradorId, rutaId,
-          kContadoInyectado, kDiferenciaCanonica, diferenciaMotivo, cerradoEl);
+      final recomputed = JornadaSnapshot.computeHash(JornadaSnapshot(
+          jornadaId: jornadaId,
+          fecha: fecha,
+          cobradorId: cobradorId,
+          rutaId: rutaId,
+          openingBase: caja.openingBase,
+          openingCarry: caja.openingCarry,
+          recaudoReal: caja.recaudoReal,
+          reversales: caja.reversales,
+          gastos: caja.gastos,
+          ahorro: caja.ahorro,
+          vales: caja.vales,
+          entregas: caja.entregas,
+          recibidos: caja.recibidos,
+          desembolsos: caja.desembolsos,
+          efectivoEsperado: caja.efectivoEsperado,
+          contado: kContadoInyectado,
+          diferencia: kDiferenciaCanonica,
+          diferenciaMotivo: diferenciaMotivo,
+          cerradaLocalEl: cerradoEl));
       expect(recomputed, equals(storedHash));
     });
 
@@ -559,6 +577,179 @@ void main() {
         expect(doc['jornada_id'] as String?, equals(jornadaId));
         expect(doc['tipo'] as String?, equals('PDF_CIERRE'));
       }
+    });
+
+    // H. IDEMPOTENCIA: mismo UUID + mismos datos = un solo pago
+    test('IDEMPOTENCIA: mismo UUID + mismos datos = un solo pago', () async {
+      final db = await database;
+
+      // Limpiar pagos previos con esta clave
+      await db.delete('pago', where: 'clave_idempotencia = ?', whereArgs: ['idempotencia-test-uuid']);
+
+      // Crear jornada OPEN para el trigger
+      await db.insert('jornada', {
+        'id': 'jornada-idempot-test',
+        'negocio_id': 'negocio-1',
+        'ruta_id': 'ruta-test',
+        'cobrador_id': 'cobrador-1',
+        'fecha': DateFormat('yyyy-MM-dd').format(DateTime.now()),
+        'estado': 'OPEN',
+        'opening_base': 0,
+      });
+
+      // Primer pago con clave 'idempotencia-test-uuid'
+      final pago1 = await PagoService.registrarPago(
+        'credito-idempot', 'jornada-idempot-test', 'cobrador-1', 'negocio-1',
+        15000, 'Pago idempotencia', 'idempotencia-test-uuid');
+      expect(pago1.id, isNotNull);
+
+      // Segundo pago con misma clave (reintento)
+      final pago2 = await PagoService.registrarPago(
+        'credito-idempot', 'jornada-idempot-test', 'cobrador-1', 'negocio-1',
+        15000, 'Pago idempotencia', 'idempotencia-test-uuid');
+
+      // Debe devolver el mismo pago (idempotencia)
+      expect(pago2.id, equals(pago1.id));
+
+      // Verificar que solo existe un pago en la base
+      final pagos = await db.query('pago',
+          where: 'clave_idempotencia = ?', whereArgs: ['idempotencia-test-uuid']);
+      expect(pagos.length, equals(1),
+          reason: 'Debe existir exactamente un pago con esta clave de idempotencia');
+    });
+
+    // I. IDEMPOTENCIA: UUID diferente + mismos datos = dos pagos legítimos
+    test('IDEMPOTENCIA: UUID diferente + mismos datos = dos pagos legítimos', () async {
+      final db = await database;
+
+      // Limpiar pagos previos
+      await db.delete('pago', where: 'jornada_id = ?', whereArgs: ['jornada-idempot-test2']);
+
+      // Crear jornada OPEN para el trigger
+      await db.insert('jornada', {
+        'id': 'jornada-idempot-test2',
+        'negocio_id': 'negocio-1',
+        'ruta_id': 'ruta-test',
+        'cobrador_id': 'cobrador-1',
+        'fecha': DateFormat('yyyy-MM-dd').format(DateTime.now()),
+        'estado': 'OPEN',
+        'opening_base': 0,
+      });
+
+      // Primer pago con clave 'uuid-pago-1'
+      final pago1 = await PagoService.registrarPago(
+        'credito-idempot2', 'jornada-idempot-test2', 'cobrador-1', 'negocio-1',
+        15000, 'Pago legítimo 1', 'uuid-pago-1');
+
+      // Segundo pago con misma data pero diferente clave (intención distinta)
+      final pago2 = await PagoService.registrarPago(
+        'credito-idempot2', 'jornada-idempot-test2', 'cobrador-1', 'negocio-1',
+        15000, 'Pago legítimo 2', 'uuid-pago-2');
+
+      // Deben ser pagos diferentes
+      expect(pago2.id, isNot(equals(pago1.id)));
+
+      // Verificar que existen dos pagos en la base
+      final pagos = await db.query('pago',
+          where: 'jornada_id = ?', whereArgs: ['jornada-idempot-test2']);
+      expect(pagos.length, equals(2),
+          reason: 'Deben existir dos pagos con diferentes claves de idempotencia');
+    });
+
+    // J. PDF CORRUPTO → regeneración
+    test('PDF: archivo corrupto se regenera', () async {
+      final db = await database;
+
+      // Crear jornada OPEN para el trigger
+      await db.insert('jornada', {
+        'id': 'jornada-pdf-test',
+        'negocio_id': 'negocio-1',
+        'ruta_id': 'ruta-test',
+        'cobrador_id': 'cobrador-1',
+        'fecha': DateFormat('yyyy-MM-dd').format(DateTime.now()),
+        'estado': 'OPEN',
+        'opening_base': 0,
+      });
+
+      // Registrar un pago para tener datos en caja
+      await PagoService.registrarPago(
+        'credito-pdf', 'jornada-pdf-test', 'cobrador-1', 'negocio-1',
+        10000, 'Pago PDF test', 'pdf-test-uuid');
+
+      // Cerrar jornada
+      await JornadaService.cerrarJornada('jornada-pdf-test', 10000, '');
+
+      // Obtener el snapshot
+      final snapshots = await db.query('jornada_snapshot',
+          where: 'jornada_id = ?', whereArgs: ['jornada-pdf-test']);
+      expect(snapshots.isNotEmpty, isTrue);
+
+      // Generar PDF por primera vez
+      final pdfPath1 = await PdfService.generarPdfDesdeSnapshot('jornada-pdf-test');
+      expect(pdfPath1, isNotNull);
+
+      // Verificar que el PDF existe y es válido
+      final pdfFile = File(pdfPath1);
+      expect(await pdfFile.exists(), isTrue);
+      final header1 = (await pdfFile.readAsBytes()).sublist(0, 5);
+      expect(String.fromCharCodes(header1), equals('%PDF-'));
+
+      // Corromper el PDF (escribir datos aleatorios)
+      await pdfFile.writeAsBytes([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
+
+      // Generar PDF de nuevo — debería regenerar
+      final pdfPath2 = await PdfService.generarPdfDesdeSnapshot('jornada-pdf-test');
+      expect(pdfPath2, isNotNull);
+
+      // Verificar que el PDF regenerado es válido
+      final pdfFile2 = File(pdfPath2);
+      expect(await pdfFile2.exists(), isTrue);
+      final header2 = (await pdfFile2.readAsBytes()).sublist(0, 5);
+      expect(String.fromCharCodes(header2), equals('%PDF-'));
+    });
+
+    // K. HASH SNAPSHOT ALTERADO → bloquea generación
+    test('HASH: snapshot alterado bloquea generación de PDF', () async {
+      final db = await database;
+
+      // Crear jornada OPEN para el trigger
+      await db.insert('jornada', {
+        'id': 'jornada-hash-test',
+        'negocio_id': 'negocio-1',
+        'ruta_id': 'ruta-test',
+        'cobrador_id': 'cobrador-1',
+        'fecha': DateFormat('yyyy-MM-dd').format(DateTime.now()),
+        'estado': 'OPEN',
+        'opening_base': 0,
+      });
+
+      // Registrar un pago para tener datos en caja
+      await PagoService.registrarPago(
+        'credito-hash', 'jornada-hash-test', 'cobrador-1', 'negocio-1',
+        10000, 'Pago hash test', 'hash-test-uuid');
+
+      // Cerrar jornada
+      await JornadaService.cerrarJornada('jornada-hash-test', 10000, '');
+
+      // Obtener el snapshot original
+      final snapshots = await db.query('jornada_snapshot',
+          where: 'jornada_id = ?', whereArgs: ['jornada-hash-test']);
+      expect(snapshots.isNotEmpty, isTrue);
+      final originalHash = snapshots.first['hash_content'] as String?;
+      expect(originalHash, isNotNull);
+      expect(originalHash!.length, equals(64)); // SHA-256 = 64 hex chars
+
+      // Alterar el hash del snapshot
+      await db.update('jornada_snapshot',
+          {'hash_content': 'aaaaaa0000000000000000000000000000000000000000000000000000000000'},
+          where: 'jornada_id = ?', whereArgs: ['jornada-hash-test']);
+
+      // Intentar generar PDF — debe fallar por hash mismatch
+      final future = PdfService.generarPdfDesdeSnapshot('jornada-hash-test');
+      expect(future, throwsA(anyOf(
+        isA<Exception>(),
+        throwsException,
+      )));
     });
   });
 }

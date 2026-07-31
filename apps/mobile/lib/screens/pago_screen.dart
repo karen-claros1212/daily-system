@@ -75,7 +75,7 @@ class _PagoScreenState extends State<PagoScreen> {
         widget.negocioId,
         monto,
         _notaController.text.trim(),
-        clienteIdempotenciaClave: clave,
+        clave,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -124,7 +124,12 @@ class _PagoScreenState extends State<PagoScreen> {
                   final nombre = '${c['primer_apellido']} ${c['nombres']}';
                   return DropdownMenuItem(value: c, child: Text(nombre));
                 }).toList(),
-                onChanged: (v) => setState(() => _creditoSeleccionado = v),
+                onChanged: (v) {
+                  setState(() {
+                    _creditoSeleccionado = v;
+                    _idempotenciaKey = null;
+                  });
+                },
               ),
             ]),
           ),
@@ -143,6 +148,12 @@ class _PagoScreenState extends State<PagoScreen> {
                   prefixIcon: Icon(Icons.attach_money, size: 20),
                 ),
                 style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+                onChanged: (v) {
+                  // Regenerar clave de idempotencia cuando cambia el monto
+                  if (_registrando && v.isNotEmpty) {
+                    setState(() => _idempotenciaKey = null);
+                  }
+                },
               ),
               const SizedBox(height: 10),
               TextField(

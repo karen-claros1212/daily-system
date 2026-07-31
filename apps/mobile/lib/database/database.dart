@@ -4,6 +4,7 @@ import '../database/tables.dart';
 import '../database/seed.dart';
 import '../database/migration_v2.dart';
 import '../database/migration_v3.dart';
+import '../database/migration_v4.dart';
 
 Database? _database;
 
@@ -19,7 +20,7 @@ Future<Database> initDatabase() async {
 
   return await openDatabase(
     path,
-    version: 3,
+    version: 4,
     onCreate: _onCreate,
     onUpgrade: _onUpgrade,
     onOpen: (_) {},
@@ -33,8 +34,10 @@ Future<void> _onCreate(Database db, int version) async {
   await SeedData.seed(db);
   await MigrationV2.migrate(db);
   await MigrationV3.migrate(db);
+  await MigrationV4.migrate(db);
   await assertSchemaV2(db);
   await assertSchemaV3(db);
+  await assertSchemaV4(db);
 }
 
 Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -44,8 +47,12 @@ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
   if (oldVersion < 3) {
     await MigrationV3.migrate(db);
   }
+  if (oldVersion < 4) {
+    await MigrationV4.migrate(db);
+  }
   await assertSchemaV2(db);
   await assertSchemaV3(db);
+  await assertSchemaV4(db);
 }
 
 Future<void> assertSchemaV2(DatabaseExecutor db) async {
@@ -112,6 +119,38 @@ Future<void> assertSchemaV3(DatabaseExecutor db) async {
     throw StateError(
       'Migración V3 incompleta. Objetos ausentes: '
       '${missing.join(', ')}. Encontrados: ${names.join(', ')}',
+    );
+  }
+}
+
+Future<void> assertSchemaV4(DatabaseExecutor db) async {
+  // Verificar que jornada_documento tiene las columnas requeridas
+  final columns = await db.rawQuery('PRAGMA table_info(jornada_documento)');
+  final columnNames = columns
+      .map((col) => col['name'] as String)
+      .whereType<String>()
+      .toSet();
+
+  const requiredColumns = {
+    'id',
+    'jornada_id',
+    'tipo',
+    'estado',
+    'ruta',
+    'snapshot_hash',
+    'pdf_hash_sha256',
+    'bytes_b64',
+    'error',
+    'creado_el',
+    'generado_el',
+  };
+
+  final missing = requiredColumns.difference(columnNames);
+
+  if (missing.isNotEmpty) {
+    throw StateError(
+      'Migración V4 incompleta. Columnas ausentes en jornada_documento: '
+      '${missing.join(', ')}. Encontradas: ${columnNames.join(', ')}',
     );
   }
 }

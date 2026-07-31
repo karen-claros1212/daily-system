@@ -23,12 +23,12 @@ class PagoService {
   ///
   /// Si cualquier paso falla: no queda mutación parcial.
   static Future<Pago> registrarPago(String creditoId, String jornadaId, String cobradorId,
-      String negocioId, int monto, String nota, {String? clienteIdempotenciaClave}) async {
+      String negocioId, int monto, String nota, String clienteIdempotenciaClave) async {
     if (monto <= 0) {
       throw MontoInvalidoException(monto);
     }
 
-    final clave = clienteIdempotenciaClave ?? _uuid.v4();
+    final clave = clienteIdempotenciaClave;
 
     final pago = Pago(
       id: uid(),

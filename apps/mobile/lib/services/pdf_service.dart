@@ -1,6 +1,6 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
+import 'package:sqflite/sqflite.dart' show DatabaseException;
 import 'package:uuid/uuid.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import '../models/caja_resultado.dart';
+import '../models/jornada_snapshot.dart';
 import '../database/database.dart';
 
 class PdfService {
@@ -100,16 +101,20 @@ class PdfService {
         'creado_el': creadoEl,
         'generado_el': generadoEl,
       });
-    } catch (e) {
+    } on DatabaseException catch (e) {
       // UNIQUE constraint puede fallar si ya existe; actualizar estado
-      await db.update('jornada_documento', {
-        'estado': estado,
-        'ruta': ruta,
-        'snapshot_hash': snapshotHash,
-        'pdf_hash_sha256': pdfHashSha256,
-        'error': error,
-        'generado_el': generadoEl,
-      }, where: 'jornada_id = ? AND tipo = ?', whereArgs: [jornadaId, 'PDF_CIERRE']);
+      if (e.toString().contains('UNIQUE constraint failed')) {
+        await db.update('jornada_documento', {
+          'estado': estado,
+          'ruta': ruta,
+          'snapshot_hash': snapshotHash,
+          'pdf_hash_sha256': pdfHashSha256,
+          'error': error,
+          'generado_el': generadoEl,
+        }, where: 'jornada_id = ? AND tipo = ?', whereArgs: [jornadaId, 'PDF_CIERRE']);
+      } else {
+        rethrow;
+      }
     }
   }
 
@@ -162,14 +167,14 @@ class PdfService {
     final storedHash = snap['hash_content'] as String?;
     final cerradaLocalEl = snap['cerrada_local_el'] as String? ?? '';
 
-    final recomputedHash = _computeCanonicalHash(
-        jornadaId, caja, fecha, cobradorId, rutaId, contado,
+    final recomputedHash = _recomputeSnapshotHash(
+        caja, fecha, cobradorId, rutaId, contado,
         diferencia, diferenciaMotivo, cerradaLocalEl);
 
     // Hash mismatch → aborta generación (integridad del snapshot)
     if (storedHash != null && storedHash != recomputedHash) {
       await _registrarDocumento(jornadaId, 'FAILED_RETRYABLE', null,
-          recomputedHash, storedHash, 'Hash mismatch: stored=$storedHash computed=$recomputedHash', now, now);
+          null, storedHash, 'Hash mismatch: stored=$storedHash computed=$recomputedHash', now, now);
       throw Exception('Snapshot corrupto: hash mismatch (stored=$storedHash computed=$recomputedHash)');
     }
 
@@ -384,31 +389,31 @@ class PdfService {
     return null;
   }
 
-  static String _computeCanonicalHash(String jornadaId, CajaResultado caja, String fecha,
+  static String _recomputeSnapshotHash(CajaResultado caja, String fecha,
       String? cobradorId, String rutaId, int contado, int diferencia,
       String diferenciaMotivo, String cerradaLocalEl) {
-    final canonical = const JsonEncoder.withIndent('').convert({
-      'jornada_id': jornadaId,
-      'fecha': fecha,
-      'cobrador_id': cobradorId,
-      'ruta_id': rutaId,
-      'opening_base': caja.openingBase,
-      'opening_carry': caja.openingCarry,
-      'recaudo_real': caja.recaudoReal,
-      'reversales': caja.reversales,
-      'gastos': caja.gastos,
-      'ahorro': caja.ahorro,
-      'vales': caja.vales,
-      'entregas': caja.entregas,
-      'recibidos': caja.recibidos,
-      'desembolsos': caja.desembolsos,
-      'efectivo_esperado': caja.efectivoEsperado,
-      'contado': contado,
-      'diferencia': diferencia,
-      'diferencia_motivo': diferenciaMotivo,
-      'cerrada_local_el': cerradaLocalEl,
-    });
-    return sha256.convert(utf8.encode(canonical)).toString();
+    final snapshot = JornadaSnapshot(
+      jornadaId: '',
+      fecha: fecha,
+      cobradorId: cobradorId,
+      rutaId: rutaId,
+      openingBase: caja.openingBase,
+      openingCarry: caja.openingCarry,
+      recaudoReal: caja.recaudoReal,
+      reversales: caja.reversales,
+      gastos: caja.gastos,
+      ahorro: caja.ahorro,
+      vales: caja.vales,
+      entregas: caja.entregas,
+      recibidos: caja.recibidos,
+      desembolsos: caja.desembolsos,
+      efectivoEsperado: caja.efectivoEsperado,
+      contado: contado,
+      diferencia: diferencia,
+      diferenciaMotivo: diferenciaMotivo,
+      cerradaLocalEl: cerradaLocalEl,
+    );
+    return JornadaSnapshot.computeHash(snapshot);
   }
 
   static String _uuidV4() => const Uuid().v4();

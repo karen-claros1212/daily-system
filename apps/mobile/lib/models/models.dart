@@ -1,4 +1,5 @@
 export '../domain/domain_exceptions.dart' show JornadaCerradaException;
+export 'jornada_snapshot.dart' show JornadaSnapshot;
 
 import 'package:uuid/uuid.dart';
 

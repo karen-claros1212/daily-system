@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:crypto/crypto.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:intl/intl.dart';
 import '../database/database.dart';
@@ -111,6 +110,28 @@ class JornadaService {
   static Future<void> _insertSnapshot(DatabaseExecutor txn, String jornadaId,
       Map<String, dynamic> jornadaMap, CajaResultado caja,
       int contado, int diferencia, String diferenciaMotivo, String now) async {
+    final snapshot = JornadaSnapshot(
+      jornadaId: jornadaId,
+      fecha: jornadaMap['fecha'] as String,
+      cobradorId: jornadaMap['cobrador_id'] as String?,
+      rutaId: jornadaMap['ruta_id'] as String,
+      openingBase: caja.openingBase,
+      openingCarry: caja.openingCarry,
+      recaudoReal: caja.recaudoReal,
+      reversales: caja.reversales,
+      gastos: caja.gastos,
+      ahorro: caja.ahorro,
+      vales: caja.vales,
+      entregas: caja.entregas,
+      recibidos: caja.recibidos,
+      desembolsos: caja.desembolsos,
+      efectivoEsperado: caja.efectivoEsperado,
+      contado: contado,
+      diferencia: diferencia,
+      diferenciaMotivo: diferenciaMotivo,
+      cerradaLocalEl: now,
+    );
+
     await txn.insert('jornada_snapshot', {
       'jornada_id': jornadaId,
       'fecha': jornadaMap['fecha'] as String,
@@ -135,42 +156,11 @@ class JornadaService {
       'movimientos_count': caja.movimientosCount,
       'cerrada_local_el': now,
       'version_esquema': 2,
-      'hash_content': computeSnapshotHash(jornadaId, caja, jornadaMap['fecha'] as String,
-          jornadaMap['cobrador_id'] as String?,
-          jornadaMap['ruta_id'] as String,
-          contado, diferencia, diferenciaMotivo, now),
+      'hash_content': JornadaSnapshot.computeHash(snapshot),
     });
   }
 
   static String _snapshotId(String jornadaId) => 'snapshot_$jornadaId';
-
-  static String computeSnapshotHash(String jornadaId, CajaResultado caja, String fecha,
-      String? cobradorId, String rutaId, int contado, int diferencia,
-      String diferenciaMotivo, String cerradaLocalEl) {
-    final canonical = const JsonEncoder.withIndent('').convert({
-      'jornada_id': jornadaId,
-      'fecha': fecha,
-      'cobrador_id': cobradorId,
-      'ruta_id': rutaId,
-      'opening_base': caja.openingBase,
-      'opening_carry': caja.openingCarry,
-      'recaudo_real': caja.recaudoReal,
-      'reversales': caja.reversales,
-      'gastos': caja.gastos,
-      'ahorro': caja.ahorro,
-      'vales': caja.vales,
-      'entregas': caja.entregas,
-      'recibidos': caja.recibidos,
-      'desembolsos': caja.desembolsos,
-      'efectivo_esperado': caja.efectivoEsperado,
-      'contado': contado,
-      'diferencia': diferencia,
-      'diferencia_motivo': diferenciaMotivo,
-      'cerrada_local_el': cerradaLocalEl,
-    });
-    final bytes = sha256.convert(utf8.encode(canonical)).toString();
-    return bytes;
-  }
 
   static Future<List<Jornada>> getJornadasHistorial(String rutaId) async {
     final db = await database;
