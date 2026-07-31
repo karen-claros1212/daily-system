@@ -105,7 +105,8 @@ String _generateDartTokens(Map<String, dynamic> tokens) {
       sb.writeln('  // $desc');
     }
     if (alpha != null) {
-      sb.writeln('  static const Color $key = Color(0x${hex.replaceFirst('#', '')});');
+      final alphaByte = (alpha * 255).round().toRadixString(16).padLeft(2, '0').toUpperCase();
+      sb.writeln('  static const Color $key = Color(0x${alphaByte}${hex.replaceFirst('#', '')});');
       sb.writeln('  static Color ${key}WithAlpha(double a) => ${key}.withValues(alpha: a);');
     } else {
       // 6-digit hex → 8-digit with FF alpha (opaque)

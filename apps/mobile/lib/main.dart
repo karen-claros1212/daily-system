@@ -8,7 +8,7 @@ import 'ui/components/daily_logo.dart';
 import 'ui/components/daily_primary_button.dart';
 
 // ═══ Demo flag — set to false to hide demo info in release builds ═══
-const bool kDailyDemo = bool.fromEnvironment('DAILY_DEMO', defaultValue: true);
+const bool kDailyDemo = bool.fromEnvironment('DAILY_DEMO', defaultValue: false);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

@@ -55,7 +55,7 @@ class AppColors {
   static const textDisabled = Color(0xFFB0B0B0);
 
   // Shadow
-  static Color shadow = const Color(0x000000).withValues(alpha: 0.08);
+  static Color shadow = const Color(0xFF000000).withValues(alpha: 0.08);
 }
 
 // ── Shape Tokens ─────────────────────────────────────────────────

@@ -69,9 +69,9 @@ class DailyTokens {
   static const Color textSecondary = Color(0xFF5F6368);
   // Disabled text
   static const Color textDisabled = Color(0xFFB0B0B0);
-  static const Color shadow = Color(0x000000);
+  static const Color shadow = Color(0x14000000);
   static Color shadowWithAlpha(double a) => shadow.withValues(alpha: a);
-  static const Color overlay = Color(0x000000);
+  static const Color overlay = Color(0x4D000000);
   static Color overlayWithAlpha(double a) => overlay.withValues(alpha: a);
 
   // ═══ Dark Mode Colors ═══

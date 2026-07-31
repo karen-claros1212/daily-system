@@ -39,7 +39,7 @@ class DailyPageHeader extends StatelessWidget {
                   ),
                 ),
               ),
-              if (actions != null) ...actions!,
+              ...? actions,
             ],
           ),
           if (subtitle != null) ...[

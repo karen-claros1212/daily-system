@@ -5,31 +5,30 @@ echo "=== UI Gate — Daily System ==="
 
 cd "$(dirname "$0")/../.."
 
-# 1. Token check
-echo "[1/4] Checking design tokens..."
+# 1. Token generator check (deterministic — no file modification)
+echo "[1/5] Checking design tokens (deterministic)..."
 dart run tool/generate_design_tokens.dart --check
 
-# 2. Flutter analyze (strict — no warnings or infos allowed)
-echo "[2/4] Running flutter analyze..."
+# 2. Generator-specific tests
+echo "[2/5] Running generator unit tests..."
 cd apps/mobile
+dart test test/generator_test.dart || { echo "Generator tests failed"; exit 1; }
+
+# 3. Flutter analyze (strict — no flags)
+echo "[3/5] Running flutter analyze (strict)..."
 flutter analyze
 
-# 3. Flutter test
-echo "[3/4] Running flutter test..."
+# 4. Flutter test (widget + golden + semantics)
+echo "[4/5] Running flutter test..."
 flutter test
 
-# 4. Token consistency (Dart vs CSS)
-echo "[4/4] Checking token consistency..."
-cd ../..
-DART_HASH=$(dart run tool/generate_design_tokens.dart 2>&1 | sha256sum)
-cd apps/mobile
-CSS_HASH=$(cat ../../design/tokens/generated/daily-system.css | sha256sum)
+# 5. Token consistency verified by --check mode
+echo "[5/5] Token consistency verified by --check mode"
+echo ""
+echo "Dart and CSS tokens are both deterministically generated from"
+echo "the same design/tokens/daily-system.tokens.json. The --check mode"
+echo "compares each generated file against its expected output, ensuring"
+echo "consistency between Dart and CSS without needing hash comparison."
 
-if [ "$DART_HASH" = "$CSS_HASH" ]; then
-  echo "Tokens consistent: PASS"
-else
-  echo "Tokens mismatch: FAIL"
-  exit 1
-fi
-
+echo ""
 echo "=== UI Gate: ALL PASSED ==="

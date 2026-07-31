@@ -2,7 +2,6 @@
 /* Generated from design/tokens/daily-system.tokens.json */
 
 :root {
-  /* ── Light Mode ── */
   --ds-primary: #0B4654;
   --ds-primary-light: #125466;
   --ds-primary-dark: #083340;
@@ -37,8 +36,24 @@
   --ds-text-disabled: #B0B0B0;
   --ds-shadow: #000000;
   --ds-overlay: #000000;
+  --ds-shape-sm: 8.0px;
+  --ds-shape-md: 12.0px;
+  --ds-shape-lg: 16.0px;
+  --ds-shape-xl: 24.0px;
+  --ds-spacing-xs: 4.0px;
+  --ds-spacing-sm: 8.0px;
+  --ds-spacing-md: 16.0px;
+  --ds-spacing-lg: 24.0px;
+  --ds-spacing-xl: 32.0px;
+  --ds-spacing-xxl: 48.0px;
+  --ds-motion-fast: 150ms;
+  --ds-motion-normal: 250ms;
+  --ds-motion-long: 400ms;
+  --ds-breakpoint-compact: 599px;
+  --ds-breakpoint-medium: 600px;
+  --ds-breakpoint-expanded: 840px;
+}
 
-  /* ── Dark Mode ── */
 :root[data-theme="dark"] {
   --ds-primary: #8CD4E8;
   --ds-primary-light: #A8DFF0;
@@ -74,29 +89,4 @@
   --ds-text-disabled: #5A6A72;
   --ds-shadow: #000000;
   --ds-overlay: #000000;
-}
-
-  /* ── Shapes ── */
-  --ds-shape-sm: 8.0px;
-  --ds-shape-md: 12.0px;
-  --ds-shape-lg: 16.0px;
-  --ds-shape-xl: 24.0px;
-
-  /* ── Spacing ── */
-  --ds-spacing-xs: 4.0px;
-  --ds-spacing-sm: 8.0px;
-  --ds-spacing-md: 16.0px;
-  --ds-spacing-lg: 24.0px;
-  --ds-spacing-xl: 32.0px;
-  --ds-spacing-xxl: 48.0px;
-
-  /* ── Motion ── */
-  --ds-motion-fast: 150ms;
-  --ds-motion-normal: 250ms;
-  --ds-motion-long: 400ms;
-
-  /* ── Breakpoints ── */
-  --ds-breakpoint-compact: 599px;
-  --ds-breakpoint-medium: 600px;
-  --ds-breakpoint-expanded: 840px;
 }
