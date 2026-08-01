@@ -4,7 +4,7 @@
 **BASE_SHA:** 3a1a566ce68ad01be1050583575061c17d7a39b7
 **CODE_SHA:** 8cfe225 (estado final del código auditado — UI, tests, goldens)
 **EVIDENCE_SHA:** d8761aa (76 capturas before/after + script + manifest SHA-256)
-**AUDIT_SHA:** (commit que contiene este documento — ver final)
+**AUDIT_SHA:** f548dfbb6ee79e5776f5badee0957c59cc7e6626
 
 ---
 
@@ -273,7 +273,7 @@ Cada captura fue verificada por label de firma (verify_screen) durante la navega
 | 8f88cfd | Snapshot hash con jornada_id real + PDF tras cierre |
 | 8cfe225 | **CODE_SHA** — dark goldens (31 goldens total) |
 | d8761aa | **EVIDENCE_SHA** — 76 capturas + script + manifest |
-| (AUDIT_SHA) | Este documento — ver final |
+| f548dfb | **AUDIT_SHA** — este documento |
 
 ---
 
