@@ -2,7 +2,9 @@
 
 **Fecha:** 2026-07-31
 **BASE_SHA:** 3a1a566ce68ad01be1050583575061c17d7a39b7
-**SHA_FINAL:** 737371dbb89cdc49ef7961ef43347ca416edbf54d
+**CODE_SHA:** 8cfe225 (estado final del código auditado — UI, tests, goldens)
+**EVIDENCE_SHA:** d8761aa (76 capturas before/after + script + manifest SHA-256)
+**AUDIT_SHA:** (commit que contiene este documento — ver final)
 
 ---
 
@@ -12,9 +14,9 @@
 
 7 defectos críticos corregidos en UX/UI Phase 2 + refactorización completa.
 
-**Tests:** 26/26 passing, 0 errors, 0 warnings
+**Tests:** 68/68 passing, 0 errors, 0 warnings
 **Analyzer:** No issues found!
-**APK:** Debug construido exitosamente (180MB)
+**APK:** Debug construido exitosamente (demo 228MB / default 228MB)
 
 ---
 
@@ -195,25 +197,35 @@
 | Prueba | Estado | Detalle |
 |---|---|---|
 | flutter analyze | ✅ No issues found! | 0 errors, 0 warnings |
-| flutter test | ✅ 26/26 passing | widget + golden + semantics + generator |
-| Generator tests | ✅ 8 tests | CSS structure, color opacity, determinism |
-| Golden tests | ✅ 5 tests | Logo rendering at various sizes |
-| Semantics tests | ✅ 5 tests | Login + CobrosNavChip |
+| flutter test | ✅ 68/68 passing | widget + golden + semantics + generator |
+| Golden tests | ✅ 31 tests | 26 screens (phone/phone-dark/tablet) + 5 logo |
+| Semantics tests | ✅ 21 tests | Login, CobrosShell, Pago, Cierre, Caja, Historial, MainShell |
+| Navigation | ✅ 6 tests | CobrosSubNavChip (render, keys, tap) |
+| Generator tests | ✅ 8 tests | CSS structure, color opacity, determinism (dart test) |
 | Integration test | ⚠️ GTK3 missing | Ejecutable en CI con emulador |
 
 ---
 
 ## 12. Capturas
 
+76 capturas reales (emulador + web) con manifest SHA-256.
+
 | Tipo | Estado | Detalle |
 |---|---|---|
-| Before | ✅ | docs/ui-audit/screenshots/before/ |
-| After phone-light | ✅ | docs/ui-audit/screenshots/after/phone-light/ |
-| After phone-dark | ✅ | docs/ui-audit/screenshots/after/phone-dark/ |
-| After tablet | ✅ | docs/ui-audit/screenshots/after/tablet/ |
-| After web | ✅ | docs/ui-audit/screenshots/after/web/ |
-| capture_ui_evidence.sh | ✅ | Script automatizado |
-| manifest.json | ✅ | Metadata con SHA-256 |
+| Before (base 3a1a566) | ✅ 36 | phone/tablet × light/dark × 9 screens |
+| After phone-light | ✅ 9 | docs/ui-audit/screenshots/after/phone-light/ |
+| After phone-dark | ✅ 9 | docs/ui-audit/screenshots/after/phone-dark/ |
+| After tablet-light | ✅ 9 | docs/ui-audit/screenshots/after/tablet-light/ |
+| After tablet-dark | ✅ 9 | docs/ui-audit/screenshots/after/tablet-dark/ |
+| After web | ✅ 4 | docs/ui-audit/screenshots/after/web/ |
+| capture_ui_evidence.sh | ✅ | Parametrizado (mode/variant/profile/theme/web/screen), verificación de pantalla por label |
+| manifest.json | ✅ | 76 entradas con SHA-256, commit, device, API, resolución |
+
+Cada captura fue verificada por label de firma (verify_screen) durante la navegación real.
+
+> **Nota evidencia:** la captura `08-historial` muestra una sola fila (`2026-07-31 | Abierta | 0`)
+> porque la jornada del día está abierta durante la captura — correcto para el estado de la app
+> (la jornada se enriquece con el historial al cerrar días).
 
 ---
 
@@ -222,11 +234,11 @@
 | Aspecto | Antes | Después |
 |---|---|---|
 | Estado | "Alpha — Pre-APK" | "Alpha — APK Debug Construido" |
-| Capturas | Comentarios HTML | Referencias a docs/assets/readme/ |
-| Tests | 7/7 | 26/26 |
-| Backend | `flutter pub get` (incorrecto) | `alembic upgrade head` + `uvicorn` |
-| Badges | Inexistentes | ui-gate.yml workflow |
-| Roadmap | 2 items completados | 8 items completados |
+| Capturas | Comentarios HTML | Tablas con imágenes en docs/assets/readme/ (mobile + web) |
+| Tests | 7/7 | 68/68 |
+| Backend | `flutter pub get` (incorrecto) | `python -m venv` + `pip install -r requirements.txt` + `alembic upgrade head` + `uvicorn` |
+| Badges | Inexistentes | Badge UI Gate → ui-gate.yml |
+| Roadmap | 2 items completados | 10 items completados (incluye golden, semantics, APK, capturas) |
 
 ---
 
@@ -254,6 +266,14 @@
 | 117215a | Semantics + golden tests (18 tests) |
 | a703c1b | APK debug 180MB |
 | 737371d | Theme.of en todas las pantallas + 26 tests + analyzer clean |
+| c5edbd9 | Capturas profesionales, Graphify, audit final + CI/README |
+| 45d9bb0 | CI pins SHA + dedupe generator tests |
+| 6da01f3 | Golden tests reales + login screen extraction + FFI fixture |
+| 48d0220 | Semantics tests reales + bug fixes (chip merge, historial ruta_id) |
+| 8f88cfd | Snapshot hash con jornada_id real + PDF tras cierre |
+| 8cfe225 | **CODE_SHA** — dark goldens (31 goldens total) |
+| d8761aa | **EVIDENCE_SHA** — 76 capturas + script + manifest |
+| (AUDIT_SHA) | Este documento — ver final |
 
 ---
 
@@ -273,10 +293,10 @@ Todos los controles críticos corregidos:
 - CI workflow SHA-pinned ✅
 - README profesional ✅
 - Icono adaptativo con roundIcon ✅
-- 26/26 tests passing ✅
+- 68/68 tests passing ✅
 - flutter analyze: no issues found! ✅
 - Pantallas refactorizadas con Theme.of ✅
-- Capturas profesionales ✅
+- Capturas profesionales (76 con manifest SHA-256) ✅
 - Graphify actualizado ✅
 - HEAD == origin/master ✅
 - Working tree limpio ✅
