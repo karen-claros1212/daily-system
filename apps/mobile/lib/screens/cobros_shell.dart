@@ -263,14 +263,13 @@ class _CobrosShellState extends State<CobrosShell> {
   Widget _subNavChip(BuildContext context, String label, bool selected, Color color, VoidCallback onTap) {
     final key = ValueKey('cobros-section-${label.toLowerCase().replaceAll(' ', '-')}');
     return Expanded(
-      child: Semantics(
-        button: true,
-        selected: selected,
-        label: label,
-        child: Material(
-          color: Colors.transparent,
+      child: MergeSemantics(
+        key: key,
+        child: Semantics(
+          button: true,
+          selected: selected,
+          label: label,
           child: InkWell(
-            key: key,
             onTap: onTap,
             borderRadius: BorderRadius.circular(8),
             child: Container(
@@ -280,13 +279,15 @@ class _CobrosShellState extends State<CobrosShell> {
                 color: selected ? color : color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(label,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                    color: selected ? Colors.white : color,
-                  )),
+              child: ExcludeSemantics(
+                child: Text(label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                      color: selected ? Colors.white : color,
+                    )),
+              ),
             ),
           ),
         ),

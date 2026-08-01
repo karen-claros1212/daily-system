@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/jornada_service.dart';
 import '../models/models.dart';
 import '../theme/theme.dart';
@@ -22,7 +23,9 @@ class _HistorialScreenState extends State<HistorialScreen> {
 
   Future<void> _cargarHistorial() async {
     try {
-      final jornadas = await JornadaService.getJornadasHistorial('');
+      final prefs = await SharedPreferences.getInstance();
+      final rutaId = prefs.getString('ruta_id') ?? '';
+      final jornadas = await JornadaService.getJornadasHistorial(rutaId);
       setState(() {
         _jornadas = jornadas;
         _cargando = false;

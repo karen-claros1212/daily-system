@@ -164,10 +164,12 @@ class JornadaService {
 
   static Future<List<Jornada>> getJornadasHistorial(String rutaId) async {
     final db = await database;
-    final results = await db.query('jornada',
-        where: 'ruta_id = ?',
-        whereArgs: [rutaId],
-        orderBy: 'fecha DESC');
+    final results = rutaId.isEmpty
+        ? await db.query('jornada', orderBy: 'fecha DESC')
+        : await db.query('jornada',
+            where: 'ruta_id = ?',
+            whereArgs: [rutaId],
+            orderBy: 'fecha DESC');
     return results.map((m) => Jornada.fromMap(m)).toList();
   }
 }
