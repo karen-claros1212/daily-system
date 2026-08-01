@@ -21,7 +21,9 @@
 | Tema claro/oscuro | ✅ Implementado |
 | Diseño tokens (JSON → Dart + CSS) | ✅ Implementado |
 | UI Gate CI | ✅ Estricto (flutter analyze + flutter test) |
-| APK de prueba física | ✅ Debug construido |
+| APK debug construido | ✅ PASS |
+| Verificado en emulador (API 35) | ✅ PASS |
+| Verificado en dispositivo físico | ⏳ PENDING |
 | Pantallas reales refactorizadas | ✅ Implementado (Theme.of en todas) |
 | Pruebas golden y semantics | ✅ Implementado (31 goldens + 37 semantics/widgets) |
 | Producción | Pendiente |
@@ -44,9 +46,9 @@ está en [docs/ui-audit/screenshots/](docs/ui-audit/screenshots/) con manifest S
 |---|---|---|
 | ![Pago](docs/assets/readme/mobile/04-pago.png) | ![Movimientos](docs/assets/readme/mobile/05-movimientos.png) | ![Caja](docs/assets/readme/mobile/06-caja.png) |
 
-| Cierre | Historial | Shell principal |
-|---|---|---|
-| ![Cierre](docs/assets/readme/mobile/07-cierre.png) | ![Historial](docs/assets/readme/mobile/08-historial.png) | ![Shell](docs/assets/readme/mobile/09-mainshell.png) |
+| Cierre | Historial |
+|---|---|
+| ![Cierre](docs/assets/readme/mobile/07-cierre.png) | ![Historial](docs/assets/readme/mobile/08-historial.png) |
 
 ### Android (oscuro)
 
@@ -195,7 +197,9 @@ alembic check
 - [x] Icono adaptable con monochrome
 - [x] Pantallas reales refactorizadas (inicio, cobros, pago, caja, cierre)
 - [x] Pruebas golden y semantics
-- [x] APK de prueba física (verificación en dispositivo)
+- [x] APK debug construido
+- [x] Verificado en emulador (API 35)
+- [ ] Verificado en dispositivo físico
 - [x] Capturas profesionales before/after con manifest SHA-256
 - [ ] M4: Importación OCR
 - [ ] M5: Score, chatbot, inteligencia
