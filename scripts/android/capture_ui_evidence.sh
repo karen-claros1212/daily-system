@@ -63,8 +63,8 @@ PKG="com.dailysystem.mobile"
 ACTIVITY="$PKG/.MainActivity"
 
 # screen order (prefix used for stable filenames)
-SCREENS=(login inicio cobros pago movimientos caja cierre historial mainshell)
-SCREEN_PREFIX=(01 02 03 04 05 06 07 08 09)
+SCREENS=(login inicio cobros pago movimientos caja cierre historial)
+SCREEN_PREFIX=(01 02 03 04 05 06 07 08)
 
 # ─── helpers ────────────────────────────────────────────────────────
 log()  { echo "  $*"; }
@@ -152,11 +152,9 @@ declare -a MANIFEST_JSON=()
 verify_screen() { # verify_screen <name> <signature-label>
   local name="$1" sig="$2"
   dump_tree
-  if node_text | grep -q -F "$sig"; then
-    log "verify '$name' → ok ('$sig' present)"
-  else
-    log "WARNING: '$name' signature '$sig' NOT found — screen may be wrong"
-  fi
+  node_text | grep -q -F "$sig" ||
+    die "'$name' no contiene la firma '$sig' — captura inválida"
+  log "verify '$name' → ok ('$sig' present)"
 }
 
 capture() { # capture <screen-name>
@@ -191,7 +189,7 @@ capture() { # capture <screen-name>
         "$name" "$file" "$size" "$sha" "$resolution" "$STAGE" "$VARIANT" "$THEME" >> "$RUN_LOG"
     fi
   else
-    log "WARNING: '$name' capture empty"
+    die "capture '$name' vacía — captura inválida"
   fi
 }
 
@@ -214,11 +212,11 @@ prepare_device() {
   fi
   adb shell wm density "$DENSITY" > /dev/null
 
-  # theme (system night mode)
+  # theme (system night mode) — fallo aquí aborta la captura
   if [ "$THEME" = "dark" ]; then
-    adb shell cmd uimode night yes > /dev/null 2>&1 || true
+    adb shell cmd uimode night yes > /dev/null 2>&1 || die "no se pudo activar night mode"
   else
-    adb shell cmd uimode night no > /dev/null 2>&1 || true
+    adb shell cmd uimode night no > /dev/null 2>&1 || die "no se pudo desactivar night mode"
   fi
 
   # accessibility bridge so Flutter exposes semantics to uiautomator
@@ -275,12 +273,13 @@ capture_android() {
   capture "cobros"
   verify_screen "cobros" "VERDE"
 
-  # 5. relaunch so Inicio reloads with the open jornada
+  # 5. relaunch so Inicio reloads with the open jornada (MainShell chrome
+  #    visible en cada captura — no se captura mainshell como evidencia
+  #    separada porque es idéntico a inicio sin estado distinto)
   relaunch_app
   wait_label "JORNADA ACTIVA" 30 || die "inicio (active) not found"
-  capture "mainshell"
   capture "inicio"
-  verify_screen "mainshell" "JORNADA ACTIVA"
+  verify_screen "inicio" "JORNADA ACTIVA"
 
   # 6. pago (Cobrar tile on Inicio)
   tap_label "Seleccionar cliente y abono" || die "Cobrar tile not found"
@@ -299,27 +298,27 @@ capture_android() {
   verify_screen "movimientos" "Nuevo movimiento"
 
   # 8. caja
-  tap_label "Tab 1 of 4" 900 || true
+  tap_label "Tab 1 of 4" 900 || die "Inicio tab not found"
   sleep 3
   tap_label "Efectivo esperado vs contado" || die "Caja tile not found"
   sleep 4
-  wait_label "Apertura" 20 || true
+  wait_label "Apertura" 20 || die "caja screen not found"
   capture "caja"
   verify_screen "caja" "Apertura"
 
   # 9. cierre (scroll Inicio, tap TERMINAR JORNADA card)
-  tap_label "Tab 1 of 4" 900 || true
+  tap_label "Tab 1 of 4" 900 || die "Inicio tab not found"
   sleep 3
   swipe_up
   sleep 2
   tap_label "TERMINAR JORNADA" || die "TERMINAR JORNADA card not found"
   sleep 4
-  wait_label "JORNADA ABIERTA" 20 || true
+  wait_label "JORNADA ABIERTA" 20 || die "cierre screen not found"
   capture "cierre"
   verify_screen "cierre" "JORNADA ABIERTA"
 
   # 10. historial (Más tab → Historial de Jornadas)
-  tap_label "Tab 1 of 4" 900 || true
+  tap_label "Tab 1 of 4" 900 || die "Inicio tab not found"
   sleep 2
   tap_label "Tab 4 of 4" 900 || die "Más tab not found"
   sleep 3
@@ -358,7 +357,7 @@ capture_web() {
     "$chromium" --headless=new --disable-gpu --hide-scrollbars \
       --window-size="$size" \
       --screenshot="$file" \
-      "file://$proto/$page.html" > /dev/null 2>&1 || log "WARNING: web capture '$page' failed"
+      "file://$proto/$page.html" > /dev/null 2>&1 || die "web capture '$page' failed"
     if [ -s "$file" ]; then
       local sha sz
       sz=$(stat -c%s "$file")
