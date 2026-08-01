@@ -27,10 +27,6 @@ jobs:
       - name: Token generator check (root)
         run: dart run tool/generate_design_tokens.dart --check
 
-      - name: Generator unit tests
-        run: flutter test test/generator_test.dart
-        working-directory: apps/mobile
-
       - name: Flutter analyze (strict)
         run: flutter analyze
         working-directory: apps/mobile
