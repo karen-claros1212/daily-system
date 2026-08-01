@@ -2,6 +2,8 @@
 
 **Cobro diario offline — Tu ruta, tus cobros y tu caja, incluso sin internet.**
 
+![UI Gate](https://github.com/karen-claros1212/daily-system/actions/workflows/ui-gate.yml/badge.svg)
+
 ---
 
 ## Estado
@@ -20,20 +22,45 @@
 | Diseño tokens (JSON → Dart + CSS) | ✅ Implementado |
 | UI Gate CI | ✅ Estricto (flutter analyze + flutter test) |
 | APK de prueba física | ✅ Debug construido |
-| Pantallas reales refactorizadas | En progreso (M4) |
+| Pantallas reales refactorizadas | ✅ Implementado (Theme.of en todas) |
+| Pruebas golden y semantics | ✅ Implementado (31 goldens + 37 semantics/widgets) |
 | Producción | Pendiente |
 
 ---
 
 ## Capturas
 
-### Android
+Capturas reales del emulador Android (phone 412×915, light y dark) y del prototipo web.
+Generadas por `scripts/android/capture_ui_evidence.sh`; el conjunto completo before/after
+está en [docs/ui-audit/screenshots/](docs/ui-audit/screenshots/) con manifest SHA-256.
 
-<!-- Capturas en docs/assets/readme/mobile/ -->
+### Android (claro)
+
+| Login | Inicio | Hoja viva |
+|---|---|---|
+| ![Login](docs/assets/readme/mobile/01-login.png) | ![Inicio](docs/assets/readme/mobile/02-inicio.png) | ![Hoja viva](docs/assets/readme/mobile/03-cobros.png) |
+
+| Pago | Movimientos | Caja |
+|---|---|---|
+| ![Pago](docs/assets/readme/mobile/04-pago.png) | ![Movimientos](docs/assets/readme/mobile/05-movimientos.png) | ![Caja](docs/assets/readme/mobile/06-caja.png) |
+
+| Cierre | Historial | Shell principal |
+|---|---|---|
+| ![Cierre](docs/assets/readme/mobile/07-cierre.png) | ![Historial](docs/assets/readme/mobile/08-historial.png) | ![Shell](docs/assets/readme/mobile/09-mainshell.png) |
+
+### Android (oscuro)
+
+| Login | Inicio | Cierre |
+|---|---|---|
+| ![Login dark](docs/assets/readme/mobile/01-login-dark.png) | ![Inicio dark](docs/assets/readme/mobile/02-inicio-dark.png) | ![Cierre dark](docs/assets/readme/mobile/07-cierre-dark.png) |
 
 ### Web
 
-<!-- Prototipo visual en design/prototypes/web/ -->
+| Inicio | Cartera | Caja | Reportes |
+|---|---|---|---|
+| ![Web index](docs/assets/readme/web/01-index.png) | ![Web cartera](docs/assets/readme/web/02-cartera.png) | ![Web caja](docs/assets/readme/web/03-caja.png) | ![Web reportes](docs/assets/readme/web/04-reportes.png) |
+
+Prototipo visual en [design/prototypes/web/](design/prototypes/web/).
 
 ---
 
@@ -114,7 +141,8 @@ daily-system/
 
 ```bash
 cd apps/api
-flutter pub get  # para dependencias Python en requirements.txt
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt  # dependencias Python
 alembic upgrade head  # migraciones a PostgreSQL
 uvicorn src.main:app --reload  # servidor desarrollo
 ```
@@ -124,8 +152,8 @@ uvicorn src.main:app --reload  # servidor desarrollo
 ```bash
 cd apps/mobile
 flutter pub get
-flutter analyze          # 7 info-level issues, 0 errors/warnings
-flutter test             # 7/7 passing
+flutter analyze          # No issues found!
+flutter test             # 68/68 passing
 flutter run              # requiere dispositivo/emulador
 flutter build apk --debug  # genera build/app/outputs/flutter-apk/app-debug.apk
 ```
@@ -165,9 +193,10 @@ alembic check
 - [x] UX/UI Phase 2: splash nativo, DAILY_DEMO, light/dark, CSS generator, gate estricto
 - [x] Splash nativo Android 12+ (SplashScreen API)
 - [x] Icono adaptable con monochrome
-- [ ] Pantallas reales refactorizadas (inicio, cobros, pago, caja, cierre)
-- [ ] Pruebas golden y semantics
-- [ ] APK de prueba física (verificación en dispositivo)
+- [x] Pantallas reales refactorizadas (inicio, cobros, pago, caja, cierre)
+- [x] Pruebas golden y semantics
+- [x] APK de prueba física (verificación en dispositivo)
+- [x] Capturas profesionales before/after con manifest SHA-256
 - [ ] M4: Importación OCR
 - [ ] M5: Score, chatbot, inteligencia
 - [ ] M6: Producción y despliegue
