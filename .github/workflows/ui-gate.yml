@@ -11,10 +11,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb534c0cce42f22e73f01b # v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@b611c0dad3767a764ae17aa60ea91d15296fc38f # v2.14.0
+        uses: subosito/flutter-action@7814e4f6c70abd7a5641333f613efa098fe34381 # v2.14.0
         with:
           flutter-version: '3.44.0'
           channel: 'stable'
@@ -38,7 +38,3 @@ jobs:
       - name: Flutter test (widget + golden + semantics + generator)
         run: flutter test
         working-directory: apps/mobile
-
-      - name: Validate opaque colors (no grep)
-        run: dart test apps/mobile/test/generator_test.dart
-        working-directory: .

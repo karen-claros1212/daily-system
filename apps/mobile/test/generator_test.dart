@@ -40,7 +40,8 @@ Directory findRepositoryRoot() {
 }
 
 void main() {
-  final tokensPath = '${Directory.current.path}/../../design/tokens/daily-system.tokens.json';
+  final repoRoot = findRepositoryRoot();
+  final tokensPath = '${repoRoot.path}/design/tokens/daily-system.tokens.json';
 
   group('Generator — CSS structure', () {
     test(':root selector has balanced braces', () {
