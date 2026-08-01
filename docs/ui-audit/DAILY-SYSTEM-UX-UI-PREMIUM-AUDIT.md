@@ -2,9 +2,11 @@
 
 **Fecha:** 2026-07-31
 **BASE_SHA:** 3a1a566ce68ad01be1050583575061c17d7a39b7
-**CODE_SHA:** 8cfe225 (estado final del código auditado — UI, tests, goldens)
-**EVIDENCE_SHA:** d8761aa (76 capturas before/after + script + manifest SHA-256)
-**AUDIT_SHA:** f548dfbb6ee79e5776f5badee0957c59cc7e6626
+**CODE_SHA:** 8cfe225 (código de la app auditado — UI, tests, goldens)
+**EVIDENCE_SHA:** 95b2488 (68 capturas before/after + script autovalidado + manifest)
+**GATE_SHA:** fec6fa5 (corrección del paso de generador) + 30b2984 (dedupe generador)
+**AUDIT_SHA:** (se registra en el commit final)
+**FINAL_HEAD:** (se registra en el commit final)
 
 ---
 
@@ -201,31 +203,36 @@
 | Golden tests | ✅ 31 tests | 26 screens (phone/phone-dark/tablet) + 5 logo |
 | Semantics tests | ✅ 21 tests | Login, CobrosShell, Pago, Cierre, Caja, Historial, MainShell |
 | Navigation | ✅ 6 tests | CobrosSubNavChip (render, keys, tap) |
-| Generator tests | ✅ 8 tests | CSS structure, color opacity, determinism (dart test) |
-| Integration test | ⚠️ GTK3 missing | Ejecutable en CI con emulador |
+| Generator tests | ✅ 8 tests | CSS structure, color opacity, determinism |
+| Integration Android | ✅ PASS | 17/17, emulator-5554, API 34 — PDF generado + hash corregido ([evidencia](apps/mobile/docs/ui-audit/evidence/jornada_cierre_integration_test.md)) |
 
 ---
 
 ## 12. Capturas
 
-76 capturas reales (emulador + web) con manifest SHA-256.
+68 capturas reales (emulador + web) con manifest SHA-256.
 
 | Tipo | Estado | Detalle |
 |---|---|---|
-| Before (base 3a1a566) | ✅ 36 | phone/tablet × light/dark × 9 screens |
-| After phone-light | ✅ 9 | docs/ui-audit/screenshots/after/phone-light/ |
-| After phone-dark | ✅ 9 | docs/ui-audit/screenshots/after/phone-dark/ |
-| After tablet-light | ✅ 9 | docs/ui-audit/screenshots/after/tablet-light/ |
-| After tablet-dark | ✅ 9 | docs/ui-audit/screenshots/after/tablet-dark/ |
+| Before (base 3a1a566) | ✅ 32 | phone/tablet × light/dark × 8 screens |
+| After phone-light | ✅ 8 | docs/ui-audit/screenshots/after/phone-light/ |
+| After phone-dark | ✅ 8 | docs/ui-audit/screenshots/after/phone-dark/ |
+| After tablet-light | ✅ 8 | docs/ui-audit/screenshots/after/tablet-light/ |
+| After tablet-dark | ✅ 8 | docs/ui-audit/screenshots/after/tablet-dark/ |
 | After web | ✅ 4 | docs/ui-audit/screenshots/after/web/ |
-| capture_ui_evidence.sh | ✅ | Parametrizado (mode/variant/profile/theme/web/screen), verificación de pantalla por label |
-| manifest.json | ✅ | 76 entradas con SHA-256, commit, device, API, resolución |
+| capture_ui_evidence.sh | ✅ | Parametrizado (mode/variant/profile/theme/web/screen); verify_screen aborta si la firma no está; captura vacía o fallo web abortan |
+| manifest.json | ✅ | 68 entradas con SHA-256, commit, device, API, resolución |
 
-Cada captura fue verificada por label de firma (verify_screen) durante la navegación real.
+Cada captura fue verificada por label de firma (verify_screen) durante la navegación real;
+una firma ausente o una captura vacía abortan el script (die), no producen advertencias.
 
 > **Nota evidencia:** la captura `08-historial` muestra una sola fila (`2026-07-31 | Abierta | 0`)
 > porque la jornada del día está abierta durante la captura — correcto para el estado de la app
 > (la jornada se enriquece con el historial al cerrar días).
+>
+> **Nota before/theme:** en la versión base (3a1a566) las capturas `07-cierre` y `08-historial`
+> son pixel-idénticas en claro y oscuro (mismo SHA-256) — evidencia de que el theming no existía
+> en la base. Las capturas *after* difieren light/dark en las 8 pantallas.
 
 ---
 
@@ -238,7 +245,8 @@ Cada captura fue verificada por label de firma (verify_screen) durante la navega
 | Tests | 7/7 | 68/68 |
 | Backend | `flutter pub get` (incorrecto) | `python -m venv` + `pip install -r requirements.txt` + `alembic upgrade head` + `uvicorn` |
 | Badges | Inexistentes | Badge UI Gate → ui-gate.yml |
-| Roadmap | 2 items completados | 10 items completados (incluye golden, semantics, APK, capturas) |
+| Roadmap | 2 items completados | 11 items completados (golden, semantics, APK, emulador) |
+| Verificación | "APK de prueba física" | APK construido PASS / emulador API 35 PASS / dispositivo físico PENDING |
 
 ---
 
@@ -246,10 +254,12 @@ Cada captura fue verificada por label de firma (verify_screen) durante la navega
 
 | Campo | Valor |
 |---|---|
-| SHA | 737371dbb89cdc49ef7961ef43347ca416edbf54d |
+| SHA | 737371dbb89cdc49ef7961ef43347ca416edbf54d (anterior al código auditado 8cfe225) |
 | AST extraction | 26/26 uncached files (100%) |
 | Semantic extraction | 77/77 files (deepseek balance insufficient) |
-| Status | PARTIAL |
+| Status | **PARTIAL** — construido desde 737371d; el código final (8cfe225 → FINAL_HEAD) no fue reindexado por falta de balance del backend |
+
+Graphify **no** se incluye como control PASS: es evidencia auxiliar y su estado es PARTIAL.
 
 ---
 
@@ -272,8 +282,13 @@ Cada captura fue verificada por label de firma (verify_screen) durante la navega
 | 48d0220 | Semantics tests reales + bug fixes (chip merge, historial ruta_id) |
 | 8f88cfd | Snapshot hash con jornada_id real + PDF tras cierre |
 | 8cfe225 | **CODE_SHA** — dark goldens (31 goldens total) |
-| d8761aa | **EVIDENCE_SHA** — 76 capturas + script + manifest |
-| f548dfb | **AUDIT_SHA** — este documento |
+| d8761aa | Evidencia original (76 capturas, mainshell duplicada) |
+| 95b2488 | **EVIDENCE_SHA** — 68 capturas distintas + script autovalidado + manifest |
+| fec6fa5 | **GATE_SHA** — fix del paso de generador (flutter test en apps/mobile) |
+| 50ef9ac | README honesto (emulador PASS / físico PENDING) |
+| 30b2984 | GATE dedupe — sin paso de generador duplicado |
+| (AUDIT_SHA) | Este documento — se registra en el commit final |
+| (FINAL_HEAD) | HEAD tras cerrar la auditoría |
 
 ---
 
@@ -282,6 +297,18 @@ Cada captura fue verificada por label de firma (verify_screen) durante la navega
 ```
 UX/UI PREMIUM PRE-APK: PASS
 ```
+
+| Área | Estado |
+|---|---|
+| Implementación UX/UI | PASS |
+| Golden tests reales | PASS |
+| Semantics productivos | PASS |
+| Integración Android y PDF | PASS (17/17, emulator-5554, API 34) |
+| Capturas before/after | PASS (68, manifest SHA-256, verify_screen estricto) |
+| CI (GATE_SHA) | PASS (analyze + test; generador sin duplicados) |
+| README | PASS |
+| Graphify | PARTIAL (auxiliar, no cuenta para el PASS) |
+| Verificación en dispositivo físico | PENDING |
 
 Todos los controles críticos corregidos:
 - Splash nativo Android 12+ ✅
@@ -296,7 +323,6 @@ Todos los controles críticos corregidos:
 - 68/68 tests passing ✅
 - flutter analyze: no issues found! ✅
 - Pantallas refactorizadas con Theme.of ✅
-- Capturas profesionales (76 con manifest SHA-256) ✅
-- Graphify actualizado ✅
+- Capturas profesionales (68, verify_screen aborta ante firma ausente/captura vacía) ✅
 - HEAD == origin/master ✅
 - Working tree limpio ✅
