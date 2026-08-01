@@ -65,11 +65,11 @@ class _HojaVivaScreenState extends State<HojaVivaScreen> {
         child: Column(children: [
           // Summary chips
           Row(children: [
-            _chip(theme, 'VERDE', _clientes.where((c) => c['semaforo'] == 'VERDE').length, theme.colorScheme.secondary),
+            Expanded(child: _chip(theme, 'VERDE', _clientes.where((c) => c['semaforo'] == 'VERDE').length, theme.colorScheme.secondary)),
             const SizedBox(width: 8),
-            _chip(theme, 'AMARILLO', _clientes.where((c) => c['semaforo'] == 'AMARILLO').length, theme.colorScheme.tertiary),
+            Expanded(child: _chip(theme, 'AMARILLO', _clientes.where((c) => c['semaforo'] == 'AMARILLO').length, theme.colorScheme.tertiary)),
             const SizedBox(width: 8),
-            _chip(theme, 'ROJO', _clientes.where((c) => c['semaforo'] == 'ROJO').length, theme.colorScheme.error),
+            Expanded(child: _chip(theme, 'ROJO', _clientes.where((c) => c['semaforo'] == 'ROJO').length, theme.colorScheme.error)),
           ]),
           const SizedBox(height: 16),
           // Client list
@@ -160,10 +160,14 @@ class _HojaVivaScreenState extends State<HojaVivaScreen> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
-      child: Row(children: [
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
         Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 6),
-        Text('$label: $count', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+        Flexible(
+          child: Text('$label: $count',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+        ),
       ]),
     );
   }
