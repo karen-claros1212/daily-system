@@ -5,8 +5,8 @@
 **CODE_SHA:** 8cfe225 (código de la app auditado — UI, tests, goldens)
 **EVIDENCE_SHA:** 95b2488 (68 capturas before/after + script autovalidado + manifest)
 **GATE_SHA:** fec6fa5 (corrección del paso de generador) + 30b2984 (dedupe generador)
-**AUDIT_SHA:** (se registra en el commit final)
-**FINAL_HEAD:** (se registra en el commit final)
+**AUDIT_SHA:** 10ea7457e4beff34629056e55781ae95ab5f9c3a
+**FINAL_HEAD:** 10ea7457e4beff34629056e55781ae95ab5f9c3a
 
 ---
 
@@ -287,8 +287,7 @@ Graphify **no** se incluye como control PASS: es evidencia auxiliar y su estado 
 | fec6fa5 | **GATE_SHA** — fix del paso de generador (flutter test en apps/mobile) |
 | 50ef9ac | README honesto (emulador PASS / físico PENDING) |
 | 30b2984 | GATE dedupe — sin paso de generador duplicado |
-| (AUDIT_SHA) | Este documento — se registra en el commit final |
-| (FINAL_HEAD) | HEAD tras cerrar la auditoría |
+| 10ea745 | **AUDIT_SHA / FINAL_HEAD** — este documento |
 
 ---
 
