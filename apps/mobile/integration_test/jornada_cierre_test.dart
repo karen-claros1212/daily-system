@@ -708,8 +708,8 @@ void main() {
       expect(String.fromCharCodes(header2), equals('%PDF-'));
     });
 
-    // K. HASH SNAPSHOT ALTERADO → bloquea generación
-    test('HASH: snapshot alterado bloquea generación de PDF', () async {
+    // K. SNAPSHOT INMUTABLE → no se puede alterar el hash (integridad)
+    test('HASH: snapshot inmutable — UPDATE/DELETE bloqueados + PDF válido', () async {
       final db = await database;
 
       // Crear jornada OPEN para el trigger
@@ -739,17 +739,38 @@ void main() {
       expect(originalHash, isNotNull);
       expect(originalHash!.length, equals(64)); // SHA-256 = 64 hex chars
 
-      // Alterar el hash del snapshot
-      await db.update('jornada_snapshot',
-          {'hash_content': 'aaaaaa0000000000000000000000000000000000000000000000000000000000'},
-          where: 'jornada_id = ?', whereArgs: ['jornada-hash-test']);
+      // Intentar alterar el hash — el trigger trg_snapshot_no_update lo bloquea
+      await expectLater(
+        db.update('jornada_snapshot',
+            {'hash_content': 'aaaaaa0000000000000000000000000000000000000000000000000000000000'},
+            where: 'jornada_id = ?', whereArgs: ['jornada-hash-test']),
+        throwsA(isA<DatabaseException>()
+            .having((e) => e.toString(), 'toString',
+                contains('DS_SNAPSHOT_IMMUTABLE'))),
+        reason: 'trg_snapshot_no_update impide modificar el hash del snapshot',
+      );
 
-      // Intentar generar PDF — debe fallar por hash mismatch
-      final future = PdfService.generarPdfDesdeSnapshot('jornada-hash-test');
-      expect(future, throwsA(anyOf(
-        isA<Exception>(),
-        throwsException,
-      )));
+      // Intentar eliminar el snapshot — el trigger trg_snapshot_no_delete lo bloquea
+      await expectLater(
+        db.delete('jornada_snapshot',
+            where: 'jornada_id = ?', whereArgs: ['jornada-hash-test']),
+        throwsA(isA<DatabaseException>()
+            .having((e) => e.toString(), 'toString',
+                contains('DS_SNAPSHOT_IMMUTABLE'))),
+        reason: 'trg_snapshot_no_delete impide eliminar el snapshot',
+      );
+
+      // El hash sigue intacto y la generación de PDF es válida
+      final snapshotsAfter = await db.query('jornada_snapshot',
+          where: 'jornada_id = ?', whereArgs: ['jornada-hash-test']);
+      expect(snapshotsAfter.first['hash_content'], equals(originalHash));
+
+      final pdfPath = await PdfService.generarPdfDesdeSnapshot('jornada-hash-test');
+      expect(pdfPath, isNotNull);
+      final pdfFile = File(pdfPath);
+      expect(await pdfFile.exists(), isTrue);
+      expect(String.fromCharCodes((await pdfFile.readAsBytes()).sublist(0, 5)),
+          equals('%PDF-'));
     });
   });
 }

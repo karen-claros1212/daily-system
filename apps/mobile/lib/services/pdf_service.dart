@@ -168,7 +168,7 @@ class PdfService {
     final cerradaLocalEl = snap['cerrada_local_el'] as String? ?? '';
 
     final recomputedHash = _recomputeSnapshotHash(
-        caja, fecha, cobradorId, rutaId, contado,
+        jornadaId, caja, fecha, cobradorId, rutaId, contado,
         diferencia, diferenciaMotivo, cerradaLocalEl);
 
     // Hash mismatch → aborta generación (integridad del snapshot)
@@ -389,11 +389,11 @@ class PdfService {
     return null;
   }
 
-  static String _recomputeSnapshotHash(CajaResultado caja, String fecha,
-      String? cobradorId, String rutaId, int contado, int diferencia,
-      String diferenciaMotivo, String cerradaLocalEl) {
+  static String _recomputeSnapshotHash(String jornadaId, CajaResultado caja,
+      String fecha, String? cobradorId, String rutaId, int contado,
+      int diferencia, String diferenciaMotivo, String cerradaLocalEl) {
     final snapshot = JornadaSnapshot(
-      jornadaId: '',
+      jornadaId: jornadaId,
       fecha: fecha,
       cobradorId: cobradorId,
       rutaId: rutaId,
