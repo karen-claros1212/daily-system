@@ -12,7 +12,7 @@ dart run tool/generate_design_tokens.dart --check
 # 2. Generator-specific tests
 echo "[2/5] Running generator unit tests..."
 cd apps/mobile
-dart test test/generator_test.dart || { echo "Generator tests failed"; exit 1; }
+flutter test test/generator_test.dart || { echo "Generator tests failed"; exit 1; }
 
 # 3. Flutter analyze (strict — no flags)
 echo "[3/5] Running flutter analyze (strict)..."
