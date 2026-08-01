@@ -158,6 +158,110 @@ void main() {
     });
   });
 
+  group('Screen goldens — phone dark (412x915)', () {
+    testWidgets('InicioScreen dark', (tester) async {
+      await pumpScreen(
+        tester,
+        InicioScreen(
+          cobradorId: fixture.cobradorId,
+          cobradorNombre: fixture.cobradorNombre,
+          negocioId: fixture.negocioId,
+          onOpenCobros: (_) {},
+          onOpenMas: () {},
+        ),
+        mode: ThemeMode.dark,
+      );
+      await expectLater(find.byType(InicioScreen),
+          matchesGoldenFile('goldens/screen_inicio_dark.png'));
+    });
+
+    testWidgets('CobrosShell hoja viva dark', (tester) async {
+      await pumpScreen(
+        tester,
+        CobrosShell(
+          cobradorId: fixture.cobradorId,
+          cobradorNombre: fixture.cobradorNombre,
+          negocioId: fixture.negocioId,
+          initialSection: CobrosSection.hojaViva,
+        ),
+        mode: ThemeMode.dark,
+      );
+      await expectLater(find.byType(CobrosShell),
+          matchesGoldenFile('goldens/screen_cobros_dark.png'));
+    });
+
+    testWidgets('PagoScreen dark', (tester) async {
+      await pumpScreen(
+        tester,
+        PagoScreen(
+          jornadaId: fixture.jornada.id,
+          cobradorId: fixture.cobradorId,
+          negocioId: fixture.negocioId,
+        ),
+        mode: ThemeMode.dark,
+      );
+      await expectLater(find.byType(PagoScreen),
+          matchesGoldenFile('goldens/screen_pago_dark.png'));
+    });
+
+    testWidgets('MovimientosScreen dark', (tester) async {
+      await pumpScreen(
+        tester,
+        MovimientosScreen(jornadaId: fixture.jornada.id),
+        mode: ThemeMode.dark,
+      );
+      await expectLater(find.byType(MovimientosScreen),
+          matchesGoldenFile('goldens/screen_movimientos_dark.png'));
+    });
+
+    testWidgets('CajaMainScreen dark', (tester) async {
+      await pumpScreen(
+        tester,
+        const CajaMainScreen(),
+        mode: ThemeMode.dark,
+      );
+      await expectLater(find.byType(CajaMainScreen),
+          matchesGoldenFile('goldens/screen_caja_dark.png'));
+    });
+
+    testWidgets('JornadaCierreScreen dark', (tester) async {
+      await pumpScreen(
+        tester,
+        JornadaCierreScreen(
+          jornada: fixture.jornada,
+          cobradorNombre: fixture.cobradorNombre,
+        ),
+        mode: ThemeMode.dark,
+      );
+      await expectLater(find.byType(JornadaCierreScreen),
+          matchesGoldenFile('goldens/screen_cierre_dark.png'));
+    });
+
+    testWidgets('HistorialScreen dark', (tester) async {
+      await pumpScreen(
+        tester,
+        const HistorialScreen(),
+        mode: ThemeMode.dark,
+      );
+      await expectLater(find.byType(HistorialScreen),
+          matchesGoldenFile('goldens/screen_historial_dark.png'));
+    });
+
+    testWidgets('MainShell dark', (tester) async {
+      await pumpScreen(
+        tester,
+        MainShell(
+          cobradorId: fixture.cobradorId,
+          cobradorNombre: fixture.cobradorNombre,
+          negocioId: fixture.negocioId,
+        ),
+        mode: ThemeMode.dark,
+      );
+      await expectLater(find.byType(MainShell),
+          matchesGoldenFile('goldens/screen_mainshell_dark.png'));
+    });
+  });
+
   group('Screen goldens — tablet (840x900)', () {
     testWidgets('LoginScreen tablet', (tester) async {
       await pumpScreen(
