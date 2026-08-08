@@ -534,3 +534,126 @@ class TestDesafioCanje:
         nuevo = decode_token(r.json()["token"])
         assert nuevo["device_id"] == str(dispositivo_activo["dispositivo_id"])
         assert nuevo["sub"] == str(escenario["cobrador_id"])
+
+
+# === H3: binding completo del desafio/canje (cierre del audit 442f68d) ===
+#
+# El flujo directo POST /api/auth/device/desafio NO pasa por RequestContext;
+# revalida el dispositivo contra TODOS los claims del JWT (usuario, negocio,
+# public_key_hash) antes de emitir el desafio, y el canje exige exactamente UNA
+# ruta activa del mismo negocio antes de emitir el access token.
+
+
+class TestH3BindingDesafio:
+    def _desafio(self, client, credencial):
+        r = client.post("/api/auth/device/desafio", headers=_auth_header(credencial))
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    def _firma_desafio(self, desafio, dispositivo_activo) -> str:
+        payload = build_signed_payload(
+            purpose=PURPOSE_ISSUE_ACCESS_TOKEN,
+            environment=desafio["environment"],
+            challenge_id=desafio["challenge_id"],
+            device_id=str(dispositivo_activo["dispositivo_id"]),
+            nonce=desafio["nonce"],
+            public_key_hash=dispositivo_activo["public_key_hash"],
+            expires_at=desafio["expira_el"],
+        )
+        return _sign(dispositivo_activo["private_key"], payload)
+
+    def _token_manipulado(
+        self,
+        escenario,
+        dispositivo_activo,
+        *,
+        sub=None,
+        negocio_id=None,
+        public_key_hash=None,
+    ):
+        return issue_token(
+            negocio_id=negocio_id or escenario["negocio_id"],
+            usuario_id=sub or escenario["cobrador_id"],
+            dispositivo_id=dispositivo_activo["dispositivo_id"],
+            public_key_hash=public_key_hash or dispositivo_activo["public_key_hash"],
+            version_asignacion=1,
+        )
+
+    def test_desafio_sub_mismatch_401(self, client, escenario, dispositivo_activo):
+        """sub que no es dueno del dispositivo -> 401 (binding usuario)."""
+        token = self._token_manipulado(escenario, dispositivo_activo, sub=uuid4())
+        r = client.post("/api/auth/device/desafio", headers=_auth_header(token))
+        assert r.status_code == 401, r.text
+
+    def test_desafio_negocio_mismatch_401(self, client, escenario, dispositivo_activo):
+        """negocio_id del token distinto al del dispositivo -> 401."""
+        token = self._token_manipulado(escenario, dispositivo_activo, negocio_id=uuid4())
+        r = client.post("/api/auth/device/desafio", headers=_auth_header(token))
+        assert r.status_code == 401, r.text
+
+    def test_desafio_public_key_hash_mismatch_401(self, client, escenario, dispositivo_activo):
+        """public_key_hash del token distinto al registrado -> 401."""
+        _k, _s, otra_hash = _ec_keypair()
+        token = self._token_manipulado(
+            escenario, dispositivo_activo, public_key_hash=otra_hash
+        )
+        r = client.post("/api/auth/device/desafio", headers=_auth_header(token))
+        assert r.status_code == 401, r.text
+
+    def test_canje_sin_ruta_activa_401(self, client, db_session, escenario, dispositivo_activo):
+        """Ruta desactivada -> el canje no emite token (0 rutas activas)."""
+        ruta = db_session.get(Ruta, escenario["ruta_id"])
+        ruta.activa = 0
+        db_session.flush()
+
+        token = _token(escenario, dispositivo_activo)
+        desafio = self._desafio(client, token)
+        firma = self._firma_desafio(desafio, dispositivo_activo)
+        r = client.post(
+            "/api/auth/device/canjear",
+            json={"challenge_id": desafio["challenge_id"], "firma": firma},
+        )
+        assert r.status_code == 401, r.text
+
+    def test_canje_mas_de_una_ruta_activa_401(self, client, db_session, escenario, dispositivo_activo):
+        """Dos rutas activas del cobrador -> el canje no emite token.
+
+        En SQLite (sin constraint parcial) se crea la segunda ruta y el canje
+        responde 401. En PostgreSQL la constraint parcial uq_ruta_activa_cobrador
+        impide el segundo ACTIVE: ese es el resultado equivalente (constraint).
+        """
+        from sqlalchemy.exc import IntegrityError
+
+        db_session.add(Ruta(
+            id=uuid4(),
+            negocio_id=escenario["negocio_id"],
+            nombre="R2",
+            cobrador_id=escenario["cobrador_id"],
+            activa=1,
+        ))
+        try:
+            db_session.flush()
+        except IntegrityError:
+            db_session.rollback()
+            return  # PG: constraint parcial es la evidencia
+
+        token = _token(escenario, dispositivo_activo)
+        desafio = self._desafio(client, token)
+        firma = self._firma_desafio(desafio, dispositivo_activo)
+        r = client.post(
+            "/api/auth/device/canjear",
+            json={"challenge_id": desafio["challenge_id"], "firma": firma},
+        )
+        assert r.status_code == 401, r.text
+
+    def test_canje_exactamente_una_ruta_200(self, client, escenario, dispositivo_activo):
+        """Una sola ruta activa -> el canje emite el access token."""
+        token = _token(escenario, dispositivo_activo)
+        desafio = self._desafio(client, token)
+        firma = self._firma_desafio(desafio, dispositivo_activo)
+        r = client.post(
+            "/api/auth/device/canjear",
+            json={"challenge_id": desafio["challenge_id"], "firma": firma},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["version_asignacion"] == 1

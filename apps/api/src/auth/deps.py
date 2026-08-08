@@ -25,7 +25,12 @@ from sqlalchemy.orm import Session
 from src.auth.context import RequestContext
 from src.auth.token import TokenError, decode_token
 from src.database import get_db
-from src.models import Dispositivo, Ruta, Usuario
+from src.models import Usuario
+from src.services.auth_service import (
+    AuthError,
+    exigir_ruta_activa_unica,
+    validar_dispositivo_claims,
+)
 
 DbSession = Annotated[Session, Depends(get_db)]
 
@@ -49,41 +54,17 @@ def _context_from_jwt(request: Request, db: Session) -> RequestContext:
     except TokenError as e:
         raise HTTPException(status_code=401, detail=str(e))
 
+    try:
+        # Binding completo del dispositivo contra los claims (helper comun con
+        # el flujo de desafio/canje): ACTIVE + version + usuario + negocio +
+        # public_key_hash. La misma regla que auth_service.
+        dispositivo = validar_dispositivo_claims(db, claims)
+    except AuthError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
     negocio_id = UUID(claims["negocio_id"])
     usuario_id = UUID(claims["sub"])
-    dispositivo_id = UUID(claims["device_id"])
-    token_version = int(claims["version_asignacion"])
-
-    dispositivo = (
-        db.query(Dispositivo)
-        .filter(Dispositivo.id == dispositivo_id)
-        .first()
-    )
-    if not dispositivo or dispositivo.estado != "ACTIVE":
-        raise HTTPException(
-            status_code=401,
-            detail="Dispositivo no activo",
-        )
-    if (dispositivo.version_asignacion or 1) != token_version:
-        raise HTTPException(
-            status_code=401,
-            detail="Asignacion del dispositivo revocada o reemplazada",
-        )
-    if dispositivo.negocio_id != negocio_id:
-        raise HTTPException(status_code=401, detail="Negocio del token no coincide")
-    if dispositivo.usuario_id != usuario_id:
-        raise HTTPException(
-            status_code=401,
-            detail="El dispositivo no pertenece al usuario del token",
-        )
-    if (
-        not dispositivo.public_key_hash
-        or dispositivo.public_key_hash != claims["public_key_hash"]
-    ):
-        raise HTTPException(
-            status_code=401,
-            detail="La clave del dispositivo no coincide con el token",
-        )
+    dispositivo_id = dispositivo.id
 
     usuario = (
         db.query(Usuario)
@@ -101,26 +82,13 @@ def _context_from_jwt(request: Request, db: Session) -> RequestContext:
 
     route_id: UUID | None = None
     if role == "COBRADOR":
-        rutas = (
-            db.query(Ruta)
-            .filter(
-                Ruta.cobrador_id == usuario_id,
-                Ruta.activa == 1,
-                Ruta.negocio_id == negocio_id,
-            )
-            .all()
-        )
-        if not rutas:
-            raise HTTPException(
-                status_code=401,
-                detail="El cobrador no tiene una ruta activa asignada",
-            )
-        if len(rutas) > 1:
-            raise HTTPException(
-                status_code=401,
-                detail="El cobrador tiene mas de una ruta activa; revise la asignacion",
-            )
-        route_id = rutas[0].id
+        # Exige exactamente UNA ruta activa del mismo negocio (0 y >1 -> 401).
+        # La ruta se deriva de la base, nunca de claims ni del cliente.
+        try:
+            ruta = exigir_ruta_activa_unica(db, usuario_id, negocio_id)
+        except AuthError as e:
+            raise HTTPException(status_code=e.status_code, detail=e.detail)
+        route_id = ruta.id
 
     return RequestContext(
         user_id=usuario_id,
