@@ -309,8 +309,74 @@ class TestDerivacionContexto:
         r = client.get("/api/dispositivos")
         assert r.status_code == 401, r.text
 
+    def test_token_dispositivo_de_otro_usuario_401(self, client, escenario, dispositivo_activo):
+        """El sub debe ser el dueno del dispositivo: binding dispositivo->usuario estricto."""
+        token = issue_token(
+            negocio_id=escenario["negocio_id"],
+            usuario_id=escenario["admin_id"],
+            dispositivo_id=dispositivo_activo["dispositivo_id"],
+            public_key_hash=dispositivo_activo["public_key_hash"],
+            version_asignacion=1,
+        )
+        r = client.get("/api/dispositivos", headers=_auth_header(token))
+        assert r.status_code == 401, r.text
+
+    def test_token_public_key_hash_no_coincide_401(self, client, escenario, dispositivo_activo):
+        """El public_key_hash del token debe ser el registrado del dispositivo."""
+        _k, _s, otra_hash = _ec_keypair()
+        token = issue_token(
+            negocio_id=escenario["negocio_id"],
+            usuario_id=escenario["cobrador_id"],
+            dispositivo_id=dispositivo_activo["dispositivo_id"],
+            public_key_hash=otra_hash,
+            version_asignacion=1,
+        )
+        r = client.get("/api/dispositivos", headers=_auth_header(token))
+        assert r.status_code == 401, r.text
+
 
 # === desafio/canje de sesion JCS daily-auth-v1 ===
+
+
+class TestPayloadLexicoDailyAuthV1:
+    def test_acepta_payload_conforme(self):
+        payload = build_signed_payload(
+            purpose=PURPOSE_ISSUE_ACCESS_TOKEN,
+            environment="production",
+            challenge_id="3f2a1b0c-9d4e-4f8a-b6c1-2d5e7a9b0c1d",
+            device_id="3f2a1b0c-9d4e-4f8a-b6c1-2d5e7a9b0c1d",
+            nonce="GGcDkg5kNS7t1zK9JkXLPgq6QszvUdmYPMdfXSJHS_Q",
+            public_key_hash="92561e1d2633d5b7680ebefd7f92bc3e4084708ffabf82073bf028a24a90f24b",
+            expires_at="2026-08-06T15:00:00Z",
+        )
+        assert len(payload) > 0
+
+    def test_rechaza_representacion_lexica_no_conforme(self):
+        """daily-auth-v1: challenge_id/device_id uuid lowercase, nonce 43,
+        hash hex 64 lowercase, timestamp RFC 3339 exacto."""
+        base = {
+            "purpose": PURPOSE_ISSUE_ACCESS_TOKEN,
+            "environment": "production",
+            "challenge_id": "3f2a1b0c-9d4e-4f8a-b6c1-2d5e7a9b0c1d",
+            "device_id": "3f2a1b0c-9d4e-4f8a-b6c1-2d5e7a9b0c1d",
+            "nonce": "GGcDkg5kNS7t1zK9JkXLPgq6QszvUdmYPMdfXSJHS_Q",
+            "public_key_hash": "92561e1d2633d5b7680ebefd7f92bc3e4084708ffabf82073bf028a24a90f24b",
+            "expires_at": "2026-08-06T15:00:00Z",
+        }
+        casos = [
+            {"challenge_id": "3F2A1B0C-9D4E-4F8A-B6C1-2D5E7A9B0C1D"},  # UUID uppercase
+            {"challenge_id": "no-es-un-uuid"},
+            {"device_id": "no-es-un-uuid"},
+            {"nonce": "x" * 42},  # 42 chars (debe ser 43)
+            {"nonce": "GGcDkg5kNS7t1zK9JkXLPgq6QszvUdmYPMdfXSJHS_Q="},  # padding
+            {"public_key_hash": "A" * 64},  # hex uppercase
+            {"public_key_hash": "a" * 63},  # corto
+            {"expires_at": "2026-08-06 15:00:00"},  # formato incorrecto
+            {"expires_at": "2026-08-06T15:00:00.000Z"},  # con milisegundos
+        ]
+        for extra in casos:
+            with pytest.raises(ValueError):
+                build_signed_payload(**{**base, **extra})
 
 
 class TestDesafioCanje:

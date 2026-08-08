@@ -19,7 +19,7 @@ from uuid import uuid4
 import pytest
 
 from src.auth.context import RequestContext
-from src.models import Cliente, Credito, Jornada, Negocio, Ruta, Usuario
+from src.models import Cliente, Credito, Jornada, Negocio, Renovacion, Ruta, Usuario
 from src.services.jornada_service import cerrar_jornada, open_jornada
 
 
@@ -526,3 +526,140 @@ class TestMultirutaAislamiento:
         r = client.get(f"/api/rutas/{r5_id}", params=_auth(
             self.nid, role="COBRADOR", route_id=self.ruta_ids["R1"], user_id=self.cob_ids["cob1"]))
         assert r.status_code == 404
+
+    # ---------- aislamiento pendiente: detalle de cliente ----------
+
+    def test_cobrador_r1_no_lee_cliente_de_r2(self, client):
+        """GET /api/clientes/{id}: cobrador R1 ve SOLO clientes con credito en R1.
+
+        Aislamiento pendiente (auditoria 206b376): el detalle solo comprobaba
+        negocio; la ruta se deriva via Credito (no se anade ruta_id a Cliente).
+        """
+        auth_r1 = _auth(self.nid, role="COBRADOR",
+                        route_id=self.ruta_ids["R1"], user_id=self.cob_ids["cob1"])
+
+        # Cliente C2 (credito solo en R2) → 404 sin fuga de existencia
+        r = client.get(f"/api/clientes/{self.cliente_ids['C2']}", params=auth_r1)
+        assert r.status_code == 404
+        assert r.json()["detail"] == "Cliente no encontrado"
+
+        # Cliente C1 (credito en R1) → 200
+        r = client.get(f"/api/clientes/{self.cliente_ids['C1']}", params=auth_r1)
+        assert r.status_code == 200
+        assert r.json()["id"] == str(self.cliente_ids["C1"])
+
+    def test_cliente_detalle_admin_ve_todas(self, client):
+        """Admin ve el detalle de cualquier cliente del negocio."""
+        auth = _auth(self.nid, role="ADMINISTRADOR", user_id=self.admin_id)
+        for key in ("C1", "C2", "C3", "C4"):
+            r = client.get(f"/api/clientes/{self.cliente_ids[key]}", params=auth)
+            assert r.status_code == 200, key
+
+    # ---------- aislamiento pendiente: crear ruta solo ADMIN ----------
+
+    def test_crear_ruta_solo_admin(self, client):
+        """POST /api/rutas: cobrador NO puede crear rutas (aislamiento B)."""
+        auth_r1 = _auth(self.nid, role="COBRADOR",
+                        route_id=self.ruta_ids["R1"], user_id=self.cob_ids["cob1"])
+        r = client.post("/api/rutas", params=auth_r1,
+                        json={"nombre": "R-hack", "cobrador_id": str(self.cob_ids["cob2"])})
+        assert r.status_code == 403
+        assert "administrador" in r.json()["detail"].lower()
+
+    def test_crear_ruta_valida_cobrador_rol_y_negocio(self, client, db_session):
+        """POST /api/rutas: el cobrador asignado debe existir, ser del mismo
+        negocio y tener rol COBRADOR activo (aislamiento B, sin confiar en
+        tenant enviado por el cliente)."""
+        auth = _auth(self.nid, role="ADMINISTRADOR", user_id=self.admin_id)
+
+        # cobrador_id de otro negocio → 400
+        otro_negocio = uuid4()
+        db_session.add(Negocio(id=otro_negocio, nombre="Otro", nit="2"))
+        otro_cobrador = uuid4()
+        db_session.add(Usuario(
+            id=otro_cobrador, negocio_id=otro_negocio, rol="COBRADOR", nombre="Externo",
+        ))
+        db_session.commit()
+        r = client.post("/api/rutas", params=auth,
+                        json={"nombre": "R-x1", "cobrador_id": str(otro_cobrador)})
+        assert r.status_code == 400
+
+        # cobrador_id con rol ADMINISTRADOR → 400
+        r = client.post("/api/rutas", params=auth,
+                        json={"nombre": "R-x2", "cobrador_id": str(self.admin_id)})
+        assert r.status_code == 400
+
+        # cobrador inactivo → 400
+        inactivo = uuid4()
+        db_session.add(Usuario(
+            id=inactivo, negocio_id=self.nid, rol="COBRADOR", nombre="Inactivo", activo=0,
+        ))
+        db_session.commit()
+        r = client.post("/api/rutas", params=auth,
+                        json={"nombre": "R-x3", "cobrador_id": str(inactivo)})
+        assert r.status_code == 400
+
+        # cobrador válido del mismo negocio y sin ruta activa → 201
+        cobrador_libre = uuid4()
+        db_session.add(Usuario(
+            id=cobrador_libre, negocio_id=self.nid, rol="COBRADOR", nombre="CobLibre",
+        ))
+        db_session.commit()
+        r = client.post("/api/rutas", params=auth,
+                        json={"nombre": "R-ok", "cobrador_id": str(cobrador_libre)})
+        assert r.status_code == 201, r.text
+        assert r.json()["cobrador_id"] == str(cobrador_libre)
+
+    # ---------- aislamiento pendiente: renovacion scoped por ruta ----------
+
+    def test_movimiento_renovacion_no_cruza_ruta(self, client, db_session):
+        """Movimiento con renovacion_id de otra ruta → 409 (aislamiento C).
+
+        Renovacion no tiene ruta_id; la ruta se deriva de los creditos
+        referenciados (viejo y nuevo). Cobrador R1 no puede usar una
+        renovacion de R2.
+        """
+        # Renovacion de R2: dos creditos de R2
+        c_viejo_r2 = uuid4()
+        c_nuevo_r2 = uuid4()
+        db_session.add(Credito(
+            id=c_viejo_r2, negocio_id=self.nid, cliente_id=self.cliente_ids["C2"],
+            ruta_id=self.ruta_ids["R2"], cuota=10000, n_cuotas=10, monto=100000,
+            total=100000, periodicidad="DIARIO",
+            fecha_inicio=date(2026, 7, 1), estado="ACTIVO",
+        ))
+        db_session.add(Credito(
+            id=c_nuevo_r2, negocio_id=self.nid, cliente_id=self.cliente_ids["C2"],
+            ruta_id=self.ruta_ids["R2"], cuota=12000, n_cuotas=10, monto=120000,
+            total=120000, periodicidad="DIARIO",
+            fecha_inicio=date(2026, 7, 2), estado="ACTIVO",
+        ))
+        ren = Renovacion(
+            id=uuid4(), negocio_id=self.nid,
+            credito_viejo_id=c_viejo_r2, credito_nuevo_id=c_nuevo_r2,
+            saldo_anterior=100000, pago_efectivo=0, saldo_refinanciado=100000,
+            monto_nuevo=120000, dinero_nuevo_entregado=20000,
+        )
+        db_session.add(ren)
+        db_session.commit()
+
+        # Jornada de R1 abierta por cob1 (para que el check de jornada pase)
+        j1 = self._open_jornada_http(client, "R1", "cob1")
+
+        # Cobrador R1 usa renovacion de R2 → 409
+        r = client.post("/api/movimientos", params=_auth(
+            self.nid, role="COBRADOR", route_id=self.ruta_ids["R1"],
+            user_id=self.cob_ids["cob1"], device_id=uuid4()),
+            json={"jornada_id": str(j1), "tipo": "GASOLINA", "monto": 5000,
+                  "clave_idempotencia": "mov-ren-x", "renovacion_id": str(ren.id)})
+        assert r.status_code == 409
+        assert "otra ruta" in r.json()["detail"].lower()
+
+        # Cobrador R2 con SU renovacion → 201
+        j2 = self._open_jornada_http(client, "R2", "cob2")
+        r = client.post("/api/movimientos", params=_auth(
+            self.nid, role="COBRADOR", route_id=self.ruta_ids["R2"],
+            user_id=self.cob_ids["cob2"], device_id=uuid4()),
+            json={"jornada_id": str(j2), "tipo": "OFICINA", "monto": 3000,
+                  "clave_idempotencia": "mov-ren-ok", "renovacion_id": str(ren.id)})
+        assert r.status_code == 201, r.text

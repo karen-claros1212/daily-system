@@ -268,6 +268,9 @@ def desafio(
         if codigo.estado == CODIGO_PENDIENTE:
             codigo.estado = CODIGO_EXPIRADO
             db.flush()
+            # Penalizacion de estado que debe persistir aunque la request falle
+            # (409): get_db_transaction() hace rollback ante excepcion.
+            db.commit()
         raise ActivacionError(
             "Codigo expirado",
             "CODIGO_EXPIRADO",
@@ -413,6 +416,9 @@ def canjear(
     if _aware_utc(intento.expira_el) < _now():
         intento.consumido_el = _now()
         db.flush()
+        # Penalizacion que debe persistir aunque la request falle (410): el
+        # rollback de get_db_transaction() la descartaria en produccion.
+        db.commit()
         raise ActivacionError(
             "Intento de activacion expirado",
             "INTENTO_EXPIRADO",
@@ -449,6 +455,12 @@ def canjear(
         if codigo.intentos_fallidos >= MAX_INTENTOS_FALLIDOS:
             codigo.estado = CODIGO_EXPIRADO
         db.flush()
+        # La penalizacion (intento agotado + contador de firmas invalidas ->
+        # EXPIRED) DEBE persistir aunque la request falle (401): sin este
+        # commit el rollback de get_db_transaction() la descarta y el atacante
+        # puede probar firmas indefinidamente sin que el codigo llegue a
+        # EXPIRED. Commit explicito antes de propagar el error.
+        db.commit()
         raise
 
     _puede_crear_dispositivo(db, codigo.cobrador_id)

@@ -83,16 +83,28 @@ def _check_idempotency(
     clave_idempotencia: str,
     credito_id: UUID,
     monto: int,
+    jornada_id: UUID | None = None,
 ) -> Pago | None:
-    """Check idempotency: same key with different payload -> 409."""
+    """Check idempotency: same key with different payload -> 409.
+
+    La clave debe identificar UNA fila PAYMENT real del mismo negocio con el
+    payload completo: no basta credito_id+monto. Una fila que no sea PAYMENT
+    (p.ej. un REVERSAL que colisione la clave) nunca es compatible con un
+    registro de pago.
+    """
     existing = db.query(Pago).filter(
         _uuid_eq(Pago.negocio_id, negocio_id),
         Pago.clave_idempotencia == clave_idempotencia,
     ).first()
     if existing:
+        if existing.tipo != "PAYMENT":
+            raise PaymentIdempotencyError(
+                "Misma clave de idempotencia con tipo diferente"
+            )
         if (
             str(existing.credito_id) != str(credito_id)
             or existing.monto != monto
+            or str(existing.jornada_id or "") != str(jornada_id or "")
         ):
             raise PaymentIdempotencyError(
                 "Misma clave de idempotencia con payload diferente"
@@ -163,7 +175,7 @@ def register_payment(
 
     # Check idempotency
     existing = _check_idempotency(
-        db, negocio_id, clave_idempotencia, credito_id, monto
+        db, negocio_id, clave_idempotencia, credito_id, monto, jornada_id
     )
     if existing:
         return existing
@@ -298,13 +310,20 @@ def reverse_payment(
     # Generate idempotency key from client or internal
     idem_key = data.get("clave_idempotencia", f"rev-{pago_id!s}")
 
-    # Check reversal idempotency
+    # Check reversal idempotency: la fila existente debe ser EL REVERSAL de
+    # este pago (no un PAYMENT ni un REVERSAL de otro pago cuya clave
+    # colisione). Devolver una fila que no sea el reverso correspondiente
+    # corromperia la relacion reversal_of_payment_id.
     existing = db.query(Pago).filter(
         _uuid_eq(Pago.negocio_id, ctx.negocio_id),
         Pago.clave_idempotencia == idem_key,
     ).first()
     if existing:
-        if existing.monto != original.monto:
+        if (
+            existing.tipo != "REVERSAL"
+            or str(existing.reversal_of_payment_id or "") != str(pago_id)
+            or existing.monto != original.monto
+        ):
             raise PaymentIdempotencyError("Conflicto de idempotencia en reversión")
         return existing
 

@@ -48,6 +48,23 @@ def _compile_uuid_sqlite(type_, compiler, **kw):
 
 from src.database import Base, get_db, get_db_transaction
 
+
+def pg_truncate_permitted(env: str, db_name: str, opt_in: str | None) -> bool:
+    """Guard de TRUNCATE sobre PostgreSQL (conjuncion estricta, G3).
+
+    Solo se permite si las TRES condiciones son verdaderas simultaneamente:
+      DAILY_ENV == "test"  Y  el nombre real de la DB es de test/scratch
+      Y  ALLOW_PG_TRUNCATE == "1". ALLOW_PG_TRUNCATE NO es un bypass
+      independiente del nombre ni del entorno.
+    """
+    env_is_test = env == "test"
+    db_is_test = (
+        db_name.endswith(("_test", "_scratch"))
+        or "_scratch" in db_name
+        or "test" in db_name
+    )
+    return bool(env_is_test and db_is_test and opt_in == "1")
+
 # Import models so they register with Base before tables are created
 from src.models import (  # noqa: F401
     Cliente,
@@ -86,8 +103,31 @@ def test_db():
         # PostgreSQL: schema comes from Alembic migrations (cobro_test).
         # Truncate so the suite sees the same empty slate as the in-memory
         # SQLite DB (tests assert on global row counts).
+        #
+        # GUARD: el TRUNCATE ... CASCADE solo se ejecuta si las TRES
+        # condiciones son verdaderas simultaneamente (conjuncion estricta):
+        #   1. DAILY_ENV == "test"
+        #   2. el nombre real de la DB identifica una DB de test/scratch
+        #   3. ALLOW_PG_TRUNCATE == "1" (opt-in explicito)
+        # ALLOW_PG_TRUNCATE NO es un bypass independiente: sin la conjuncion
+        # completa, abortar antes de ejecutar SQL.
         from sqlalchemy import text
 
+        db_name = TEST_DATABASE_URL.rsplit("/", 1)[-1].split("?")[0]
+        truncate_ok = pg_truncate_permitted(
+            os.getenv("DAILY_ENV", ""),
+            db_name,
+            os.getenv("ALLOW_PG_TRUNCATE"),
+        )
+        if not truncate_ok:
+            raise RuntimeError(
+                "Negado: test_db haria TRUNCATE sobre la base "
+                f"'{db_name}' de API_DATABASE_URL (DAILY_ENV="
+                f"{os.getenv('DAILY_ENV')!r}, ALLOW_PG_TRUNCATE="
+                f"{os.getenv('ALLOW_PG_TRUNCATE')!r}). Solo se permite si "
+                "DAILY_ENV==test, el nombre contiene 'test'/'scratch' y "
+                "ALLOW_PG_TRUNCATE=1, simultaneamente."
+            )
         tbl = ", ".join(sorted(Base.metadata.tables.keys()))
         with engine.connect() as conn:
             conn.execute(text(f"TRUNCATE TABLE {tbl} RESTART IDENTITY CASCADE"))

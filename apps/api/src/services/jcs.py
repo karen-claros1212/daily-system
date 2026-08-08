@@ -10,6 +10,7 @@ este modulo debe producir exactamente esos 285 bytes.
 """
 
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -25,6 +26,39 @@ SIGNED_FIELDS = (
     "protocol_version",
     "public_key_hash",
 )
+
+# Representacion lexical VINCULANTE por campo firmado (seccion 13.3): los
+# bytes JCS solo son validos si cada valor conforma su forma canonica.
+_RE_UUID_LOWER = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
+_RE_NONCE_BASE64URL = re.compile(r"^[A-Za-z0-9_-]{43}$")
+_RE_HEX_64 = re.compile(r"^[0-9a-f]{64}$")
+_RE_RFC3339_SECONDS = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+
+
+def validate_uuid_lowercase(value: str, field: str) -> None:
+    """El campo debe ser un UUID canónico: lowercase, 8-4-4-4-12."""
+    if not _RE_UUID_LOWER.fullmatch(value):
+        raise ValueError(f"{field} debe ser un UUID lowercase (8-4-4-4-12)")
+
+
+def validate_nonce(value: str) -> None:
+    """Nonce CSPRNG: base64url sin padding de 43 caracteres (32 bytes)."""
+    if not _RE_NONCE_BASE64URL.fullmatch(value):
+        raise ValueError("nonce debe ser base64url sin padding de 43 caracteres (32 bytes)")
+
+
+def validate_public_key_hash(value: str) -> None:
+    """Hash SHA-256 del SPKI: hex lowercase de 64 caracteres."""
+    if not _RE_HEX_64.fullmatch(value):
+        raise ValueError("public_key_hash debe ser hex lowercase de 64 caracteres (SHA-256)")
+
+
+def validate_rfc3339_seconds(value: str) -> None:
+    """Timestamp de expiracion: RFC 3339 en segundos (YYYY-MM-DDTHH:MM:SSZ)."""
+    if not _RE_RFC3339_SECONDS.fullmatch(value):
+        raise ValueError("expires_at debe ser RFC 3339 en segundos (YYYY-MM-DDTHH:MM:SSZ)")
 
 
 def _stringify(value: str) -> str:
@@ -103,6 +137,10 @@ def build_signed_payload(
         raise ValueError("protocol_version debe ser 'daily-v1'")
     if environment not in VALID_ENVIRONMENTS:
         raise ValueError(f"environment invalido: {environment}")
+    validate_uuid_lowercase(attempt_id, "attempt_id")
+    validate_nonce(nonce)
+    validate_public_key_hash(public_key_hash)
+    validate_rfc3339_seconds(expires_at)
 
     obj = {
         "protocol_version": protocol_version,

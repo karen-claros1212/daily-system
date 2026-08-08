@@ -84,42 +84,35 @@ async def suscripcion_middleware(request: Request, call_next):
     if request.method not in ("POST", "PUT", "DELETE"):
         return await call_next(request)
 
-    # Extract negocio_id from query params or Bearer JWT
-    negocio_id = request.query_params.get("negocio_id")
-    if not negocio_id:
-        authorization = request.headers.get("authorization", "")
-        if authorization.lower().startswith("bearer "):
-            token = authorization.split(" ", 1)[1].strip()
-            try:
-                from src.auth.token import TokenError, decode_token
-
-                claims = decode_token(token)
-                negocio_id = claims.get("negocio_id")
-            except TokenError:
-                return await call_next(request)
-    if not negocio_id:
-        # No negocio_id in request — allow through (will be caught by endpoint)
+    # negocio_id SIEMPRE de la identidad autenticada (claims del JWT), nunca de
+    # query params: un cuerpo/URL no debe poder elegir el tenant a verificar.
+    authorization = request.headers.get("authorization", "")
+    if not authorization.lower().startswith("bearer "):
         return await call_next(request)
 
-
-    from src.models import Negocio
-
-    # Use the same DB connection pattern as the app
-    db_url = os.getenv("API_DATABASE_URL", "sqlite:///:memory:")
-
-    if "sqlite" in db_url:
-        # For SQLite tests, skip subscription check
-        return await call_next(request)
-
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-
-    engine = create_engine(db_url)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    db = SessionLocal()
+    from src.auth.token import TokenError, decode_token
 
     try:
-        negocio = db.query(Negocio).filter(Negocio.id == negocio_id).first()
+        claims = decode_token(authorization.split(" ", 1)[1].strip())
+    except TokenError:
+        # Token invalido/ausente: el endpoint aplica su propio 401. Sin
+        # identidad no hay tenant que verificar.
+        return await call_next(request)
+
+    negocio_id = claims.get("negocio_id")
+    if not negocio_id:
+        return await call_next(request)
+
+    from uuid import UUID as _UUID
+
+    from src.database import SessionLocal
+    from src.models import Negocio
+
+    # Reusa el engine/thread-safe sessionmaker de la app; NO crea un engine
+    # nuevo por request.
+    db = SessionLocal()
+    try:
+        negocio = db.query(Negocio).filter(Negocio.id == _UUID(negocio_id)).first()
         if not negocio:
             return JSONResponse(
                 status_code=404,
@@ -146,8 +139,15 @@ async def suscripcion_middleware(request: Request, call_next):
 
         return await call_next(request)
     except Exception:
-        # If DB query fails, allow through (endpoint will handle)
-        return await call_next(request)
+        # Fail-closed: si no se puede verificar la suscripcion, no se procesa
+        # la escritura (la indisponibilidad del control no se salta).
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": "No se pudo verificar la suscripcion",
+                "code": "SUSCRIPCION_INDISPONIBLE",
+            },
+        )
     finally:
         db.close()
 

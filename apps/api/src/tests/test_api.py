@@ -32,8 +32,8 @@ class TestNegocioAPI:
         assert "id" in data
 
     def test_list_negocios(self, client, db_session):
-        """List all negocios."""
-        client.post(
+        """Listar negocios devuelve SOLO el tenant del contexto (G5, sin fuga)."""
+        r1 = client.post(
             "/api/negocios",
             json={"nombre": "Negocio 1"},
         )
@@ -41,10 +41,53 @@ class TestNegocioAPI:
             "/api/negocios",
             json={"nombre": "Negocio 2"},
         )
-        response = client.get("/api/negocios")
+        nid = r1.json()["id"]
+        response = client.get(f"/api/negocios?negocio_id={nid}")
         assert response.status_code == 200
         data = response.json()
-        assert len(data) >= 2
+        assert len(data) == 1
+        assert data[0]["id"] == nid
+
+    def test_list_negocios_no_enumera_otros_tenants(self, client, db_session):
+        """El contexto de un tenant NO ve los negocios de otro (G5)."""
+        r_ten_a = client.post(
+            "/api/negocios",
+            json={"nombre": "Tenant A"},
+        )
+        client.post(
+            "/api/negocios",
+            json={"nombre": "Tenant B"},
+        )
+        nid_a = r_ten_a.json()["id"]
+        response = client.get(f"/api/negocios?negocio_id={nid_a}")
+        data = response.json()
+        assert all(n["id"] == nid_a for n in data)
+
+    def test_obtener_negocio_ajeno_404(self, client, db_session):
+        """GET /api/negocios/{id} de otro tenant => 404, sin fuga (G5)."""
+        r_ten_a = client.post(
+            "/api/negocios",
+            json={"nombre": "Tenant A"},
+        )
+        r_ten_b = client.post(
+            "/api/negocios",
+            json={"nombre": "Tenant B"},
+        )
+        nid_a = r_ten_a.json()["id"]
+        nid_b = r_ten_b.json()["id"]
+        response = client.get(f"/api/negocios/{nid_b}?negocio_id={nid_a}")
+        assert response.status_code == 404
+
+    def test_obtener_negocio_propio_ok(self, client, db_session):
+        """GET /api/negocios/{id} del propio tenant => 200."""
+        r = client.post(
+            "/api/negocios",
+            json={"nombre": "Mi Negocio"},
+        )
+        nid = r.json()["id"]
+        response = client.get(f"/api/negocios/{nid}?negocio_id={nid}")
+        assert response.status_code == 200
+        assert response.json()["id"] == nid
 
 
 class TestRutaAPI:

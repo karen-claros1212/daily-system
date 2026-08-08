@@ -197,6 +197,30 @@ class TestVectorJCS:
                 expires_at="2026-08-06T15:00:00Z",
             )
 
+    def test_vector_jcs_rechaza_representacion_lexica_no_conforme(self):
+        """La representacion lexical es vinculante: uuid/nonce/hash/timestamp exactos."""
+        base = {
+            "protocol_version": "daily-v1",
+            "environment": "production",
+            "attempt_id": "3f2a1b0c-9d4e-4f8a-b6c1-2d5e7a9b0c1d",
+            "nonce": "GGcDkg5kNS7t1zK9JkXLPgq6QszvUdmYPMdfXSJHS_Q",
+            "public_key_hash": "92561e1d2633d5b7680ebefd7f92bc3e4084708ffabf82073bf028a24a90f24b",
+            "expires_at": "2026-08-06T15:00:00Z",
+        }
+        casos = [
+            {"attempt_id": "3F2A1B0C-9D4E-4F8A-B6C1-2D5E7A9B0C1D"},  # UUID uppercase
+            {"attempt_id": "no-es-un-uuid"},
+            {"nonce": "x" * 42},  # 42 chars (debe ser 43)
+            {"nonce": "GGcDkg5kNS7t1zK9JkXLPgq6QszvUdmYPMdfXSJHS_Q="},  # padding
+            {"public_key_hash": "A" * 64},  # hex uppercase
+            {"public_key_hash": "a" * 63},  # corto
+            {"expires_at": "2026-08-06 15:00:00"},  # formato incorrecto
+            {"expires_at": "2026-08-06T15:00:00.000Z"},  # con milisegundos
+        ]
+        for extra in casos:
+            with pytest.raises(ValueError):
+                build_signed_payload(**{**base, **extra})
+
 
 # === flujo principal ===
 

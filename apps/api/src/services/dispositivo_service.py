@@ -78,6 +78,15 @@ def registrar_dispositivo(
         db.flush()
         return dispositivo
     else:
+        # Defensa en profundidad (G5): crear un dispositivo NUEVO por la via
+        # administrativa exige is_admin. El endpoint ya aplica el gate (403),
+        # pero el servicio no debe crear por si mismo si alguien lo llama con
+        # is_admin=False (p.ej. una ruta que el dia de manana olvide el gate).
+        if not is_admin:
+            raise DispositivoError(
+                "Solo ADMINISTRADOR puede registrar un dispositivo nuevo",
+                "DISPOSITIVO_ADMIN_REQUERIDO",
+            )
         nuevo = Dispositivo(
             negocio_id=negocio_id,
             huella=huella,

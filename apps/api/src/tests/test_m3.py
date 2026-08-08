@@ -107,6 +107,46 @@ class TestDispositivo:
         assert data["activo"] == 1
         assert data["autorizado_el"] is not None
 
+    def test_servicio_no_crea_nuevo_sin_admin(
+        self, db_session, negocio_con_suscripcion
+    ):
+        """Defensa en profundidad (G5-D): llamada directa al servicio con
+        is_admin=False y huella nueva => rechazo (no crea entry)."""
+        from src.services.dispositivo_service import (
+            DispositivoError,
+            registrar_dispositivo,
+        )
+
+        huella = "direct_call_sin_admin"
+        with pytest.raises(DispositivoError):
+            registrar_dispositivo(
+                db_session,
+                negocio_id=negocio_con_suscripcion.id,
+                huella=huella,
+                is_admin=False,
+            )
+        q = (
+            db_session.query(Dispositivo)
+            .filter(Dispositivo.huella == huella)
+            .first()
+        )
+        assert q is None
+
+    def test_servicio_is_admin_true_conserva(
+        self, db_session, negocio_con_suscripcion
+    ):
+        """G5-D: is_admin=True mantiene el comportamiento (crea entry)."""
+        from src.services.dispositivo_service import registrar_dispositivo
+
+        huella = "direct_call_con_admin"
+        dev = registrar_dispositivo(
+            db_session,
+            negocio_id=negocio_con_suscripcion.id,
+            huella=huella,
+            is_admin=True,
+        )
+        assert dev.estado == "ACTIVE"
+
     def test_registrar_duplicado_reutiliza(
         self, client, db_session, negocio_con_suscripcion
     ):

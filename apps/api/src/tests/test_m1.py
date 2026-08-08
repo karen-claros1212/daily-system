@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from src.models import Cliente, Credito, Negocio, Pago, Ruta
+from src.models import Cliente, Credito, Jornada, Negocio, Pago, Ruta
 from src.services.calculation_service import calcular_mora_legacy, calcular_renovacion
 
 
@@ -204,3 +204,136 @@ class TestHojaVivaFields:
         assert resp.status_code == 200
         for c in resp.json()["clientes"]:
             assert c["semaforo"] == "GRIS"
+
+
+class TestIdempotenciaFinanciera:
+    """Idempotencia financiera — auditoria 206b376.
+
+    _check_idempotency debe exigir que la fila existente sea REALMENTE un
+    PAYMENT con el payload completo (credito+monto+jornada); en reversos una
+    colision de key no puede devolver una fila que no sea el reverso
+    correspondiente (reversal_of_payment_id == pago_id).
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self, db_session):
+        self.nid = uuid4()
+        self.rid = uuid4()
+        self.cid = uuid4()
+        self.credito_id = uuid4()
+
+        db_session.add(Negocio(id=self.nid, nombre="Negocio", nit="123"))
+        db_session.add(Ruta(id=self.rid, negocio_id=self.nid, nombre="R1"))
+        db_session.add(Cliente(id=self.cid, negocio_id=self.nid, primer_apellido="X", nombres="Y", identity_status="PROVISIONAL"))
+        db_session.add(Credito(
+            id=self.credito_id, negocio_id=self.nid, cliente_id=self.cid, ruta_id=self.rid,
+            cuota=30000, n_cuotas=40, monto=1000000, total=1200000,
+            periodicidad="DIARIO", fecha_inicio=date(2026, 7, 1), estado="ACTIVO",
+        ))
+        db_session.commit()
+
+    def test_payment_key_no_colisiona_con_reversal(self, client, db_session):
+        """Un PAYMENT no puede reutilizar la clave de un REVERSAL: 409."""
+        # PAYMENT original
+        r1 = client.post(
+            f"/api/pagos?negocio_id={self.nid}",
+            json={
+                "credito_id": str(self.credito_id),
+                "jornada_id": None,
+                "monto": 30000,
+                "clave_idempotencia": "fin-colision-001",
+            },
+        )
+        assert r1.status_code == 201
+
+        # REVERSAL con la misma clave (fila que colisiona, no PAYMENT)
+        db_session.add(Pago(
+            id=uuid4(),
+            negocio_id=self.nid,
+            credito_id=self.credito_id,
+            tipo="REVERSAL",
+            monto=30000,
+            clave_idempotencia="fin-colision-002",
+        ))
+        db_session.commit()
+
+        # PAYMENT con clave del REVERSAL -> 409 (no puede devolver un REVERSAL
+        # como si fuera el pago idempotente)
+        r2 = client.post(
+            f"/api/pagos?negocio_id={self.nid}",
+            json={
+                "credito_id": str(self.credito_id),
+                "jornada_id": None,
+                "monto": 30000,
+                "clave_idempotencia": "fin-colision-002",
+            },
+        )
+        assert r2.status_code == 409
+
+    def test_payment_key_distinta_jornada_es_conflicto(self, client, db_session):
+        """Misma clave con distinta jornada -> 409 (payload no coincide)."""
+        j1 = uuid4()
+        j2 = uuid4()
+        db_session.add(Jornada(
+            id=j1, negocio_id=self.nid, ruta_id=self.rid, fecha=date(2026, 7, 1),
+            estado="OPEN",
+        ))
+        db_session.add(Jornada(
+            id=j2, negocio_id=self.nid, ruta_id=self.rid, fecha=date(2026, 7, 2),
+            estado="OPEN",
+        ))
+        db_session.commit()
+
+        r1 = client.post(
+            f"/api/pagos?negocio_id={self.nid}",
+            json={
+                "credito_id": str(self.credito_id),
+                "jornada_id": str(j1),
+                "monto": 30000,
+                "clave_idempotencia": "fin-jornada-001",
+            },
+        )
+        assert r1.status_code == 201
+
+        r2 = client.post(
+            f"/api/pagos?negocio_id={self.nid}",
+            json={
+                "credito_id": str(self.credito_id),
+                "jornada_id": str(j2),
+                "monto": 30000,
+                "clave_idempotencia": "fin-jornada-001",
+            },
+        )
+        assert r2.status_code == 409
+
+    def test_reversal_idempotente_devuelve_mismo_reversal(self, client, db_session):
+        """Misma clave de reverso devuelve el MISMO REVERSAL (no un PAYMENT)."""
+        r1 = client.post(
+            f"/api/pagos?negocio_id={self.nid}",
+            json={
+                "credito_id": str(self.credito_id),
+                "jornada_id": None,
+                "monto": 30000,
+                "clave_idempotencia": "fin-rev-001",
+            },
+        )
+        assert r1.status_code == 201
+        pago_id = r1.json()["id"]
+
+        # Reversal con clave explicita
+        rv = client.post(
+            f"/api/pagos/{pago_id}/reversar?negocio_id={self.nid}",
+            json={"motivo": "error"},
+        )
+        assert rv.status_code == 201, rv.text
+        assert rv.json()["tipo"] == "REVERSAL"
+
+        # Reversar de nuevo: devuelve el MISMO reversal (idempotente por
+        # reversal_of_payment_id), nunca un PAYMENT
+        rv2 = client.post(
+            f"/api/pagos/{pago_id}/reversar?negocio_id={self.nid}",
+            json={"motivo": "error"},
+        )
+        assert rv2.status_code == 201
+        assert rv2.json()["id"] == rv.json()["id"]
+        assert rv2.json()["tipo"] == "REVERSAL"

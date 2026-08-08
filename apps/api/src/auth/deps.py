@@ -71,6 +71,19 @@ def _context_from_jwt(request: Request, db: Session) -> RequestContext:
         )
     if dispositivo.negocio_id != negocio_id:
         raise HTTPException(status_code=401, detail="Negocio del token no coincide")
+    if dispositivo.usuario_id != usuario_id:
+        raise HTTPException(
+            status_code=401,
+            detail="El dispositivo no pertenece al usuario del token",
+        )
+    if (
+        not dispositivo.public_key_hash
+        or dispositivo.public_key_hash != claims["public_key_hash"]
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="La clave del dispositivo no coincide con el token",
+        )
 
     usuario = (
         db.query(Usuario)
@@ -88,21 +101,26 @@ def _context_from_jwt(request: Request, db: Session) -> RequestContext:
 
     route_id: UUID | None = None
     if role == "COBRADOR":
-        ruta = (
+        rutas = (
             db.query(Ruta)
             .filter(
                 Ruta.cobrador_id == usuario_id,
                 Ruta.activa == 1,
                 Ruta.negocio_id == negocio_id,
             )
-            .first()
+            .all()
         )
-        if not ruta:
+        if not rutas:
             raise HTTPException(
                 status_code=401,
                 detail="El cobrador no tiene una ruta activa asignada",
             )
-        route_id = ruta.id
+        if len(rutas) > 1:
+            raise HTTPException(
+                status_code=401,
+                detail="El cobrador tiene mas de una ruta activa; revise la asignacion",
+            )
+        route_id = rutas[0].id
 
     return RequestContext(
         user_id=usuario_id,

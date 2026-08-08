@@ -72,10 +72,20 @@ def obtener_cliente(
     ctx: RequestContext = Depends(get_request_context),
     db: Session = Depends(get_db),
 ):
-    cliente = db.query(Cliente).filter(
+    q = db.query(Cliente).filter(
         _uuid_eq(Cliente.id, cliente_id),
         _uuid_eq(Cliente.negocio_id, ctx.negocio_id),
-    ).first()
+    )
+    if ctx.is_cobrador():
+        # Aislamiento de ruta derivado via Credito (sin ruta_id en Cliente):
+        # el cobrador solo ve el cliente si tiene al menos un credito en su ruta.
+        q = q.join(
+            Credito,
+            _uuid_eq(Credito.cliente_id, Cliente.id),
+        ).filter(
+            _uuid_eq(Credito.ruta_id, ctx.route_id),
+        )
+    cliente = q.first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     return ClienteResponse.model_validate(cliente)

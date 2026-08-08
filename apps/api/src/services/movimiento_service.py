@@ -247,6 +247,20 @@ def register_movimiento(
         ).first()
         if not renovacion:
             raise MovimientoJornadaError("Renovación no encontrada o no pertenece al negocio")
+        # Aislamiento de ruta (cobrador): Renovacion no tiene ruta_id propia;
+        # la ruta se deriva de los créditos referenciados (viejo y nuevo).
+        if ctx.is_cobrador():
+            rutas_referenciadas = []
+            for cid in (renovacion.credito_viejo_id, renovacion.credito_nuevo_id):
+                if cid is None:
+                    continue
+                credito_ref = db.query(Credito).filter(
+                    _uuid_eq(Credito.id, cid),
+                ).first()
+                if credito_ref is not None:
+                    rutas_referenciadas.append(credito_ref.ruta_id)
+            if any(r != ctx.route_id for r in rutas_referenciadas):
+                raise MovimientoJornadaError("Renovación pertenece a otra ruta")
 
     # Check idempotencia — compare full payload
     if clave_idempotencia:

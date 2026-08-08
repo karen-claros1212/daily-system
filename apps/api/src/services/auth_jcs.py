@@ -22,6 +22,10 @@ from src.services.jcs import (
     VALID_ENVIRONMENTS,
     format_rfc3339_seconds,
     jcs_canonicalize,
+    validate_nonce,
+    validate_public_key_hash,
+    validate_rfc3339_seconds,
+    validate_uuid_lowercase,
 )
 
 PROTOCOL_VERSION = "daily-auth-v1"
@@ -60,6 +64,11 @@ def build_signed_payload(
         raise ValueError(f"purpose invalido: {purpose}")
     if environment not in VALID_ENVIRONMENTS:
         raise ValueError(f"environment invalido: {environment}")
+    validate_uuid_lowercase(challenge_id, "challenge_id")
+    validate_uuid_lowercase(device_id, "device_id")
+    validate_nonce(nonce)
+    validate_public_key_hash(public_key_hash)
+    validate_rfc3339_seconds(expires_at)
 
     obj = {
         "protocol_version": PROTOCOL_VERSION,

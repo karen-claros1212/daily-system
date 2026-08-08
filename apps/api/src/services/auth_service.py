@@ -269,6 +269,11 @@ def canjear_desafio(
     if _aware_utc(desafio.expira_el) < _now():
         desafio.consumido_el = _now()
         db.flush()
+        # La marca de consumo DEBE persistir aunque la request falle (410):
+        # get_db_transaction() hace rollback ante cualquier excepcion y la
+        # descartaria en produccion (el test SQLite lo enmascara al sustituir
+        # la dependencia transaccional). Commit explicito de la penalizacion.
+        db.commit()
         raise AuthError(
             "Desafio de sesion vencido",
             "CHALLENGE_VENCIDO",
@@ -313,6 +318,18 @@ def canjear_desafio(
     )
     if not usuario or usuario.activo != 1:
         raise AuthError("Usuario no activo", "USUARIO_INACTIVO", 401)
+    if usuario.negocio_id != dispositivo.negocio_id:
+        raise AuthError(
+            "El usuario del dispositivo pertenece a otro negocio",
+            "USUARIO_DE_OTRO_NEGOCIO",
+            401,
+        )
+    if usuario.rol != "COBRADOR":
+        raise AuthError(
+            "Los access tokens solo se emiten para cobradores",
+            "ROL_NO_PERMITIDO",
+            401,
+        )
 
     token_nuevo = issue_token(
         negocio_id=dispositivo.negocio_id,

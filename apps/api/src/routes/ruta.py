@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from src.auth.context import RequestContext
 from src.auth.deps import get_request_context
 from src.database import get_db, get_db_transaction
-from src.models import Negocio, Ruta
+from src.models import Negocio, Ruta, Usuario
 from src.schemas import RutaCreate, RutaResponse
 
 
@@ -31,9 +31,27 @@ def crear_ruta(
     db: WriteSession,
     ctx: RequestContext = Depends(get_request_context),
 ):
+    # Creacion de rutas es exclusiva del ADMINISTRADOR: el cobrador no puede
+    # asignarse rutas ni crear rutas con otro cobrador a cargo.
+    if not ctx.is_admin():
+        raise HTTPException(status_code=403, detail="Solo el administrador puede crear rutas")
+
     negocio = db.query(Negocio).filter(_uuid_eq(Negocio.id, ctx.negocio_id)).first()
     if not negocio:
         raise HTTPException(status_code=404, detail="Negocio no encontrado")
+
+    # No se confia en el tenant enviado por el cliente: el cobrador asignado
+    # debe existir, pertenecer al mismo negocio y tener rol COBRADOR.
+    cobrador_id = data.cobrador_id
+    if cobrador_id is not None:
+        cobrador = db.query(Usuario).filter(
+            _uuid_eq(Usuario.id, cobrador_id),
+            _uuid_eq(Usuario.negocio_id, ctx.negocio_id),
+        ).first()
+        if not cobrador or cobrador.rol != "COBRADOR":
+            raise HTTPException(status_code=400, detail="Cobrador no encontrado en este negocio o no tiene rol COBRADOR")
+        if cobrador.activo != 1:
+            raise HTTPException(status_code=400, detail="El cobrador no está activo")
 
     ruta = Ruta(
         negocio_id=ctx.negocio_id,
