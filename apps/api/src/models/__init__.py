@@ -657,3 +657,38 @@ class IntentoActivacion(Base):
     __table_args__ = (
         Index("ix_intento_codigo", "codigo_id"),
     )
+
+
+class DesafioAuth(Base):
+    """Desafio de sesion de UN SOLO USO (daily-auth-v1, D7-H2).
+
+    Creado en POST /api/auth/device/desafio; consumido en
+    POST /api/auth/device/canjear. Es el UNICO mecanismo que emite access
+    tokens ES256: el primer JWT post-activacion (autenticado con la credencial
+    bootstrap) y todos los posteriores (autenticado con el JWT vigente).
+
+    Single-use: `consumido_el` marca el uso; el replay del mismo challenge_id
+    devuelve 409 (decision explicita del proyecto). El servidor controla
+    `expira_el` (el dispositivo firma los bytes exactos emitidos por el
+    servidor, no una ventana que elija el cliente).
+    """
+
+    __tablename__ = "desafio_auth"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    dispositivo_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("dispositivo.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    nonce = Column(String(64), nullable=False)
+    public_key_hash = Column(String(64), nullable=False)
+    expira_el = Column(DateTime(timezone=True), nullable=False)
+    consumido_el = Column(DateTime(timezone=True))
+    creado_el = Column(DateTime(timezone=True), server_default=func.now())
+
+    dispositivo = relationship("Dispositivo")
+
+    __table_args__ = (
+        Index("ix_desafio_auth_dispositivo", "dispositivo_id"),
+    )

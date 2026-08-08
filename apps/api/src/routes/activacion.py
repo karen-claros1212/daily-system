@@ -1,9 +1,14 @@
-"""Activation routes — Contrato de activacion (Bloque 6).
+"""Activation routes — Contrato de activacion (Bloque 6) + sesion (Bloque 7).
 
+Activacion:
 - POST /api/activaciones/codigos   (ADMINISTRADOR)   genera codigo de un solo uso
 - POST /api/activaciones/desafio   (publico, sin token de sesion)
 - POST /api/activaciones/canjear   (publico, sin token de sesion)
 - GET  /api/mobile/bootstrap       (credencial bootstrap emitida en el canje)
+
+Sesion daily-auth-v1 (D7-H2, sustituye a /api/mobile/auth/renovar):
+- POST /api/auth/device/desafio   (Bearer JWT vigente o credencial bootstrap)
+- POST /api/auth/device/canjear   (verifica firma JCS y emite access token)
 
 Los endpoints publicos NO aceptan negocio_id/cobrador_id/ruta_id/rol/estado:
 el servidor deriva todo desde el codigo (regla del body publico, seccion 4).
@@ -19,14 +24,15 @@ from src.auth.deps import get_request_context
 from src.database import get_db, get_db_transaction
 from src.schemas import (
     BootstrapResponse,
+    CanjearDesafioRequest,
+    CanjearDesafioResponse,
     CanjearRequest,
     CanjearResponse,
     CodigoActivacionCreate,
     CodigoActivacionResponse,
+    DesafioAuthResponse,
     DesafioRequest,
     DesafioResponse,
-    RenovarRequest,
-    RenovarResponse,
 )
 from src.services.activacion_service import (
     ActivacionError,
@@ -35,10 +41,15 @@ from src.services.activacion_service import (
     desafio,
     generar_codigo,
 )
-from src.services.auth_service import AuthError, renovar_sesion
+from src.services.auth_service import (
+    AuthError,
+    canjear_desafio as canjear_desafio_svc,
+    solicitar_desafio as solicitar_desafio_svc,
+)
 
 router = APIRouter(prefix="/api/activaciones", tags=["activaciones"])
 mobile_router = APIRouter(prefix="/api/mobile", tags=["mobile"])
+device_router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 WriteSession = Annotated[
     Session,
@@ -129,22 +140,42 @@ def mobile_bootstrap(
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
 
-@mobile_router.post("/auth/renovar", response_model=RenovarResponse)
-def renovar_token(
-    data: RenovarRequest,
+@device_router.post("/device/desafio", response_model=DesafioAuthResponse)
+def solicitar_desafio_sesion(
+    db: WriteSession,
+    authorization: str | None = Header(default=None),
+):
+    """Paso 1: crea un DesafioAuth de un solo uso (daily-auth-v1).
+
+    Autentica el dispositivo con el JWT de sesion vigente (Bearer) o, para el
+    PRIMER JWT post-activacion, con la credencial bootstrap emitida en el
+    canje. El servidor emite challenge_id + nonce CSPRNG + expira_el.
+    """
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Credencial de sesion (Bearer JWT o bootstrap) requerida",
+        )
+    credencial = authorization.split(" ", 1)[1].strip()
+    try:
+        return solicitar_desafio_svc(db, credencial)
+    except AuthError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
+
+@device_router.post("/device/canjear", response_model=CanjearDesafioResponse)
+def canjear_desafio_sesion(
+    data: CanjearDesafioRequest,
     db: WriteSession,
 ):
-    """Renueva el JWT de sesion por challenge-response (daily-auth-v1).
+    """Paso 2: verifica la firma JCS del desafio y consume, en una transaccion.
 
-    Requiere el JWT vigente + firma JCS del payload firmada con la clave
-    privada del dispositivo (Android Keystore). Sin refresh token.
+    Single-use: el replay del mismo challenge_id devuelve 409. Emite el access
+    token ES256 con el version_asignacion ACTUAL de la base.
     """
     try:
-        return renovar_sesion(
-            db,
-            token=data.token,
-            firma=data.firma,
-            expires_at=data.expires_at,
+        return canjear_desafio_svc(
+            db, challenge_id=data.challenge_id, firma=data.firma
         )
     except AuthError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)

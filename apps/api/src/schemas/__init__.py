@@ -420,15 +420,21 @@ class CanjearResponse(BaseModel):
     idempotente: bool = False
 
 
-class RenovarRequest(BaseModel):
-    token: str = Field(..., min_length=1, max_length=4096)
+class DesafioAuthResponse(BaseModel):
+    challenge_id: UUID
+    nonce: str
+    expira_el: str
+    environment: str
+
+
+class CanjearDesafioRequest(BaseModel):
+    challenge_id: UUID
     firma: str = Field(..., min_length=1, max_length=1024)
-    expires_at: str = Field(..., description="RFC 3339 que el dispositivo firmo")
 
     model_config = {"extra": "forbid"}
 
 
-class RenovarResponse(BaseModel):
+class CanjearDesafioResponse(BaseModel):
     token: str
     negocio_id: UUID
     usuario_id: UUID

@@ -13,6 +13,23 @@ os.environ.setdefault("DAILY_ENV", "test")
 os.environ.setdefault("API_DATABASE_URL", "sqlite:///:memory:")
 IS_SQLITE = os.environ["API_DATABASE_URL"].startswith("sqlite")
 
+# Claves ES256 de prueba para el JWT productivo (D7-H1): se generan una vez y
+# se exponen por env para todo el proceso pytest. Fail-closed en codigo: sin
+# estas variables, emitir/validar tokens lanza TokenConfigError.
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+
+_TEST_KEY = ec.generate_private_key(ec.SECP256R1())
+os.environ["AUTH_JWT_PRIVATE_KEY"] = _TEST_KEY.private_bytes(
+    serialization.Encoding.PEM,
+    serialization.PrivateFormat.PKCS8,
+    serialization.NoEncryption(),
+).decode("ascii")
+os.environ["AUTH_JWT_PUBLIC_KEY"] = _TEST_KEY.public_key().public_bytes(
+    serialization.Encoding.PEM,
+    serialization.PublicFormat.SubjectPublicKeyInfo,
+).decode("ascii")
+
 
 @compiles(UUID, "sqlite")
 def _compile_uuid_sqlite(type_, compiler, **kw):
@@ -37,6 +54,7 @@ from src.models import (  # noqa: F401
     CodigoActivacion,
     Credito,
     CuotaProgramada,
+    DesafioAuth,
     Dispositivo,
     IntentoActivacion,
     Jornada,

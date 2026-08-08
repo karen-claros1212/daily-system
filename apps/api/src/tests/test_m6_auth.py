@@ -1,17 +1,21 @@
-"""M6 auth tests — Auth productiva JWT (Bloque 7, D7-01/02).
+"""M6 auth tests — Auth productiva JWT (Bloque 7, D7-01/D7-H1/D7-H2).
 
 Cubren:
-  - Emision/validacion de JWT: HS256, allow-list fija, payload minimo sin
-    role/route_id, jti unico por token (anti-replay), rechazo de tokens
-    firmados con alg distinto (alg-confusion) y de tokens manipulados.
+  - Emision/validacion de JWT ES256: allow-list fija, payload productivo
+    congelado (iss/aud/sub/negocio_id/device_id/public_key_hash/
+    version_asignacion/jti/iat/exp/typ/protocol_version), sin role/route_id,
+    jti unico por token (anti-replay), rechazo de alg-confusion (none, HS256,
+    RS256), de tokens firmados con otra clave ES256 y de claims de valor fijo
+    manipulados.
+  - Fail-closed: sin AUTH_JWT_PRIVATE_KEY no se emite ni se valida ningun
+    token (no hay secreto por defecto).
   - Derivacion de rol + ruta desde la BASE en cada request (no desde el JWT):
-    cobrador sin ruta activa -> 401; admin/root sin ruta -> ok.
-  - Revocacion/reemplazo con efecto inmediato: bump de version_asignacion
-    mata tokens vigentes aunque `exp` no haya llegado.
-  - Renovacion challenge-response JCS daily-auth-v1: firma valida renueva,
-    firma invalida 401, token viejo/expirado 401.
-  - Concurrencia real PostgreSQL: renovaciones simultaneas del mismo
-    dispositivo (requiere PG; se salta en SQLite).
+    cobrador sin ruta activa -> 401; revocacion/reemplazo con bump mata tokens
+    vigentes aunque `exp` no haya llegado.
+  - Desafio/canje de sesion JCS daily-auth-v1 (D7-H2): firma valida emite
+    access token, firma invalida 401, credencial invalida 401, challenge
+    inexistente 404, vencido 410 y REPLAY del mismo challenge_id -> 409.
+  - Primer JWT post-activacion autenticado con la credencial bootstrap.
 
 El payload JCS daily-auth-v1 es SEPARADO del protocolo de activacion
 (daily-v1): campos distintos, mismo motor canonico RFC 8785.
@@ -19,18 +23,25 @@ El payload JCS daily-auth-v1 es SEPARADO del protocolo de activacion
 
 import base64
 import hashlib
-import threading
+import os
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import jwt as pyjwt
 import pytest
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
-from src.auth.token import TokenError, decode_token, issue_token
-from src.models import Dispositivo, Negocio, Ruta, Usuario
-from src.services.auth_jcs import build_signed_payload
+from src.auth.token import (
+    TokenConfigError,
+    TokenError,
+    TokenInvalidError,
+    decode_token,
+    ensure_es256_configured,
+    issue_token,
+)
+from src.models import CodigoActivacion, Dispositivo, Negocio, Ruta, Usuario
+from src.services.auth_jcs import PURPOSE_ISSUE_ACCESS_TOKEN, build_signed_payload
 
 # === helpers criptograficos ===
 
@@ -113,6 +124,7 @@ def _token(escenario, dispositivo_activo, version=1, ttl=3600):
         negocio_id=escenario["negocio_id"],
         usuario_id=escenario["cobrador_id"],
         dispositivo_id=dispositivo_activo["dispositivo_id"],
+        public_key_hash=dispositivo_activo["public_key_hash"],
         version_asignacion=version,
         ttl_seconds=ttl,
     )
@@ -122,21 +134,47 @@ def _auth_header(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _claims_base(escenario, dispositivo_activo) -> dict:
+    """Claims validos para firmar tokens con pyjwt en tests de valores fijos."""
+    now = datetime.now(timezone.utc)
+    return {
+        "iss": "daily-system-api",
+        "aud": "daily-system-mobile",
+        "sub": str(escenario["cobrador_id"]),
+        "negocio_id": str(escenario["negocio_id"]),
+        "device_id": str(dispositivo_activo["dispositivo_id"]),
+        "public_key_hash": dispositivo_activo["public_key_hash"],
+        "version_asignacion": 1,
+        "jti": "x",
+        "iat": now,
+        "exp": now + timedelta(hours=1),
+        "typ": "access",
+        "protocol_version": "daily-auth-v1",
+    }
+
+
 # === token: emision y validacion ===
 
 
 class TestToken:
-    def test_payload_minimo_sin_role_ni_route(self, escenario, dispositivo_activo):
-        """El JWT NO lleva role ni route_id (autoridad geografica fuera del token)."""
+    def test_payload_productivo_congelado_sin_role_ni_route(self, escenario, dispositivo_activo):
+        """El JWT lleva el payload congelado y NO role ni route_id."""
         token = _token(escenario, dispositivo_activo)
         claims = decode_token(token)
         assert "role" not in claims
         assert "route_id" not in claims
+        assert claims["iss"] == "daily-system-api"
+        assert claims["aud"] == "daily-system-mobile"
+        assert claims["sub"] == str(escenario["cobrador_id"])
         assert claims["negocio_id"] == str(escenario["negocio_id"])
-        assert claims["usuario_id"] == str(escenario["cobrador_id"])
-        assert claims["dispositivo_id"] == str(dispositivo_activo["dispositivo_id"])
+        assert claims["device_id"] == str(dispositivo_activo["dispositivo_id"])
+        assert claims["public_key_hash"] == dispositivo_activo["public_key_hash"]
         assert claims["version_asignacion"] == 1
+        assert claims["typ"] == "access"
+        assert claims["protocol_version"] == "daily-auth-v1"
         assert claims.get("jti")
+        assert claims.get("iat")
+        assert claims.get("exp")
 
     def test_jti_unico_por_token(self, escenario, dispositivo_activo):
         """Dos tokens del mismo dispositivo no comparten jti (anti-replay)."""
@@ -145,25 +183,46 @@ class TestToken:
         assert t1["jti"] != t2["jti"]
 
     def test_alg_confusion_rechazado(self, escenario, dispositivo_activo):
-        """Token firmado con 'none' o un alg fuera de la allow-list se rechaza."""
-        claims = {
-            "negocio_id": str(escenario["negocio_id"]),
-            "usuario_id": str(escenario["cobrador_id"]),
-            "dispositivo_id": str(dispositivo_activo["dispositivo_id"]),
-            "version_asignacion": 1,
-            "jti": "x",
-            "iat": datetime.now(timezone.utc),
-            "exp": datetime.now(timezone.utc) + timedelta(hours=1),
-        }
+        """Token con alg 'none', 'HS256' o 'RS256' se rechaza (solo ES256)."""
+        claims = _claims_base(escenario, dispositivo_activo)
         # none: sin firma, jamas aceptado por la allow-list.
         t = pyjwt.encode(claims, None, algorithm="none")
         with pytest.raises(TokenError):
             decode_token(t)
-        # RS256: firmado con una clave real, rechazado porque solo HS256 existe.
+        # HS256: firmado con una clave simetrica, rechazado.
+        t = pyjwt.encode(claims, "any-symmetric-secret", algorithm="HS256")
+        with pytest.raises(TokenError):
+            decode_token(t)
+        # RS256: firmado con una clave real, rechazado porque solo ES256 existe.
         rsa_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         t = pyjwt.encode(claims, rsa_key, algorithm="RS256")
         with pytest.raises(TokenError):
             decode_token(t)
+
+    def test_firma_otra_clave_es256_rechazada(self, escenario, dispositivo_activo):
+        """Token firmado con OTRA clave ES256 (misma curva) -> firma invalida."""
+        claims = _claims_base(escenario, dispositivo_activo)
+        otra_priv = ec.generate_private_key(ec.SECP256R1())
+        t = pyjwt.encode(
+            claims,
+            otra_priv.private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.PKCS8,
+                serialization.NoEncryption(),
+            ),
+            algorithm="ES256",
+        )
+        with pytest.raises(TokenError):
+            decode_token(t)
+
+    def test_claims_valores_fijos_manipulados_rechazados(self, escenario, dispositivo_activo):
+        """typ/protocol_version distintos al congelado se rechazan."""
+        for campo, valor in (("typ", "refresh"), ("protocol_version", "daily-v1")):
+            claims = _claims_base(escenario, dispositivo_activo)
+            claims[campo] = valor
+            t = pyjwt.encode(claims, os.environ["AUTH_JWT_PRIVATE_KEY"], algorithm="ES256")
+            with pytest.raises(TokenInvalidError):
+                decode_token(t)
 
     def test_firma_manipulada_rechazada(self, escenario, dispositivo_activo):
         token = _token(escenario, dispositivo_activo)
@@ -176,6 +235,35 @@ class TestToken:
         token = _token(escenario, dispositivo_activo, ttl=-10)
         with pytest.raises(TokenError):
             decode_token(token)
+
+    def test_fail_closed_sin_claves(self, escenario, dispositivo_activo, monkeypatch):
+        """Sin AUTH_JWT_PRIVATE_KEY no se emite ni se valida (no hay fallback)."""
+        monkeypatch.delenv("AUTH_JWT_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("AUTH_JWT_PUBLIC_KEY", raising=False)
+        with pytest.raises(TokenConfigError):
+            issue_token(
+                negocio_id=escenario["negocio_id"],
+                usuario_id=escenario["cobrador_id"],
+                dispositivo_id=dispositivo_activo["dispositivo_id"],
+                public_key_hash=dispositivo_activo["public_key_hash"],
+                version_asignacion=1,
+            )
+        with pytest.raises(TokenConfigError):
+            decode_token("a.b.c")
+        with pytest.raises(TokenConfigError):
+            ensure_es256_configured()
+
+    def test_clave_privada_no_ec_rechazada(self, escenario, dispositivo_activo, monkeypatch):
+        """AUTH_JWT_PRIVATE_KEY que no es EC P-256 -> TokenConfigError."""
+        rsa_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        pem = rsa_key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        ).decode("ascii")
+        monkeypatch.setenv("AUTH_JWT_PRIVATE_KEY", pem)
+        with pytest.raises(TokenConfigError):
+            ensure_es256_configured()
 
 
 # === derivacion de rol y ruta desde la base ===
@@ -222,204 +310,161 @@ class TestDerivacionContexto:
         assert r.status_code == 401, r.text
 
 
-# === renovacion challenge-response JCS daily-auth-v1 ===
+# === desafio/canje de sesion JCS daily-auth-v1 ===
 
 
-class TestRenovacion:
-    def _payload_firma(self, token, dispositivo_activo, expires_at=None):
-        claims = decode_token(token)
-        exp = expires_at or _rfc3339_futura(5)
+class TestDesafioCanje:
+    def _desafio(self, client, credencial):
+        r = client.post("/api/auth/device/desafio", headers=_auth_header(credencial))
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    def _firma_desafio(self, desafio, dispositivo_activo) -> str:
         payload = build_signed_payload(
-            environment="development",
+            purpose=PURPOSE_ISSUE_ACCESS_TOKEN,
+            environment=desafio["environment"],
+            challenge_id=desafio["challenge_id"],
             device_id=str(dispositivo_activo["dispositivo_id"]),
-            nonce=claims["jti"],
+            nonce=desafio["nonce"],
             public_key_hash=dispositivo_activo["public_key_hash"],
-            expires_at=exp,
+            expires_at=desafio["expira_el"],
         )
-        firma = _sign(dispositivo_activo["private_key"], payload)
-        return payload, firma, exp
+        return _sign(dispositivo_activo["private_key"], payload)
 
-    def test_renovacion_valida_emite_token_nuevo(self, client, escenario, dispositivo_activo):
+    def test_desafio_canje_emite_token_nuevo(self, client, escenario, dispositivo_activo):
+        """Flujo completo: desafio con JWT vigente + firma JCS -> access token."""
         token = _token(escenario, dispositivo_activo)
-        _, firma, exp = self._payload_firma(token, dispositivo_activo)
+        desafio = self._desafio(client, token)
+        assert desafio["nonce"]
+        assert desafio["environment"] == "development"
+        assert desafio["expira_el"].endswith("Z")
+
+        firma = self._firma_desafio(desafio, dispositivo_activo)
         r = client.post(
-            "/api/mobile/auth/renovar",
-            json={"token": token, "firma": firma, "expires_at": exp},
+            "/api/auth/device/canjear",
+            json={"challenge_id": desafio["challenge_id"], "firma": firma},
         )
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["version_asignacion"] == 1
         nuevo = decode_token(body["token"])
-        assert nuevo["dispositivo_id"] == str(dispositivo_activo["dispositivo_id"])
+        assert nuevo["device_id"] == str(dispositivo_activo["dispositivo_id"])
+        assert nuevo["public_key_hash"] == dispositivo_activo["public_key_hash"]
         assert nuevo["jti"] != decode_token(token)["jti"]
 
-    def test_renovacion_firma_invalida_401(self, client, escenario, dispositivo_activo):
+    def test_replay_mismo_challenge_409(self, client, escenario, dispositivo_activo):
+        """Single-use: el replay del mismo challenge_id devuelve 409."""
         token = _token(escenario, dispositivo_activo)
-        claims = decode_token(token)
-        payload = build_signed_payload(
-            environment="development",
-            device_id=str(dispositivo_activo["dispositivo_id"]),
-            nonce=claims["jti"],
-            public_key_hash=dispositivo_activo["public_key_hash"],
-            expires_at=_rfc3339_futura(5),
-        )
+        desafio = self._desafio(client, token)
+        firma = self._firma_desafio(desafio, dispositivo_activo)
+        payload = {"challenge_id": desafio["challenge_id"], "firma": firma}
+
+        r1 = client.post("/api/auth/device/canjear", json=payload)
+        assert r1.status_code == 200, r1.text
+        r2 = client.post("/api/auth/device/canjear", json=payload)
+        assert r2.status_code == 409, r2.text
+
+    def test_canje_firma_invalida_401_no_consume(self, client, escenario, dispositivo_activo):
+        """Firma de OTRA clave -> 401; el desafio sigue util para el legitimo."""
+        token = _token(escenario, dispositivo_activo)
+        desafio = self._desafio(client, token)
         otra_priv, _, _ = _ec_keypair()
-        firma = _sign(otra_priv, payload)
-        r = client.post(
-            "/api/mobile/auth/renovar",
-            json={"token": token, "firma": firma, "expires_at": _rfc3339_futura(5)},
-        )
-        assert r.status_code == 401, r.text
-
-    def test_renovacion_token_expirado_401(self, client, escenario, dispositivo_activo):
-        """Token expirado no se renueva fuera de vigencia (aun con firma valida)."""
-        token_expirado = _token(escenario, dispositivo_activo, ttl=-10)
-        token_valido = _token(escenario, dispositivo_activo)
-        _, firma, exp = self._payload_firma(token_valido, dispositivo_activo)
-        r = client.post(
-            "/api/mobile/auth/renovar",
-            json={"token": token_expirado, "firma": firma, "expires_at": exp},
-        )
-        assert r.status_code == 401, r.text
-
-    def test_renovacion_expires_at_fuera_ventana_401(self, client, escenario, dispositivo_activo):
-        """expires_at demasiado lejano o en el pasado -> rechazado (limita replay)."""
-        token = _token(escenario, dispositivo_activo)
-        for lejos in (_rfc3339_futura(60), _rfc3339_futura(-5)):
-            _, firma, _ = self._payload_firma(token, dispositivo_activo, expires_at=lejos)
-            r = client.post(
-                "/api/mobile/auth/renovar",
-                json={"token": token, "firma": firma, "expires_at": lejos},
-            )
-            assert r.status_code == 401, r.text
-
-    def test_renovacion_version_desactualizada_401(self, client, db_session, escenario, dispositivo_activo):
-        """Revocacion entre emision y renovacion -> renovacion falla."""
-        token = _token(escenario, dispositivo_activo)
-        disp = db_session.get(Dispositivo, dispositivo_activo["dispositivo_id"])
-        disp.version_asignacion = 3
-        db_session.flush()
-        _, firma, exp = self._payload_firma(token, dispositivo_activo)
-        r = client.post(
-            "/api/mobile/auth/renovar",
-            json={"token": token, "firma": firma, "expires_at": exp},
-        )
-        assert r.status_code == 401, r.text
-
-
-# === concurrencia real PostgreSQL ===
-
-
-class TestRenovacionConcurrente:
-    def test_renovaciones_simultaneas_un_mismo_dispositivo(self):
-        """Dos renovaciones en paralelo del mismo dispositivo: ambas valen, una
-        sola fila, tokens nuevos con la misma version (la base manda)."""
-        from src.database import SessionLocal
-        from src.services.auth_service import renovar_sesion
-
-        dialect = SessionLocal().get_bind().dialect.name
-        if dialect != "postgresql":
-            pytest.skip("concurrencia real exige PostgreSQL (SELECT FOR UPDATE)")
-
-        nid, cob_id, r1_id = uuid4(), uuid4(), uuid4()
-        private_key, spki, pk_hash = _ec_keypair()
-        dev_id = uuid4()
-        s = SessionLocal()
-        try:
-            s.add(Negocio(id=nid, nombre="Neg", nit="1"))
-            s.add(Usuario(id=cob_id, negocio_id=nid, rol="COBRADOR", nombre="Cob"))
-            s.add(Ruta(id=r1_id, negocio_id=nid, nombre="R1", cobrador_id=cob_id, activa=1))
-            s.commit()
-        finally:
-            s.close()
-        s = SessionLocal()
-        try:
-            s.add(
-                Dispositivo(
-                    id=dev_id,
-                    negocio_id=nid,
-                    usuario_id=cob_id,
-                    public_key=spki,
-                    public_key_hash=pk_hash,
-                    algoritmo_clave="EC_P256",
-                    estado="ACTIVE",
-                    version_asignacion=1,
-                    activo=1,
-                )
-            )
-            s.commit()
-        finally:
-            s.close()
-
-        dispositivo_activo = {
-            "dispositivo_id": dev_id,
-            "private_key": private_key,
-            "public_key_hash": pk_hash,
-        }
-        escenario = {"negocio_id": nid, "cobrador_id": cob_id}
-        token = _token(escenario, dispositivo_activo)
-        claims = decode_token(token)
-        exp = _rfc3339_futura(5)
-        payload = build_signed_payload(
-            environment="development",
+        payload_firma = build_signed_payload(
+            purpose=PURPOSE_ISSUE_ACCESS_TOKEN,
+            environment=desafio["environment"],
+            challenge_id=desafio["challenge_id"],
             device_id=str(dispositivo_activo["dispositivo_id"]),
-            nonce=claims["jti"],
+            nonce=desafio["nonce"],
             public_key_hash=dispositivo_activo["public_key_hash"],
-            expires_at=exp,
+            expires_at=desafio["expira_el"],
+        )
+        firma_mala = _sign(otra_priv, payload_firma)
+        r = client.post(
+            "/api/auth/device/canjear",
+            json={"challenge_id": desafio["challenge_id"], "firma": firma_mala},
+        )
+        assert r.status_code == 401, r.text
+
+        firma_buena = self._firma_desafio(desafio, dispositivo_activo)
+        r = client.post(
+            "/api/auth/device/canjear",
+            json={"challenge_id": desafio["challenge_id"], "firma": firma_buena},
+        )
+        assert r.status_code == 200, r.text
+
+    def test_canje_challenge_inexistente_404(self, client, escenario, dispositivo_activo):
+        token = _token(escenario, dispositivo_activo)
+        self._desafio(client, token)
+        r = client.post(
+            "/api/auth/device/canjear",
+            json={"challenge_id": str(uuid4()), "firma": _sign(dispositivo_activo["private_key"], b"x")},
+        )
+        assert r.status_code == 404, r.text
+
+    def test_canje_challenge_vencido_410(self, client, db_session, escenario, dispositivo_activo):
+        """Desafio vencido -> 410 y se marca consumido."""
+        from src.models import DesafioAuth
+
+        token = _token(escenario, dispositivo_activo)
+        desafio = self._desafio(client, token)
+        fila = db_session.get(DesafioAuth, UUID(desafio["challenge_id"]))
+        assert fila is not None
+        vencido = datetime.now(timezone.utc) - timedelta(minutes=1)
+        fila.expira_el = vencido
+        db_session.flush()
+
+        payload = build_signed_payload(
+            purpose=PURPOSE_ISSUE_ACCESS_TOKEN,
+            environment=desafio["environment"],
+            challenge_id=desafio["challenge_id"],
+            device_id=str(dispositivo_activo["dispositivo_id"]),
+            nonce=desafio["nonce"],
+            public_key_hash=dispositivo_activo["public_key_hash"],
+            expires_at=desafio["expira_el"],
         )
         firma = _sign(dispositivo_activo["private_key"], payload)
-
-        resultados = []
-
-        def renovar_thread():
-            s = SessionLocal()
-            try:
-                r = renovar_sesion(s, token, firma, exp)
-                s.commit()
-                resultados.append(("ok", r.token))
-            except Exception as e:  # noqa: BLE001
-                s.rollback()
-                resultados.append(("err", type(e).__name__))
-            finally:
-                s.close()
-
-        t1 = threading.Thread(target=renovar_thread)
-        t2 = threading.Thread(target=renovar_thread)
-        t1.start()
-        t2.start()
-        t1.join()
-        t2.join()
-
-        ok = [r for r in resultados if r[0] == "ok"]
-        assert len(ok) == 2, resultados
-        tokens_nuevos = [r[1] for r in ok]
-        assert len(tokens_nuevos) == 2, "dos renovaciones, dos tokens (jti unico)"
-        versiones = {decode_token(t)["version_asignacion"] for t in tokens_nuevos}
-        assert versiones == {1}, "la base manda: misma version en ambos tokens"
-        dispositivos = {decode_token(t)["dispositivo_id"] for t in tokens_nuevos}
-        assert dispositivos == {str(dispositivo_activo["dispositivo_id"])}
-        dev_count = (
-            SessionLocal()
-            .query(Dispositivo)
-            .filter(Dispositivo.id == dispositivo_activo["dispositivo_id"])
-            .count()
+        r = client.post(
+            "/api/auth/device/canjear",
+            json={"challenge_id": desafio["challenge_id"], "firma": firma},
         )
-        assert dev_count == 1
+        assert r.status_code == 410, r.text
+        db_session.expire_all()
+        assert db_session.get(DesafioAuth, UUID(desafio["challenge_id"])).consumido_el is not None
 
-        s = SessionLocal()
-        try:
-            s.query(Dispositivo).filter(Dispositivo.id == dev_id).delete(
-                synchronize_session=False
-            )
-            s.query(Ruta).filter(Ruta.negocio_id == nid).delete(
-                synchronize_session=False
-            )
-            s.query(Usuario).filter(Usuario.negocio_id == nid).delete(
-                synchronize_session=False
-            )
-            s.query(Negocio).filter(Negocio.id == nid).delete(
-                synchronize_session=False
-            )
-            s.commit()
-        finally:
-            s.close()
+    def test_desafio_sin_credencial_401(self, client):
+        r = client.post("/api/auth/device/desafio")
+        assert r.status_code == 401, r.text
+
+    def test_desafio_credencial_invalida_401(self, client):
+        r = client.post("/api/auth/device/desafio", headers=_auth_header("garbage"))
+        assert r.status_code == 401, r.text
+
+    def test_desafio_bootstrap_credencial_primer_jwt(self, client, db_session, escenario, dispositivo_activo):
+        """El primer JWT post-activacion sale por la credencial bootstrap."""
+        bootstrap = "boot-credencial-test"
+        codigo = CodigoActivacion(
+            negocio_id=escenario["negocio_id"],
+            cobrador_id=escenario["cobrador_id"],
+            hash_codigo=hashlib.sha256(b"legacy").hexdigest(),
+            prefijo="legacy01",
+            expira_el=datetime.now(timezone.utc) + timedelta(minutes=5),
+            estado="CONSUMED",
+            consumido_el=datetime.now(timezone.utc),
+            dispositivo_id_canjeado=dispositivo_activo["dispositivo_id"],
+            credencial_bootstrap=bootstrap,
+            credencial_bootstrap_expira_el=datetime.now(timezone.utc) + timedelta(minutes=5),
+            creado_por=escenario["admin_id"],
+        )
+        db_session.add(codigo)
+        db_session.flush()
+
+        desafio = self._desafio(client, bootstrap)
+        firma = self._firma_desafio(desafio, dispositivo_activo)
+        r = client.post(
+            "/api/auth/device/canjear",
+            json={"challenge_id": desafio["challenge_id"], "firma": firma},
+        )
+        assert r.status_code == 200, r.text
+        nuevo = decode_token(r.json()["token"])
+        assert nuevo["device_id"] == str(dispositivo_activo["dispositivo_id"])
+        assert nuevo["sub"] == str(escenario["cobrador_id"])

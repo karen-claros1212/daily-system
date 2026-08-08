@@ -3,7 +3,7 @@
 Bloque 7 (D7-01): auth productiva por JWT firmado por el servidor.
 
 - El dependency lee el header `Authorization: Bearer <jwt>`.
-- Valida el JWT (HS256, allow-list fija) contra el secreto del servidor.
+- Valida el JWT (ES256, allow-list fija) contra la clave publica del servidor.
 - Deriva rol y ruta de la BASE en cada request (usuario.rol, ruta activa del
   cobrador): el JWT nunca lleva role ni route_id (autoridad geografica fuera
   del token y del cliente).
@@ -50,8 +50,8 @@ def _context_from_jwt(request: Request, db: Session) -> RequestContext:
         raise HTTPException(status_code=401, detail=str(e))
 
     negocio_id = UUID(claims["negocio_id"])
-    usuario_id = UUID(claims["usuario_id"])
-    dispositivo_id = UUID(claims["dispositivo_id"])
+    usuario_id = UUID(claims["sub"])
+    dispositivo_id = UUID(claims["device_id"])
     token_version = int(claims["version_asignacion"])
 
     dispositivo = (

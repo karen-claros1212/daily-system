@@ -31,6 +31,7 @@ from sqlalchemy.exc import IntegrityError
 from src.database import SessionLocal
 from src.models import (
     CodigoActivacion,
+    DesafioAuth,
     Dispositivo,
     IntentoActivacion,
     Negocio,
@@ -113,6 +114,13 @@ def _limpiar(negocio_id):
     """Borra el arbol del escenario (FK order; CASCADE en codigo->intento)."""
     s = SessionLocal()
     try:
+        s.query(DesafioAuth).filter(
+            DesafioAuth.dispositivo_id.in_(
+                s.query(Dispositivo.id).filter(
+                    Dispositivo.negocio_id == negocio_id
+                )
+            )
+        ).delete(synchronize_session=False)
         s.query(IntentoActivacion).filter(
             IntentoActivacion.codigo_id.in_(
                 s.query(CodigoActivacion.id).filter(
@@ -345,10 +353,11 @@ class TestReasignacionRuta:
             negocio_id=neg_id,
             usuario_id=cob_id,
             dispositivo_id=uuid4(),
+            public_key_hash=hashlib.sha256(b"pk").hexdigest(),
             version_asignacion=1,
         )
         claims = decode_token(token_viejo)
-        assert claims["usuario_id"] == str(cob_id)
+        assert claims["sub"] == str(cob_id)
 
         s = SessionLocal()
         try:
@@ -436,5 +445,108 @@ class TestConstraintDispositivoActive:
             with pytest.raises(IntegrityError):
                 s.commit()
             s.rollback()
+        finally:
+            s.close()
+
+
+class TestCanjeDesafioConcurrente:
+    def test_06_canje_desafio_concurrente_single_use(self, escenario_pg):
+        """Dos canjes del MISMO challenge en paralelo (D7-H2): un solo exito,
+        el segundo replay recibe CHALLENGE_YA_USADO (409). Un unico token."""
+        from src.services.auth_service import canjear_desafio, solicitar_desafio
+
+        private_key, spki, pk_hash = _ec_keypair()
+        dev_id = uuid4()
+        s = SessionLocal()
+        try:
+            s.add(
+                Dispositivo(
+                    id=dev_id,
+                    negocio_id=escenario_pg["negocio_id"],
+                    usuario_id=escenario_pg["cobrador_id"],
+                    public_key=spki,
+                    public_key_hash=pk_hash,
+                    algoritmo_clave="EC_P256",
+                    estado="ACTIVE",
+                    version_asignacion=1,
+                    activo=1,
+                )
+            )
+            s.commit()
+        finally:
+            s.close()
+
+        # Token de sesion para autenticar el desafio.
+        from src.auth.token import issue_token
+
+        token = issue_token(
+            negocio_id=escenario_pg["negocio_id"],
+            usuario_id=escenario_pg["cobrador_id"],
+            dispositivo_id=dev_id,
+            public_key_hash=pk_hash,
+            version_asignacion=1,
+        )
+
+        # Desafio COMMITEADO (visible a las transacciones concurrentes).
+        s = SessionLocal()
+        try:
+            desafio = solicitar_desafio(s, token)
+            s.commit()
+        finally:
+            s.close()
+
+        from src.services.auth_jcs import (
+            PURPOSE_ISSUE_ACCESS_TOKEN,
+            build_signed_payload,
+        )
+
+        payload = build_signed_payload(
+            purpose=PURPOSE_ISSUE_ACCESS_TOKEN,
+            environment=desafio.environment,
+            challenge_id=str(desafio.challenge_id),
+            device_id=str(dev_id),
+            nonce=desafio.nonce,
+            public_key_hash=pk_hash,
+            expires_at=desafio.expira_el,
+        )
+        firma = _sign(private_key, payload)
+
+        resultados = []
+
+        def canjear_thread():
+            s2 = SessionLocal()
+            try:
+                res = canjear_desafio(
+                    s2, challenge_id=desafio.challenge_id, firma=firma
+                )
+                s2.commit()
+                resultados.append(("ok", res.token))
+            except Exception as e:  # noqa: BLE001
+                s2.rollback()
+                resultados.append(("err", getattr(e, "code", type(e).__name__)))
+            finally:
+                s2.close()
+
+        t1 = threading.Thread(target=canjear_thread)
+        t2 = threading.Thread(target=canjear_thread)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        ok = [r for r in resultados if r[0] == "ok"]
+        replay = [r for r in resultados if r[0] == "err"]
+        assert len(ok) == 1, f"un solo canje exitoso: {resultados}"
+        assert any(r[1] == "CHALLENGE_YA_USADO" for r in replay), (
+            f"el segundo canje debe ser replay 409: {resultados}"
+        )
+        assert len({r[1] for r in ok}) == 1, "un unico token emitido"
+
+        # La fila quedo consumida una sola vez.
+        s = SessionLocal()
+        try:
+            fila = s.get(DesafioAuth, desafio.challenge_id)
+            assert fila is not None and fila.consumido_el is not None
+            assert s.query(DesafioAuth).count() == 1
         finally:
             s.close()
