@@ -319,11 +319,21 @@ def get_movimiento(
     movimiento_id: UUID,
     ctx: RequestContext,
 ) -> MovimientoCaja:
-    """Get a movement by ID with business isolation."""
-    movimiento = db.query(MovimientoCaja).filter(
+    """Get a movement by ID with business and route isolation."""
+    query = db.query(MovimientoCaja).filter(
         _uuid_eq(MovimientoCaja.id, movimiento_id),
         _uuid_eq(MovimientoCaja.negocio_id, ctx.negocio_id),
-    ).first()
+    )
+
+    if ctx.is_cobrador():
+        query = query.join(
+            Jornada,
+            _uuid_eq(Jornada.id, MovimientoCaja.jornada_id),
+        ).filter(
+            _uuid_eq(Jornada.ruta_id, ctx.route_id)
+        )
+
+    movimiento = query.first()
     if not movimiento:
         raise MovimientoNotFoundError("Movimiento no encontrado")
     return movimiento

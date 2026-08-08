@@ -66,6 +66,7 @@ def registrar_dispositivo(
             # Admin reactivation — explicit audit
             dispositivo.revocado_el = None
             dispositivo.activo = 1
+            dispositivo.estado = "ACTIVE"
             dispositivo.ultima_validacion_servidor = ahora
         else:
             # Existing active device — update metadata
@@ -78,7 +79,6 @@ def registrar_dispositivo(
         return dispositivo
     else:
         nuevo = Dispositivo(
-            id=UUID(int=hash(huella + str(negocio_id)) % (2**128)),
             negocio_id=negocio_id,
             huella=huella,
             modelo=modelo,
@@ -88,6 +88,7 @@ def registrar_dispositivo(
             autorizado_el=ahora,
             ultima_validacion_servidor=ahora,
             activo=1,
+            estado="ACTIVE",
         )
         db.add(nuevo)
         db.flush()
@@ -153,6 +154,8 @@ def revocar_dispositivo(
 
     dispositivo.revocado_el = datetime.now(timezone.utc)
     dispositivo.activo = 0
+    dispositivo.estado = "REVOKED"
+    dispositivo.version_asignacion = (dispositivo.version_asignacion or 1) + 1
     db.flush()
     return dispositivo
 
@@ -187,6 +190,8 @@ def reactivar_dispositivo(
 
     dispositivo.revocado_el = None
     dispositivo.activo = 1
+    dispositivo.estado = "ACTIVE"
+    dispositivo.version_asignacion = (dispositivo.version_asignacion or 1) + 1
     dispositivo.autorizado_el = datetime.now(timezone.utc)
     dispositivo.ultima_validacion_servidor = datetime.now(timezone.utc)
     db.flush()
@@ -206,3 +211,56 @@ def listar_dispositivos(
         .order_by(Dispositivo.creado_el.desc())
         .all()
     )
+
+
+def reemplazar_dispositivo(
+    db: Session,
+    dispositivo_id: UUID,
+    negocio_id: UUID,
+    autorizado_por: UUID,
+):
+    """Mark a device REPLACED and emit a new activation code for its cobrador.
+
+    Contrato seccion 4 (POST /api/dispositivos/{id}/reemplazar, ADMIN):
+    el dispositivo viejo queda REPLACED (la historia no se migra ni se borra)
+    y se emite un codigo nuevo para que el celular de reemplazo nazca ACTIVE.
+    """
+    dispositivo = (
+        db.query(Dispositivo)
+        .filter(
+            and_(
+                Dispositivo.id == dispositivo_id,
+                Dispositivo.negocio_id == negocio_id,
+            ),
+        )
+        .first()
+    )
+    if not dispositivo:
+        raise DispositivoError(
+            "Dispositivo no encontrado",
+            "DISPOSITIVO_NO_ENCONTRADO",
+        )
+    if not dispositivo.usuario_id:
+        raise DispositivoError(
+            "El dispositivo no tiene cobrador asignado para reemplazo",
+            "DISPOSITIVO_SIN_COBRADOR",
+        )
+    if dispositivo.estado == "REPLACED":
+        raise DispositivoError(
+            "El dispositivo ya fue reemplazado",
+            "DISPOSITIVO_REEMPLAZADO",
+        )
+
+    from src.services.activacion_service import generar_codigo
+
+    dispositivo.estado = "REPLACED"
+    dispositivo.activo = 0
+    dispositivo.version_asignacion = (dispositivo.version_asignacion or 1) + 1
+    codigo, token = generar_codigo(
+        db,
+        negocio_id=negocio_id,
+        cobrador_id=dispositivo.usuario_id,
+        creado_por=autorizado_por,
+    )
+    db.flush()
+    return dispositivo, codigo, token

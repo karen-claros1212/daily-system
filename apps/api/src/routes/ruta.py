@@ -63,6 +63,8 @@ def obtener_ruta(
     ctx: RequestContext = Depends(get_request_context),
     db: Session = Depends(get_db),
 ):
+    if ctx.is_cobrador() and not ctx.has_route(ruta_id):
+        raise HTTPException(status_code=404, detail="Ruta no encontrada")
     ruta = db.query(Ruta).filter(
         _uuid_eq(Ruta.id, ruta_id),
         _uuid_eq(Ruta.negocio_id, ctx.negocio_id),

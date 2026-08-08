@@ -2,21 +2,23 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import JSON as PostgreSQLJSON
 from sqlalchemy import (
+    JSON,
     CheckConstraint,
     Column,
     Date,
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -68,6 +70,7 @@ class Usuario(Base):
     creado_el = Column(DateTime(timezone=True), server_default=func.now())
 
     negocio = relationship("Negocio", back_populates="usuarios")
+    rutas = relationship("Ruta", back_populates="cobrador")
 
     __table_args__ = (
         CheckConstraint(
@@ -89,17 +92,25 @@ class Ruta(Base):
     nombre = Column(String(100), nullable=False)
     cobrador_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("usuario.id"),
+        ForeignKey("usuario.id", name="fk_ruta_cobrador"),
     )
     activa = Column(Integer, nullable=False, default=1)
     version = Column(Integer, nullable=False, default=1)
     creado_el = Column(DateTime(timezone=True), server_default=func.now())
 
     negocio = relationship("Negocio", back_populates="rutas")
+    cobrador = relationship("Usuario", back_populates="rutas")
     creditos = relationship("Credito", back_populates="ruta")
 
     __table_args__ = (
         UniqueConstraint("negocio_id", "nombre", name="uq_ruta_nombre_negocio"),
+        Index(
+            "uq_ruta_activa_cobrador",
+            "cobrador_id",
+            unique=True,
+            postgresql_where=text("activa = 1 AND cobrador_id IS NOT NULL"),
+            sqlite_where=text("activa = 1 AND cobrador_id IS NOT NULL"),
+        ),
     )
 
 
@@ -300,7 +311,7 @@ class Jornada(Base):
     actualizado_el = Column(DateTime(timezone=True), onupdate=func.now())
     apertura_idempotency_key = Column(String(100))
     cierre_idempotency_key = Column(String(100))
-    cierre_snapshot_json = Column(PostgreSQLJSON)
+    cierre_snapshot_json = Column(JSONB().with_variant(JSON(), "sqlite"))
     cierre_snapshot_hash = Column(String(64))
     cierre_version = Column(Integer, nullable=False, default=1)
     cerrada_por = Column(UUID(as_uuid=True))
@@ -394,11 +405,23 @@ class MovimientoCaja(Base):
     registrado_el_dispositivo = Column(DateTime(timezone=True))
     recibido_el_servidor = Column(DateTime(timezone=True))
     dispositivo_id = Column(UUID(as_uuid=True))
-    credito_id = Column(UUID(as_uuid=True), ForeignKey("credito.id"))
-    renovacion_id = Column(UUID(as_uuid=True), ForeignKey("renovacion.id"))
+    credito_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("credito.id", name="fk_movimiento_credito", ondelete="SET NULL"),
+    )
+    renovacion_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "renovacion.id", name="fk_movimiento_renovacion", ondelete="SET NULL"
+        ),
+    )
     ajuste_de_movimiento_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("movimiento_caja.id"),
+        ForeignKey(
+            "movimiento_caja.id",
+            name="fk_movimiento_ajuste",
+            ondelete="SET NULL",
+        ),
     )
 
     jornada = relationship("Jornada", back_populates="movimientos")
@@ -474,6 +497,17 @@ class Renovacion(Base):
 
 
 class Dispositivo(Base):
+    """El celular del cobrador. Nace en ACTIVE directamente del canje.
+
+    Ciclo de estados: ACTIVE -> REVOKED (revocacion) | REPLACED (reemplazo).
+    No existe PENDING_ACTIVATION ni EXPIRED: el dispositivo se CREA al canjear.
+
+    Expand-and-contract: la columna legacy `huella` se conserva (nullable) para
+    el registro administrativo previo; los dispositivos nacidos del canje usan
+    `public_key` (SPKI canonico) + `public_key_hash`. El contrato de activacion
+    (revision 4) no permite contraer (drop) de huella todavia.
+    """
+
     __tablename__ = "dispositivo"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -486,9 +520,14 @@ class Dispositivo(Base):
         UUID(as_uuid=True),
         ForeignKey("usuario.id"),
     )
-    huella = Column(String(64), nullable=False)
+    huella = Column(String(64))
+    public_key = Column(Text)
+    public_key_hash = Column(String(64))
+    algoritmo_clave = Column(String(20))
     modelo = Column(String(200))
     plataforma = Column(String(20))
+    estado = Column(String(20), nullable=False, default="ACTIVE")
+    version_asignacion = Column(Integer, nullable=False, default=1, server_default="1")
     autorizado_por = Column(UUID(as_uuid=True))
     autorizado_el = Column(DateTime(timezone=True))
     revocado_el = Column(DateTime(timezone=True))
@@ -500,8 +539,121 @@ class Dispositivo(Base):
 
     __table_args__ = (
         UniqueConstraint("negocio_id", "huella", name="uq_dispositivo_huella"),
+        Index(
+            "uq_dispositivo_public_key_hash",
+            "public_key_hash",
+            unique=True,
+            postgresql_where=text("public_key_hash IS NOT NULL"),
+            sqlite_where=text("public_key_hash IS NOT NULL"),
+        ),
+        Index(
+            "uq_dispositivo_activo_cobrador",
+            "usuario_id",
+            unique=True,
+            postgresql_where=text(
+                "estado = 'ACTIVE' AND usuario_id IS NOT NULL"
+            ),
+            sqlite_where=text(
+                "estado = 'ACTIVE' AND usuario_id IS NOT NULL"
+            ),
+        ),
+        CheckConstraint(
+            "estado IN ('ACTIVE', 'REVOKED', 'REPLACED')",
+            name="check_dispositivo_estado",
+        ),
         CheckConstraint(
             "plataforma IN ('android', 'ios', 'web', 'linux', 'windows', 'macos', 'other')",
             name="check_dispositivo_plataforma",
         ),
+    )
+
+
+class CodigoActivacion(Base):
+    """Codigo de un solo uso para activar un dispositivo (QR/admin).
+
+    El servidor guarda SOLO el digest SHA-256 del token; el token en claro se
+    entrega UNA vez al admin. Estados: PENDING -> CONSUMED | EXPIRED |
+    CANCELLED. `credencial_bootstrap` es la credencial de corta vigencia
+    devuelta en el canje (permite reintento idempotente con el mismo intento).
+    """
+
+    __tablename__ = "codigo_activacion"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    negocio_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("negocio.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    cobrador_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("usuario.id"),
+        nullable=False,
+    )
+    hash_codigo = Column(String(64), nullable=False)
+    prefijo = Column(String(8), nullable=False)
+    expira_el = Column(DateTime(timezone=True), nullable=False)
+    intentos_fallidos = Column(Integer, nullable=False, default=0)
+    estado = Column(String(20), nullable=False, default="PENDING")
+    consumido_el = Column(DateTime(timezone=True))
+    dispositivo_id_canjeado = Column(
+        UUID(as_uuid=True),
+        ForeignKey("dispositivo.id"),
+    )
+    credencial_bootstrap = Column(String(128))
+    credencial_bootstrap_expira_el = Column(DateTime(timezone=True))
+    creado_por = Column(UUID(as_uuid=True), ForeignKey("usuario.id"))
+    entregado_el = Column(DateTime(timezone=True))
+    creado_el = Column(DateTime(timezone=True), server_default=func.now())
+
+    intentos = relationship(
+        "IntentoActivacion",
+        back_populates="codigo",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_codigo_activacion_hash",
+            "hash_codigo",
+            unique=True,
+        ),
+        Index("ix_codigo_estado_expira", "estado", "expira_el"),
+        CheckConstraint(
+            "estado IN ('PENDING', 'CONSUMED', 'EXPIRED', 'CANCELLED')",
+            name="check_codigo_activacion_estado",
+        ),
+    )
+
+
+class IntentoActivacion(Base):
+    """Intento de canje de UN SOLO USO (challenge-response).
+
+    Creado en el desafio (no consume el codigo). Contiene el `nonce` CSPRNG
+    (>= 32 bytes, base64url sin padding) y la clave publica SPKI del par que
+    firmara el nonce. `firma_validada_el`/`consumido_el` marcan el uso unico.
+    """
+
+    __tablename__ = "intento_activacion"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    codigo_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("codigo_activacion.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    nonce = Column(String(64), nullable=False)
+    clave_publica = Column(Text, nullable=False)
+    public_key_hash = Column(String(64), nullable=False)
+    modelo = Column(String(200))
+    plataforma = Column(String(20))
+    expira_el = Column(DateTime(timezone=True), nullable=False)
+    firma_validada_el = Column(DateTime(timezone=True))
+    consumido_el = Column(DateTime(timezone=True))
+    creado_el = Column(DateTime(timezone=True), server_default=func.now())
+
+    codigo = relationship("CodigoActivacion", back_populates="intentos")
+
+    __table_args__ = (
+        Index("ix_intento_codigo", "codigo_id"),
     )

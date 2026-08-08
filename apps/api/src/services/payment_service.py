@@ -12,7 +12,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from src.auth.context import RequestContext
-from src.models import Credito, CuotaProgramada, Negocio, Pago
+from src.models import Credito, CuotaProgramada, Jornada, Negocio, Pago
 from src.services.hoja_viva_service import today_bogota
 
 BOGOTA_TZ = timezone(timedelta(hours=-5))
@@ -147,6 +147,20 @@ def register_payment(
     # Validate cobrador route access
     _validate_credito_access(db, credito, ctx)
 
+    # Validate jornada belongs to negocio and same route as the credit
+    jornada_id = data.get("jornada_id")
+    if jornada_id:
+        jornada = db.query(Jornada).filter(
+            _uuid_eq(Jornada.id, jornada_id),
+            _uuid_eq(Jornada.negocio_id, negocio_id),
+        ).first()
+        if not jornada:
+            raise PaymentError("Jornada no encontrada")
+        if jornada.ruta_id != credito.ruta_id:
+            raise PaymentRouteError("El crédito y la jornada no pertenecen a la misma ruta")
+        if ctx.is_cobrador() and not ctx.has_route(jornada.ruta_id):
+            raise PaymentRouteError("La jornada no pertenece a tu ruta")
+
     # Check idempotency
     existing = _check_idempotency(
         db, negocio_id, clave_idempotencia, credito_id, monto
@@ -159,7 +173,7 @@ def register_payment(
         id=__import__("uuid").uuid4(),
         negocio_id=negocio_id,
         credito_id=credito_id,
-        jornada_id=data.get("jornada_id"),
+        jornada_id=jornada_id,
         tipo="PAYMENT",
         monto=monto,
         cobrador_id=ctx.user_id,
@@ -299,6 +313,7 @@ def reverse_payment(
         id=__import__("uuid").uuid4(),
         negocio_id=ctx.negocio_id,
         credito_id=original.credito_id,
+        jornada_id=original.jornada_id,
         tipo="REVERSAL",
         reversal_of_payment_id=pago_id,
         monto=original.monto,

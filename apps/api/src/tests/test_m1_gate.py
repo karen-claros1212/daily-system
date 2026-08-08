@@ -453,6 +453,8 @@ class TestPaymentTraceability:
 
     def test_payment_saves_traceability_fields(self, client, db_session):
         """PAYMENT row includes cobrador_id, dispositivo_id, jornada_id."""
+        from src.models import Jornada
+
         nid = uuid4()
         rid = uuid4()
         cid = uuid4()
@@ -469,6 +471,10 @@ class TestPaymentTraceability:
             id=cr, negocio_id=nid, cliente_id=cid, ruta_id=rid,
             cuota=30000, n_cuotas=40, monto=1000000, total=1200000,
             periodicidad="DIARIO", fecha_inicio=date(2026, 7, 1), estado="ACTIVO",
+        ))
+        db_session.add(Jornada(
+            id=jid, negocio_id=nid, ruta_id=rid,
+            fecha=date(2026, 7, 1), estado="OPEN",
         ))
         db_session.commit()
 

@@ -1,11 +1,23 @@
 # STATUS — Daily System
 
 **Proyecto:** daily-system
-**Última actualización:** 2026-07-31
+**Última actualización:** 2026-08-06
 **Rama:** master
-**HEAD:** b6d48bb (M3.6.6-F + ruff linting)
+**HEAD:** 486d08b (código real vigente)
 **Repo:** https://github.com/karen-claros1212/daily-system
-**Commits:** 37
+
+> ## ⚠️ NOTA DE RECONCILIACIÓN (2026-08-06)
+>
+> Las secciones históricas de este archivo se conservan como historia. Los estados que NO se corresponden con el árbol real del repositorio están **DESACTUALIZADOS** y NO son evidencia de implementación:
+>
+> - **`apps/web` productiva: NO EXISTE** (carpeta vacía; `apps/` solo tiene `api` y `mobile`).
+> - **Panel inversionista productivo: NO EXISTE.** El material web es un prototipo estático `design/prototypes/web/` (MOCK visual).
+> - **Bot Telegram (cobrador/inversionista): NO EXISTE** (`apps/telegram-bot/` no está en el árbol).
+> - **Bot en móvil: PROHIBIDO.** Cualquier bot futuro es exclusivamente administrativo.
+>
+> **Estado oficial (2026-08-06):** Backend en desarrollo, Bloques 1–6 PASS (activación/contrato §4-§10 implementado y verificado) · Móvil implementado y probado, activación/sync pendientes · Web productiva PENDIENTE · Prototipo web MOCK visual · Blueprint web IMPLEMENTADO · Stack web APROBADO (Next.js 14 + TypeScript + Tailwind + shadcn/ui) · Autenticación web PENDIENTE · Integración API web PENDIENTE · Bot administrativo FUTURO.
+>
+> **La evidencia real del repositorio y las pruebas prevalece sobre estados históricos incorrectos.**
 
 ---
 
@@ -16,9 +28,9 @@
 | **Estado general** | M0-M3 completos, M2 gate finalizado |
 | **Hito actual** | M3.6.6-F — Visual Alpha Premium + Offline Alpha |
 | **Progreso total** | M0: 22/22 ✅, M1: 8/8 ✅, M2: 6/6 ✅, M3: 6/6 ✅ |
-| **Tests pasando** | 138/138 |
+| **Tests pasando** | 181/181 + 1 skip (SQLite; concurrencia PG evidenciada aparte) |
 | **PostgreSQL** | Corriendo (cobro-postgres, Docker) |
-| **Alembic** | head = m3_dispositivo (aplicado) |
+| **Alembic** | head = m5_dispositivo_activacion (aplicado; `alembic check` limpio) |
 | **ruff** | 0 errors (130 UP045 auto-fixed) |
 | **Documento maestro** | docs/DOCUMENTO-MAESTRO-Plataforma-Cobro-Colombia-v1.3-CERRADO.md |
 
@@ -101,18 +113,17 @@
 
 ## Hito M3 — Suscripción, Telegram e inversionista ✅
 
-**Estado:** COMPLETADO
-**Progreso:** 6/6 (100%)
+**Estado:** COMPLETADO (suscripciones) · **DESACTUALIZADO** (telegram/panel web — ver nota de reconciliación arriba)
 
 ### Entregables
 
 | # | Requisito | Estado | Commit |
 |---|---|---|---|
 | M3.1 | Planes y suscripciones | ✅ | 871d1de |
-| M3.2 | Bot Telegram (cobrador) | ✅ | 871d1de |
-| M3.3 | Bot Telegram (inversionista) | ✅ | 871d1de |
-| M3.4 | Panel inversionista (web) | ✅ | 871d1de |
-| M3.5 | Reporte diario automático | ✅ | 871d1de |
+| M3.2 | Bot Telegram (cobrador) | ⚠️ DESACTUALIZADO — no existe en el árbol real | 871d1de |
+| M3.3 | Bot Telegram (inversionista) | ⚠️ DESACTUALIZADO — no existe en el árbol real | 871d1de |
+| M3.4 | Panel inversionista (web) | ⚠️ DESACTUALIZADO — `apps/web` vacía; solo prototipo estático | 871d1de |
+| M3.5 | Reporte diario automático | ⚠️ DESACTUALIZADO — no existe en el árbol real | 871d1de |
 | M3.6 | Límite de rutas por plan | ✅ | e44b09e |
 
 ### Notas M3

@@ -22,6 +22,7 @@ from src.services.dispositivo_service import (
     DispositivoError,
     listar_dispositivos,
     reactivar_dispositivo,
+    reemplazar_dispositivo,
     registrar_dispositivo,
     revocar_dispositivo,
     validar_dispositivo,
@@ -41,11 +42,17 @@ def registrar(
     db: WriteSession,
     ctx: RequestContext = Depends(get_request_context),
 ):
-    """Register a new device for the negocio (from ctx).
+    """Register a new device for the negocio (ADMINISTRADOR only).
 
-    Checks device state first (returns 409 if revoked and non-admin),
-    then checks admin role for new devices.
+    Contrato seccion 9 (riesgo "POST /api/dispositivos no exige admin"):
+    la creacion de dispositivo es SOLO via canje de codigo admin-generado o
+    registro administrativo; un COBRADOR nunca crea dispositivos (403).
     """
+    if not ctx.is_admin():
+        raise HTTPException(
+            status_code=403,
+            detail="Solo ADMINISTRADOR puede registrar dispositivos",
+        )
     try:
         dispositivo = registrar_dispositivo(
             db=db,
@@ -53,8 +60,8 @@ def registrar(
             huella=data.huella,
             modelo=data.modelo,
             plataforma=data.plataforma,
-            user_id=ctx.user_id,
-            is_admin=ctx.is_admin(),
+            user_id=None,
+            is_admin=True,
         )
         return DispositivoResponse.model_validate(dispositivo)
     except DispositivoError as e:
@@ -113,5 +120,31 @@ def reactivar(
     try:
         dispositivo = reactivar_dispositivo(db, dispositivo_id, ctx.negocio_id, ctx.user_id)
         return DispositivoResponse.model_validate(dispositivo)
+    except DispositivoError as e:
+        raise HTTPException(status_code=404, detail=e.detail)
+
+
+@router.post("/{dispositivo_id}/reemplazar")
+def reemplazar(
+    dispositivo_id: UUID,
+    db: WriteSession,
+    ctx: RequestContext = Depends(get_request_context),
+):
+    """Mark a device REPLACED and emit a new activation code (ADMIN only)."""
+    if not ctx.is_admin():
+        raise HTTPException(status_code=403, detail="Solo ADMINISTRADOR puede reemplazar dispositivos")
+    try:
+        dispositivo, codigo, token = reemplazar_dispositivo(
+            db, dispositivo_id, ctx.negocio_id, ctx.user_id
+        )
+        return {
+            "dispositivo": DispositivoResponse.model_validate(dispositivo).model_dump(),
+            "nuevo_codigo": {
+                "codigo_id": codigo.id,
+                "token": token,
+                "prefijo": codigo.prefijo,
+                "expira_el": codigo.expira_el,
+            },
+        }
     except DispositivoError as e:
         raise HTTPException(status_code=404, detail=e.detail)

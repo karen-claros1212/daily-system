@@ -63,7 +63,11 @@ class TestDispositivo:
     def test_registrar_dispositivo_requiere_admin(
         self, client, db_session, negocio_con_suscripcion, route_id
     ):
-        """Registrar dispositivo con mismo huella revocado requiere ADMINISTRADOR."""
+        """Registrar dispositivo es SOLO ADMINISTRADOR (gate del contrato).
+
+        Contrato seccion 9: la creacion de dispositivo NO exige admin para
+        dispositivos nuevos es un riesgo cerrado — un COBRADOR nunca registra.
+        """
         huella = "admin_required_test"
         # First register as admin
         resp1 = client.post(
@@ -78,13 +82,13 @@ class TestDispositivo:
             f"/api/dispositivos/{dev_id}/revocar?negocio_id={negocio_con_suscripcion.id}&role=ADMINISTRADOR",
         )
 
-        # Try register as COBRADOR — should fail with 409 (revoked device)
+        # Try register as COBRADOR — should fail with 403 (admin-only gate)
         resp2 = client.post(
             f"/api/dispositivos?negocio_id={negocio_con_suscripcion.id}&role=COBRADOR&route_id={route_id}",
             json={"huella": huella},
         )
-        assert resp2.status_code == 409
-        assert "revocado" in resp2.json()["detail"].lower()
+        assert resp2.status_code == 403
+        assert "ADMINISTRADOR" in resp2.json()["detail"]
 
     def test_registrar_dispositivo_crea_entry(
         self, client, db_session, negocio_con_suscripcion
@@ -146,13 +150,13 @@ class TestDispositivo:
         assert resp2.status_code == 200
         assert resp2.json()["revocado_el"] is not None
 
-        # Try to register again as COBRADOR — should fail
+        # Try to register again as COBRADOR — admin-only gate, 403
         resp3 = client.post(
             f"/api/dispositivos?negocio_id={negocio_con_suscripcion.id}&role=COBRADOR&route_id={route_id}",
             json={"huella": huella},
         )
-        assert resp3.status_code == 409
-        assert "revocado" in resp3.json()["detail"].lower()
+        assert resp3.status_code == 403
+        assert "ADMINISTRADOR" in resp3.json()["detail"]
 
     def test_registrar_revocado_se_reactiva_con_admin(
         self, client, db_session, negocio_con_suscripcion
@@ -182,6 +186,43 @@ class TestDispositivo:
         assert resp3.status_code == 201
         assert resp3.json()["revocado_el"] is None
         assert resp3.json()["activo"] == 1
+
+    def test_dispositivo_id_es_uuid4_no_hash(
+        self, db_session, negocio_con_suscripcion
+    ):
+        """Defecto corregido: id ya NO se deriva de hash(huella+negocio).
+
+        Antes: UUID(int=hash(huella+negocio_id) % 2**128) — hash() es aleatorio
+        por proceso, no criptografico ni determinista, y podia producir hex
+        solo digitos que SQLite convertia a REAL y rompia el roundtrip.
+        Ahora: uuid4() (v4). Este test guarda ademas el roundtrip SQLite
+        del id tras reload (regresion del fix A original).
+        """
+        import uuid as _uuid
+
+        from src.services import dispositivo_service
+
+        huella = "hex_solo_digitos"
+        dev = dispositivo_service.registrar_dispositivo(
+            db_session,
+            negocio_id=negocio_con_suscripcion.id,
+            huella=huella,
+            is_admin=True,
+        )
+
+        assert dev.id.version == 4
+        assert dev.id != _uuid.UUID(
+            int=hash(huella + str(negocio_con_suscripcion.id)) % (2**128)
+        )
+
+        db_session.expire_all()
+        reloaded = (
+            db_session.query(Dispositivo)
+            .filter(Dispositivo.id == dev.id)
+            .first()
+        )
+        assert isinstance(reloaded.id, uuid.UUID)
+        assert reloaded.id == dev.id
 
     def test_reactivar_endpoint_explicito(
         self, client, db_session, negocio_con_suscripcion

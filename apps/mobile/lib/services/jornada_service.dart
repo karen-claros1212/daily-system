@@ -9,29 +9,49 @@ import 'caja_service.dart';
 import 'jornada_guard.dart';
 
 class JornadaService {
-  static Future<Jornada> abrirJornada(String rutaId, String cobradorId, String negocioId, int openingBase) async {
+  static Future<Jornada> abrirJornada(String rutaId, String cobradorId, String negocioId,
+      int openingBase, {String? fecha}) async {
     final db = await database;
-    final fecha = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final fechaDia = fecha ?? DateFormat('yyyy-MM-dd').format(DateTime.now());
 
     // Check for existing open jornada
     final existing = await db.query('jornada', where: 'fecha = ? AND estado = ? AND ruta_id = ?',
-        whereArgs: [fecha, 'OPEN', rutaId]);
+        whereArgs: [fechaDia, 'OPEN', rutaId]);
     if (existing.isNotEmpty) {
       throw Exception('Ya existe una jornada abierta para esta ruta hoy');
     }
+
+    // opening_carry(D) = sobrante_manana(D-1) de la jornada cerrada previa
+    final openingCarry = await _calcularCarry(db, rutaId, fechaDia);
 
     final jornada = Jornada(
       id: uid(),
       negocioId: negocioId,
       rutaId: rutaId,
       cobradorId: cobradorId,
-      fecha: fecha,
+      fecha: fechaDia,
       estado: 'OPEN',
       openingBase: openingBase,
+      openingCarry: openingCarry,
     );
 
     await db.insert('jornada', jornada.toMap());
     return jornada;
+  }
+
+  /// opening_carry(D) = sobrante_manana(D-1); 0 si no hay jornada cerrada el día anterior.
+  static Future<int> _calcularCarry(Database db, String rutaId, String fecha) async {
+    final f = DateTime.parse(fecha);
+    final ayer = DateFormat('yyyy-MM-dd')
+        .format(DateTime(f.year, f.month, f.day - 1));
+    final previas = await db.query('jornada',
+        columns: ['sobrante_manana'],
+        where: 'ruta_id = ? AND fecha = ? AND estado IN (?, ?)',
+        whereArgs: [rutaId, ayer, 'CLOSED_LOCAL_PENDING_SYNC', 'CLOSED_SYNCED'],
+        orderBy: 'fecha DESC',
+        limit: 1);
+    if (previas.isEmpty) return 0;
+    return previas.first['sobrante_manana'] as int? ?? 0;
   }
 
   static Future<Jornada?> getJornadaAbierta(String rutaId) async {
@@ -76,6 +96,7 @@ class JornadaService {
         'esperado': caja.efectivoEsperado,
         'diferencia': diferencia,
         'diferencia_motivo': diferenciaMotivo,
+        'sobrante_manana': contado,
         'cerrada_local_el': now,
       }, where: 'id = ?', whereArgs: [jornadaId]);
 

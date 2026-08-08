@@ -1,10 +1,13 @@
-import 'package:sqflite/sqflite.dart';
-import 'package:intl/intl.dart';
 import '../database/database.dart';
 
 class HojaVivaService {
-  static Future<List<Map<String, dynamic>>> getHojaViva(String rutaId, String negocioId) async {
+  static Future<List<Map<String, dynamic>>> getHojaViva(
+    String rutaId,
+    String negocioId, {
+    DateTime? reportDate,
+  }) async {
     final db = await database;
+    final reporte = reportDate ?? DateTime.now();
 
     // Get active credits for this route
     final creditos = await db.query('credito',
@@ -23,7 +26,7 @@ class HojaVivaService {
       if (clientesList.isEmpty) continue;
       final cliente = clientesList.first;
 
-      // Calculate pagos total for this credit
+      // Abono neto = Σ(PAYMENT) − Σ(REVERSAL) por crédito
       final pagosResult = await db.rawQuery('''
         SELECT COALESCE(SUM(
           CASE WHEN tipo = 'REVERSAL' THEN -monto ELSE monto END
@@ -31,25 +34,25 @@ class HojaVivaService {
         FROM pago
         WHERE credito_id = ?
       ''', [creditoId]);
-      final netPagos = (pagosResult.first['net_pagos'] as int?) ?? 0;
+      final abonoNeto = (pagosResult.first['net_pagos'] as int?) ?? 0;
 
-      // Calculate saldo pendiente
+      // Saldo = total − abono (canónica)
       final total = credito['total'] as int;
-      final saldoPendiente = total - netPagos;
+      final saldoPendiente = total - abonoNeto;
 
-      // Count paid cuotas
-      final cuotasPagadas = await _countCuotasPagadas(db, creditoId);
-
-      // Calculate pico (cuota * max(1, n_cuotas - cuotas_pagadas))
       final cuota = credito['cuota'] as int;
-      final nCuotas = credito['n_cuotas'] as int;
-      final pico = cuota * (nCuotas - cuotasPagadas).clamp(1, nCuotas);
 
-      // Calculate mora legacy
-      final mora = await _calcularMoraLegacy(db, creditoId);
+      // Cuotas pagadas = abono ÷ cuota (división entera, canónica)
+      final cuotasPagadas = abonoNeto ~/ cuota;
 
-      // Determine semaforo based on mora
-      final semaforo = _determinarSemaforo(mora, cuotasPagadas, nCuotas);
+      // Pico = abono mód cuota (canónica)
+      final pico = abonoNeto % cuota;
+
+      // Mora legacy = (reporte − 1 día − inicio).days − cuotas_pagadas, mínimo 0
+      final mora = calcularMoraLegacy(reporte, credito['fecha_inicio'] as String?, cuotasPagadas);
+
+      // Sin score real: el semáforo es siempre GRIS (canónica)
+      final semaforo = 'GRIS';
 
       clientes.add({
         'credito_id': creditoId,
@@ -60,7 +63,7 @@ class HojaVivaService {
         'mora_legacy': mora,
         'pico': pico,
         'cuotas_pagadas': cuotasPagadas,
-        'n_cuotas': nCuotas,
+        'n_cuotas': credito['n_cuotas'],
         'estado_credito': credito['estado'],
         'semaforo': semaforo,
         'total': total,
@@ -70,29 +73,18 @@ class HojaVivaService {
     return clientes;
   }
 
-  static Future<int> _countCuotasPagadas(Database db, String creditoId) async {
-    final results = await db.query('cuota_programada',
-        columns: ['COUNT(*)'],
-        where: 'credito_id = ? AND estado = ?',
-        whereArgs: [creditoId, 'PAGADO']);
-    return results.first['COUNT(*)'] as int;
-  }
-
-  static Future<int> _calcularMoraLegacy(Database db, String creditoId) async {
-    // Mora legacy: count overdue unpaid cuotas
-    final now = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final results = await db.rawQuery('''
-      SELECT COUNT(*) as mora
-      FROM cuota_programada
-      WHERE credito_id = ? AND estado = 'PENDIENTE' AND fecha_vencimiento < ?
-    ''', [creditoId, now]);
-    return results.first['mora'] as int;
-  }
-
-  static String _determinarSemaforo(int mora, int cuotasPagadas, int nCuotas) {
-    if (mora == 0 && cuotasPagadas > 0) return 'VERDE';
-    if (mora <= 2) return 'AMARILLO';
-    if (mora > 2) return 'ROJO';
-    return 'GRIS';
+  /// Mora legacy: (fecha_reporte − 1 día − inicia).days − cuotas_pagadas, mínimo 0.
+  ///
+  /// Cuenta días calendario corridos (sin excluir domingos ni festivos) y
+  /// descuenta cuotas pagadas, como define el documento maestro (Parte 4.1).
+  static int calcularMoraLegacy(DateTime reporte, String? fechaInicioStr, int cuotasPagadas) {
+    if (fechaInicioStr == null || fechaInicioStr.isEmpty) return 0;
+    final inicio = DateTime.parse(fechaInicioStr);
+    final reporteDay = DateTime(reporte.year, reporte.month, reporte.day);
+    final inicioDay = DateTime(inicio.year, inicio.month, inicio.day);
+    final ancla = reporteDay.subtract(const Duration(days: 1));
+    final diasCorridos = ancla.difference(inicioDay).inDays;
+    final mora = diasCorridos - cuotasPagadas;
+    return mora < 0 ? 0 : mora;
   }
 }

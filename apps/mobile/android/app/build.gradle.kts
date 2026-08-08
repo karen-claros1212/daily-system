@@ -23,6 +23,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     testOptions {
@@ -40,6 +41,12 @@ android {
 
 dependencies {
     implementation("androidx.core:core-splashscreen:1.0.1")
+    androidTestImplementation("androidx.test:runner:1.3.0")
+    androidTestImplementation("androidx.test:core-ktx:1.4.0")
+    androidTestImplementation("androidx.test.ext:junit:1.1.3")
+    androidTestImplementation("androidx.test:orchestrator:1.4.2")
+    androidTestUtil("androidx.test:orchestrator:1.4.2")
+    androidTestImplementation("io.flutter:flutter_embedding_debug:1.0.0-4c525dac5ebe5971c5708ef73558ed8edcf4a362")
 }
 
 kotlin {

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from src.auth.context import RequestContext
 from src.auth.deps import get_request_context
 from src.database import get_db, get_db_transaction
-from src.models import Cliente
+from src.models import Cliente, Credito
 from src.schemas import ClienteCreate, ClienteResponse
 
 
@@ -52,9 +52,17 @@ def listar_clientes(
     ctx: RequestContext = Depends(get_request_context),
     db: Session = Depends(get_db),
 ):
-    clientes = db.query(Cliente).filter(
+    q = db.query(Cliente).filter(
         _uuid_eq(Cliente.negocio_id, ctx.negocio_id)
-    ).all()
+    )
+    if ctx.is_cobrador():
+        q = q.join(
+            Credito,
+            _uuid_eq(Credito.cliente_id, Cliente.id),
+        ).filter(
+            _uuid_eq(Credito.ruta_id, ctx.route_id),
+        ).distinct()
+    clientes = q.all()
     return [ClienteResponse.model_validate(c) for c in clientes]
 
 

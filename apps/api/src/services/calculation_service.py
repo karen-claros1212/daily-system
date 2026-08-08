@@ -61,19 +61,31 @@ def calcular_caja(
     vales: list[int],
     gastos: list[int],
     ahorro: list[int],
+    entregas: list[int] | None = None,
+    recibidos: list[int] | None = None,
 ) -> dict:
     """
     Cadena de caja probada (Parte 4.3).
 
     Caso R4: 275 + 805 - 400 - 20 - 18 - 50 = 592
+
+    La fórmula completa del documento incluye transferencias de salida
+    (entregas) y transferencias de entrada (recibidos):
+      base + carry + recaudo + recibidos - desembolsos - vales - gastos - ahorro - entregas
     """
-    total_entradas = opening_base + opening_carry + recaudo_real
-    total_salidas = sum(desembolsos) + sum(vales) + sum(gastos) + sum(ahorro)
+    entregas = entregas or []
+    recibidos = recibidos or []
+    total_entradas = opening_base + opening_carry + recaudo_real + sum(recibidos)
+    total_salidas = (
+        sum(desembolsos) + sum(vales) + sum(gastos) + sum(ahorro) + sum(entregas)
+    )
     esperado = total_entradas - total_salidas
     return {
         "opening_base": opening_base,
         "opening_carry": opening_carry,
         "recaudo_real": recaudo_real,
+        "entregas": sum(entregas),
+        "recibidos": sum(recibidos),
         "total_entradas": total_entradas,
         "total_salidas": total_salidas,
         "esperado": esperado,

@@ -93,6 +93,8 @@ def obtener_jornada_activa(
     ctx: RequestContext = Depends(get_request_context),
     db: Session = Depends(get_db),
 ):
+    if ctx.is_cobrador() and not ctx.has_route(ruta_id):
+        raise HTTPException(status_code=404, detail="No hay jornada activa para esta ruta")
     jornada = get_active_jornada(
         db,
         ruta_id=ruta_id,

@@ -63,13 +63,9 @@ class _HojaVivaScreenState extends State<HojaVivaScreen> {
       Padding(
         padding: const EdgeInsets.all(16),
         child: Column(children: [
-          // Summary chips
+          // Summary chip: semáforo es GRIS hasta existir un score_snapshot real
           Row(children: [
-            Expanded(child: _chip(theme, 'VERDE', _clientes.where((c) => c['semaforo'] == 'VERDE').length, theme.colorScheme.secondary)),
-            const SizedBox(width: 8),
-            Expanded(child: _chip(theme, 'AMARILLO', _clientes.where((c) => c['semaforo'] == 'AMARILLO').length, theme.colorScheme.tertiary)),
-            const SizedBox(width: 8),
-            Expanded(child: _chip(theme, 'ROJO', _clientes.where((c) => c['semaforo'] == 'ROJO').length, theme.colorScheme.error)),
+            Expanded(child: _chip(theme, 'GRIS', _clientes.where((c) => !const {'VERDE', 'AMARILLO', 'ROJO'}.contains(c['semaforo'])).length, theme.colorScheme.onSurfaceVariant)),
           ]),
           const SizedBox(height: 16),
           // Client list

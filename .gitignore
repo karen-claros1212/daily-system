@@ -54,3 +54,4 @@ graphify-out/
 *.pem
 *.key
 *.p12
+apps/mobile/test/failures/

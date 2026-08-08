@@ -7,6 +7,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from src.routes.activacion import mobile_router
+from src.routes.activacion import router as activacion_router
 from src.routes.cliente import router as cliente_router
 from src.routes.credito import router as credito_router
 from src.routes.dispositivo import router as dispositivo_router
@@ -63,8 +65,19 @@ async def suscripcion_middleware(request: Request, call_next):
     if request.method not in ("POST", "PUT", "DELETE"):
         return await call_next(request)
 
-    # Extract negocio_id from query params (from get_request_context)
+    # Extract negocio_id from query params or Bearer JWT
     negocio_id = request.query_params.get("negocio_id")
+    if not negocio_id:
+        authorization = request.headers.get("authorization", "")
+        if authorization.lower().startswith("bearer "):
+            token = authorization.split(" ", 1)[1].strip()
+            try:
+                from src.auth.token import TokenError, decode_token
+
+                claims = decode_token(token)
+                negocio_id = claims.get("negocio_id")
+            except TokenError:
+                return await call_next(request)
     if not negocio_id:
         # No negocio_id in request — allow through (will be caught by endpoint)
         return await call_next(request)
@@ -129,6 +142,8 @@ app.include_router(hoja_viva_router)
 app.include_router(jornada_router)
 app.include_router(movimiento_router)
 app.include_router(dispositivo_router)
+app.include_router(activacion_router)
+app.include_router(mobile_router)
 app.include_router(inversionista_router)
 
 

@@ -5,6 +5,18 @@
 **Fecha:** 2026-07-31
 **Estado:** M0-M3 completos, M2 gate finalizado
 
+> ## ⚠️ NOTA DE RECONCILIACIÓN (2026-08-06) — estados históricos desactualizados
+>
+> Este documento se conserva como **historia**. Las siguientes afirmaciones están **DESACTUALIZADAS** y NO se presentan como evidencia de implementación real:
+>
+> - **`apps/web` productiva: NO EXISTE.** El árbol real del repositorio (`apps/`) contiene únicamente `api` y `mobile`. `apps/web` es una carpeta vacía.
+> - **Panel inversionista productivo: NO EXISTE.** El material web actual es un prototipo estático HTML/CSS en `design/prototypes/web/` (datos hardcodeados, sin JS/API/auth/build), declarado en `docs/web/WEB-UI-BLUEPRINT.md` como "Prototipo visual (no aplicación productiva)".
+> - **Bot Telegram productivo: NO EXISTE.** No hay `apps/telegram-bot/` en el árbol real.
+> - **La aplicación móvil del cobrador NO contiene bot.** Un bot, si se desarrolla, pertenece exclusivamente al entorno administrativo posterior. Bot en móvil: PROHIBIDO.
+>
+> **La evidencia real del repositorio y las pruebas prevalece sobre estados históricos incorrectos.**
+> Ver estado oficial en `docs/STATUS.md`, `DAILY-SYSTEM-CONTEXT-HANDOFF.md` y `DAILY-SYSTEM-ARCHIVO-MAESTRO-CONTINUIDAD-OPENCODE.md`.
+
 ---
 
 ## Hito M0 — Fundación ejecutable ✅
@@ -102,7 +114,9 @@
 
 ## Hito M3 — Suscripción, Telegram e inversionista ✅
 
-**Estado:** COMPLETADO
+> **NOTA DE RECONCILIACIÓN (2026-08-06):** las filas M3.2 (Bot cobrador), M3.3 (Bot inversionista), M3.4 (Panel web) y M3.5 (reporte automático) **NO corresponden a artefactos existentes en el repositorio actual** (`apps/telegram-bot/` y `apps/web/` no existen; `telegram_bot.py` no existe). Se conservan como registro histórico pero **no** como evidencia de implementación. Los únicos requisitos M3 verificables en el árbol real son los relacionados con suscripciones/planes (`suscripcion.py`, `negocio.py`). La corrección prevalece: véase la nota de reconciliación al inicio del documento.
+
+**Estado:** COMPLETADO (suscripciones) · **DESACTUALIZADO** (telegram/panel web — ver nota)
 **Dependencias:** M2 completo
 **Archivos:** `apps/api/src/routes/suscripcion.py`, `apps/telegram-bot/`, `apps/web/`
 **Pruebas:** 27/27 (M3 tests)

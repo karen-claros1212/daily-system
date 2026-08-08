@@ -358,7 +358,10 @@ class DispositivoResponse(BaseModel):
     id: UUID
     negocio_id: UUID
     usuario_id: UUID | None
-    huella: str
+    huella: str | None
+    public_key_hash: str | None
+    algoritmo_clave: str | None
+    estado: str
     modelo: str | None
     plataforma: str | None
     autorizado_por: UUID | None
@@ -369,6 +372,80 @@ class DispositivoResponse(BaseModel):
     creado_el: datetime
 
     model_config = {"from_attributes": True}
+
+
+# === Activacion (contrato de activacion, revision 4) ===
+
+class CodigoActivacionCreate(BaseModel):
+    cobrador_id: UUID
+    expira_minutos: int = Field(default=10, ge=1, le=1440)
+
+
+class CodigoActivacionResponse(BaseModel):
+    codigo_id: UUID
+    token: str
+    prefijo: str
+    expira_el: datetime
+
+
+class DesafioRequest(BaseModel):
+    token: str = Field(..., min_length=1, max_length=200)
+    clave_publica: str = Field(..., min_length=1, max_length=4096)
+    modelo: str | None = None
+    plataforma: str | None = None
+
+    model_config = {"extra": "forbid"}
+
+
+class DesafioResponse(BaseModel):
+    intento_id: UUID
+    nonce: str
+    expira_el: str
+    environment: str
+
+
+class CanjearRequest(BaseModel):
+    intento_id: UUID
+    firma: str = Field(..., min_length=1, max_length=1024)
+
+    model_config = {"extra": "forbid"}
+
+
+class CanjearResponse(BaseModel):
+    dispositivo_id: UUID
+    negocio_id: UUID
+    cobrador_id: UUID
+    credencial_bootstrap: str
+    expira_el: str
+    idempotente: bool = False
+
+
+class RenovarRequest(BaseModel):
+    token: str = Field(..., min_length=1, max_length=4096)
+    firma: str = Field(..., min_length=1, max_length=1024)
+    expires_at: str = Field(..., description="RFC 3339 que el dispositivo firmo")
+
+    model_config = {"extra": "forbid"}
+
+
+class RenovarResponse(BaseModel):
+    token: str
+    negocio_id: UUID
+    usuario_id: UUID
+    dispositivo_id: UUID
+    version_asignacion: int
+    expira_el: str
+
+
+class BootstrapResponse(BaseModel):
+    negocio_id: UUID
+    negocio_nombre: str
+    cobrador_id: UUID
+    cobrador_nombre: str
+    dispositivo_id: UUID
+    ruta_id: UUID
+    ruta_nombre: str
+    rol: str
 
 
 # === Suscripcion ===

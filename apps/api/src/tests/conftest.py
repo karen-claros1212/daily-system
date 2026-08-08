@@ -4,20 +4,41 @@ import os
 
 import pytest
 from sqlalchemy import create_engine
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
 
 # Ensure query-param auth works in tests
 os.environ.setdefault("DAILY_ENV", "test")
 os.environ.setdefault("API_DATABASE_URL", "sqlite:///:memory:")
+IS_SQLITE = os.environ["API_DATABASE_URL"].startswith("sqlite")
+
+
+@compiles(UUID, "sqlite")
+def _compile_uuid_sqlite(type_, compiler, **kw):
+    """Render postgresql.UUID as CHAR(32) on SQLite (test-only override).
+
+    SQLAlchemy renders postgresql.UUID as a bare "UUID" type on SQLite, which
+    has NUMERIC column affinity. A UUID whose hex digits are all 0-9 (produced
+    e.g. by the hash()-derived device ids) is then stored as a REAL number and
+    comes back as a float, breaking uuid.UUID(value). CHAR(32) gives TEXT
+    affinity so the hex string round-trips as text. Production/PostgreSQL is
+    untouched: this compiles() override only fires for the SQLite dialect used
+    by the test infrastructure.
+    """
+    return "CHAR(32)"
+
 
 from src.database import Base, get_db, get_db_transaction
 
 # Import models so they register with Base before tables are created
 from src.models import (  # noqa: F401
     Cliente,
+    CodigoActivacion,
     Credito,
     CuotaProgramada,
     Dispositivo,
+    IntentoActivacion,
     Jornada,
     MovimientoCaja,
     Negocio,
@@ -25,12 +46,13 @@ from src.models import (  # noqa: F401
     Ruta,
 )
 
-# Use in-memory SQLite for tests (no Docker needed)
-TEST_DATABASE_URL = "sqlite:///:memory:"
+# Use in-memory SQLite for tests by default; honor API_DATABASE_URL to run
+# the suite against a real PostgreSQL (concurrency gates of Bloque 7).
+TEST_DATABASE_URL = os.environ["API_DATABASE_URL"]
 
 engine = create_engine(
     TEST_DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    connect_args={"check_same_thread": False} if IS_SQLITE else {},
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -38,9 +60,21 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 @pytest.fixture(scope="session")
 def test_db():
     """Create test database schema."""
-    Base.metadata.create_all(bind=engine)
-    yield
-    Base.metadata.drop_all(bind=engine)
+    if IS_SQLITE:
+        Base.metadata.create_all(bind=engine)
+        yield
+        Base.metadata.drop_all(bind=engine)
+    else:
+        # PostgreSQL: schema comes from Alembic migrations (cobro_test).
+        # Truncate so the suite sees the same empty slate as the in-memory
+        # SQLite DB (tests assert on global row counts).
+        from sqlalchemy import text
+
+        tbl = ", ".join(sorted(Base.metadata.tables.keys()))
+        with engine.connect() as conn:
+            conn.execute(text(f"TRUNCATE TABLE {tbl} RESTART IDENTITY CASCADE"))
+            conn.commit()
+        yield
 
 
 @pytest.fixture(scope="function")
