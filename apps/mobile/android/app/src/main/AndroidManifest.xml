@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Requerido por el flujo productivo de auth/bootstrap (D7 bloque mobile). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="Daily System"
         android:name="${applicationName}"
