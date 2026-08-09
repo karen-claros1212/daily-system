@@ -33,6 +33,7 @@ from src.schemas import (
     DesafioAuthResponse,
     DesafioRequest,
     DesafioResponse,
+    SyncResponse,
 )
 from src.services.activacion_service import (
     ActivacionError,
@@ -50,6 +51,7 @@ from src.services.auth_service import (
 from src.services.auth_service import (
     solicitar_desafio as solicitar_desafio_svc,
 )
+from src.services.mobile_sync_service import sync_dataset
 
 router = APIRouter(prefix="/api/activaciones", tags=["activaciones"])
 mobile_router = APIRouter(prefix="/api/mobile", tags=["mobile"])
@@ -142,6 +144,29 @@ def mobile_bootstrap(
     """
     try:
         return bootstrap_productivo(db, ctx)
+    except AuthError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
+
+@mobile_router.get("/sync", response_model=SyncResponse)
+def mobile_sync(
+    db: Session = Depends(get_db),
+    ctx: Annotated[RequestContext, Depends(get_request_context_jwt)] = None,
+):
+    """Dataset completo de la ruta activa unica del cobrador (Bearer JWT).
+
+    El RequestContext revalida en CADA request el binding completo
+    (dispositivo ACTIVE, version_asignacion, usuario, negocio, public_key_hash)
+    y exige exactamente UNA ruta activa del cobrador (0 y >1 -> 401). El
+    servidor deriva negocio, cobrador, ruta y versiones desde la base: no se
+    aceptan negocio_id/route_id/rol por URL ni por body (aislamiento movil).
+    Devuelve en una sola respuesta los cinco datasets del primer sync
+    (clientes, creditos/cuotas, pagos, movimientos, jornadas) limitados a la
+    ruta activa unica; el movil los persiste por dataset en transacciones
+    locales separadas.
+    """
+    try:
+        return sync_dataset(db, ctx)
     except AuthError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 

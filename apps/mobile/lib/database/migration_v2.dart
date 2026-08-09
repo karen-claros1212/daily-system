@@ -11,6 +11,41 @@
 // 8. Tabla jornada_snapshot inmutable
 import 'package:sqflite/sqflite.dart';
 
+/// DDL de los triggers de guarda de jornada abierta, expuesto como constante
+/// para que el import de sync (offline sync) los pueda DROP/re-CREATE de forma
+/// atomica dentro de su propia transaccion.
+class TriggerGuardasJornada {
+  static const String pago = '''
+CREATE TRIGGER trg_pago_require_open_jornada
+BEFORE INSERT ON pago
+FOR EACH ROW
+WHEN NOT EXISTS (
+  SELECT 1
+  FROM jornada
+  WHERE id = NEW.jornada_id
+    AND estado = 'OPEN'
+)
+BEGIN
+  SELECT RAISE(ABORT, 'DS_JORNADA_NOT_OPEN');
+END;
+''';
+
+  static const String movimiento = '''
+CREATE TRIGGER trg_movimiento_require_open_jornada
+BEFORE INSERT ON movimiento
+FOR EACH ROW
+WHEN NOT EXISTS (
+  SELECT 1
+  FROM jornada
+  WHERE id = NEW.jornada_id
+    AND estado = 'OPEN'
+)
+BEGIN
+  SELECT RAISE(ABORT, 'DS_JORNADA_NOT_OPEN');
+END;
+''';
+}
+
 class MigrationV2 {
   static const int version = 2;
 
@@ -68,35 +103,9 @@ class MigrationV2 {
     await db.execute('DROP TRIGGER IF EXISTS trg_snapshot_no_update');
     await db.execute('DROP TRIGGER IF EXISTS trg_snapshot_no_delete');
 
-    await db.execute('''
-CREATE TRIGGER trg_pago_require_open_jornada
-BEFORE INSERT ON pago
-FOR EACH ROW
-WHEN NOT EXISTS (
-  SELECT 1
-  FROM jornada
-  WHERE id = NEW.jornada_id
-    AND estado = 'OPEN'
-)
-BEGIN
-  SELECT RAISE(ABORT, 'DS_JORNADA_NOT_OPEN');
-END;
-''');
+    await db.execute(TriggerGuardasJornada.pago);
 
-    await db.execute('''
-CREATE TRIGGER trg_movimiento_require_open_jornada
-BEFORE INSERT ON movimiento
-FOR EACH ROW
-WHEN NOT EXISTS (
-  SELECT 1
-  FROM jornada
-  WHERE id = NEW.jornada_id
-    AND estado = 'OPEN'
-)
-BEGIN
-  SELECT RAISE(ABORT, 'DS_JORNADA_NOT_OPEN');
-END;
-''');
+    await db.execute(TriggerGuardasJornada.movimiento);
 
     await db.execute('''
 CREATE TRIGGER trg_snapshot_no_update

@@ -39,6 +39,7 @@ class _RealHttpOverrides extends HttpOverrides {
 }
 
 const _jwtSesion = 'jwt-de-sesion-productiva';
+const _jwtRenovado = 'jwt-de-sesion-renovada';
 const _credencialBootstrap = 'bootstrap-credencial-1';
 
 const _desafioActivacion = {
@@ -64,15 +65,6 @@ const _desafioAuth = {
   'environment': 'development',
 };
 
-const _canjearAuth = {
-  'token': _jwtSesion,
-  'negocio_id': '44444444-5555-4666-8777-888888888888',
-  'usuario_id': '66666666-7777-4888-8999-000000000000',
-  'dispositivo_id': '33333333-4444-4555-8666-777777777777',
-  'version_asignacion': 3,
-  'expira_el': '2026-08-08T13:00:00Z',
-};
-
 const _bootstrap = {
   'negocio_id': '44444444-5555-4666-8777-888888888888',
   'negocio_nombre': 'Negocio Demo',
@@ -93,6 +85,7 @@ void main() {
   late String baseUrl;
   final ultimosHeaders = <String, String>{};
   final payloadsFirmados = <Uint8List>[];
+  var renovando = false;
 
   Future<void> responder(
     HttpRequest request,
@@ -141,10 +134,12 @@ void main() {
       if (method == 'POST' && path == '/api/auth/device/desafio') {
         final auth = request.headers.value(HttpHeaders.authorizationHeader) ?? '';
         ultimosHeaders['desafio-auth'] = auth;
-        if (auth != 'Bearer $_credencialBootstrap') {
+        if (auth != 'Bearer $_credencialBootstrap' &&
+            auth != 'Bearer $_jwtSesion') {
           await responder(request, 401, {'detail': 'CREDENCIAL_INVALIDA'});
           return;
         }
+        renovando = auth == 'Bearer $_jwtSesion';
         await responder(request, 200, _desafioAuth);
         return;
       }
@@ -156,14 +151,23 @@ void main() {
           await responder(request, 400, {'detail': 'FIRMA_INVALIDA'});
           return;
         }
-        await responder(request, 200, _canjearAuth);
+        await responder(request, 200, {
+          'token': renovando ? _jwtRenovado : _jwtSesion,
+          'negocio_id': '44444444-5555-4666-8777-888888888888',
+          'usuario_id': '66666666-7777-4888-8999-000000000000',
+          'dispositivo_id': '33333333-4444-4555-8666-777777777777',
+          'version_asignacion': 3,
+          'expira_el': renovando
+              ? '2026-08-08T14:00:00Z'
+              : '2026-08-08T13:00:00Z',
+        });
         return;
       }
 
       if (method == 'GET' && path == '/api/mobile/bootstrap') {
         final auth = request.headers.value(HttpHeaders.authorizationHeader) ?? '';
         ultimosHeaders['bootstrap'] = auth;
-        if (auth != 'Bearer $_jwtSesion') {
+        if (auth != 'Bearer $_jwtSesion' && auth != 'Bearer $_jwtRenovado') {
           await responder(request, 401, {'detail': 'AUTH_REQUERIDA'});
           return;
         }
@@ -205,6 +209,7 @@ void main() {
   setUp(() async {
     payloadsFirmados.clear();
     ultimosHeaders.clear();
+    renovando = false;
     FlutterSecureStorage.setMockInitialValues({});
     HttpOverrides.global = _RealHttpOverrides();
     await startServer();
@@ -292,7 +297,7 @@ void main() {
     test('con JWT devuelve la identidad operativa con la ruta unica asignada',
         () async {
       final client = buildClient();
-      await AuthTokenStore().guardarToken(_jwtSesion);
+      await AuthTokenStore().guardarSesion(_sesion(_jwtSesion));
 
       final identidad = await client.bootstrap();
 
@@ -312,7 +317,7 @@ void main() {
     test('credencial bootstrap usada como access token -> 401 y limpia sesion',
         () async {
       final client = buildClient();
-      await AuthTokenStore().guardarToken(_credencialBootstrap);
+      await AuthTokenStore().guardarSesion(_sesion(_credencialBootstrap));
 
       await expectLater(
         client.bootstrap(),
@@ -324,7 +329,7 @@ void main() {
 
     test('401 limpia la sesion (token) y se propaga', () async {
       final client = buildClient();
-      await AuthTokenStore().guardarToken('jwt-expirado-o-revocado');
+      await AuthTokenStore().guardarSesion(_sesion('jwt-expirado-o-revocado'));
 
       await expectLater(
         client.bootstrap(),
@@ -343,10 +348,73 @@ void main() {
     });
   });
 
+  group('DeviceAuthClient — renovacion de sesion (S0)', () {
+    test('renueva con el JWT vigente y persiste el token nuevo atomicamente',
+        () async {
+      final client = buildClient();
+      await AuthTokenStore().guardarSesion(_sesion(_jwtSesion));
+
+      final renovado = await client.renovarSesion();
+
+      expect(renovado.token, _jwtRenovado);
+      expect(ultimosHeaders['desafio-auth'], 'Bearer $_jwtSesion');
+      final store = AuthTokenStore();
+      expect(await store.leerToken(), _jwtRenovado);
+      expect(await store.leerExpiraEl(), '2026-08-08T14:00:00Z');
+      expect(await store.leerDispositivoId(), '33333333-4444-4555-8666-777777777777');
+
+      final payloadFirmado = payloadsFirmados.single;
+      expect(payloadFirmado, buildPayloadAuth(
+        purpose: 'issue_access_token',
+        environment: 'development',
+        challengeId: _desafioAuth['challenge_id'] as String,
+        deviceId: '33333333-4444-4555-8666-777777777777',
+        nonce: _desafioAuth['nonce'] as String,
+        publicKeyHash: _publicKeyHash(_spkiFixture),
+        expiresAt: _desafioAuth['expira_el'] as String,
+      ));
+    });
+
+    test('sin access token lanza NoSessionException', () async {
+      final client = buildClient();
+      await expectLater(
+        client.renovarSesion(),
+        throwsA(isA<NoSessionException>()),
+      );
+    });
+
+    test('un 401 de renovacion limpia la sesion (token) y se propaga',
+        () async {
+      final client = buildClient();
+      await AuthTokenStore().guardarSesion(_sesion('jwt-expirado-o-revocado'));
+
+      await expectLater(
+        client.renovarSesion(),
+        throwsA(isA<AuthApiException>()
+            .having((e) => e.es401, 'es401', isTrue)),
+      );
+      final store = AuthTokenStore();
+      expect(await store.leerToken(), isNull);
+      expect(await store.leerExpiraEl(), isNull);
+      expect(await store.leerDispositivoId(), isNull);
+    });
+
+    test('el token renovado se usa en el siguiente bootstrap', () async {
+      final client = buildClient();
+      await AuthTokenStore().guardarSesion(_sesion(_jwtSesion));
+      await client.renovarSesion();
+
+      final identidad = await client.bootstrap();
+
+      expect(ultimosHeaders['bootstrap'], 'Bearer $_jwtRenovado');
+      expect(identidad.rutaId, _bootstrap['ruta_id']);
+    });
+  });
+
   group('DeviceAuthClient — cierre de sesion', () {
     test('cerrarSesion borra el access token', () async {
       final client = buildClient();
-      await AuthTokenStore().guardarToken(_jwtSesion);
+      await AuthTokenStore().guardarSesion(_sesion(_jwtSesion));
       await client.cerrarSesion();
       expect(await AuthTokenStore().leerToken(), isNull);
     });
@@ -355,6 +423,17 @@ void main() {
 
 String _publicKeyHash(String spkiBase64) {
   return sha256.convert(base64Decode(spkiBase64)).toString();
+}
+
+CanjearAuth _sesion(String token) {
+  return CanjearAuth(
+    token: token,
+    negocioId: '44444444-5555-4666-8777-888888888888',
+    usuarioId: '66666666-7777-4888-8999-000000000000',
+    dispositivoId: '33333333-4444-4555-8666-777777777777',
+    versionAsignacion: 3,
+    expiraEl: '2026-08-08T13:00:00Z',
+  );
 }
 
 extension on CanjearActivacion {

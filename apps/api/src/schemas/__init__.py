@@ -89,6 +89,28 @@ class ClienteResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ClienteSyncResponse(BaseModel):
+    """Cliente para el sync del movil: expone las columnas que la tabla local
+    `cliente` del dispositivo puede conservar (ver lib/database/tables.dart).
+    """
+
+    id: UUID
+    negocio_id: UUID
+    primer_apellido: str
+    nombres: str
+    tipo_documento: str | None
+    documento_normalizado: str | None
+    telefono_1: str | None
+    direccion: str | None
+    barrio: str | None
+    ciudad: str | None
+    ocupacion: str | None
+    identity_status: str
+    creado_el: datetime
+
+    model_config = {"from_attributes": True}
+
+
 # --- Credito ---
 
 class CreditoCreate(BaseModel):
@@ -117,6 +139,19 @@ class CreditoResponse(BaseModel):
     residuo_redondeo: int
     version: int
     creado_el: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CuotaProgramadaResponse(BaseModel):
+    """Cuota del plan contractual de un credito, para el sync del movil."""
+
+    id: UUID
+    credito_id: UUID
+    numero: int
+    fecha_vencimiento: date
+    monto: int
+    estado: str
 
     model_config = {"from_attributes": True}
 
@@ -483,3 +518,33 @@ class InversionistaSummaryResponse(BaseModel):
     plan: str
     moneda: str
     zona_horaria: str
+
+
+# === Sync del movil (Bloque offline sync, S2) ===
+#
+# GET /api/mobile/sync devuelve TODO el dataset de la ruta activa unica del
+# cobrador en una sola respuesta (JWT-only, scope derivado por el servidor).
+# El movil escribe cada lista en su propia transaccion local (nada de
+# transaccion gigante) y nunca elige ruta ni envia route_id como autoridad.
+
+
+class SyncResponse(BaseModel):
+    """Dataset completo de la ruta activa del cobrador, para el primer sync.
+
+    El scope sale del RequestContext (JWT -> base), nunca de query/body:
+    clientes, creditos/cuotas, pagos, movimientos y jornadas quedan limitados
+    a la ruta activa unica del cobrador autenticado. ruta_version permite al
+    movil detectar una reasignacion (R1->R2) como resultado de un bootstrap
+    posterior; aqui es solo eco del servidor.
+    """
+
+    negocio_id: UUID
+    cobrador_id: UUID
+    ruta_id: UUID
+    ruta_version: int
+    clientes: list[ClienteSyncResponse]
+    creditos: list[CreditoResponse]
+    cuotas: list[CuotaProgramadaResponse]
+    pagos: list[PagoResponse]
+    movimientos: list[MovimientoResponse]
+    jornadas: list[JornadaResponse]

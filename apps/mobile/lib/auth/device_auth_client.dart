@@ -8,6 +8,14 @@
 //                           dispositivo, version_asignacion, ruta unica,
 //                           ruta_version)
 //
+// Mantenimiento de sesion (S0 — bloque offline sync):
+//   - renovarSesion() reutiliza los MISMOS endpoints /api/auth/device/desafio
+//     + /canjear con el JWT vigente como credencial (sin refresh token y sin
+//     una segunda arquitectura de auth).
+//   - Se renueva ~5 min antes de expira_el (guardado en AuthTokenStore).
+//   - El JWT nuevo se persiste de forma atomica con guardarSesion().
+//   - Un 401 de renovacion limpia la sesion (token) y se propaga.
+//
 // Reglas de contrato aplicadas aqui:
 //   - La credencial bootstrap NUNCA se reutiliza como access token.
 //   - El access token se guarda SOLO en secure storage (AuthTokenStore).
@@ -73,20 +81,75 @@ class DeviceAuthClient {
   /// Pasos 2-3: canjea una sesion productiva con la credencial bootstrap.
   /// Guarda el access token JWT en secure storage y lo devuelve.
   Future<CanjearAuth> canjearSesion(CanjearActivacion activacion) async {
+    final canje = await _desafiarYCanjear(
+      credencial: activacion.credencialBootstrap,
+      dispositivoId: activacion.dispositivoId,
+    );
+    await tokenStore.guardarSesion(canje);
+    return canje;
+  }
+
+  /// S0: renueva la sesion vigente ~5 min antes de expira_el.
+  ///
+  /// Reutiliza los MISMOS endpoints /api/auth/device/desafio + /canjear con el
+  /// JWT vigente como credencial (sin refresh token). El JWT nuevo se persiste
+  /// de forma atomica solo tras un canje exitoso. Sin access token lanza
+  /// NoSessionException; un 401 limpia la sesion y se propaga.
+  Future<CanjearAuth> renovarSesion() async {
+    final token = await tokenStore.leerToken();
+    if (token == null || token.isEmpty) {
+      throw const NoSessionException();
+    }
+    final dispositivoId = await tokenStore.leerDispositivoId();
+    if (dispositivoId == null || dispositivoId.isEmpty) {
+      throw const NoSessionException();
+    }
+    try {
+      final canje = await _desafiarYCanjear(
+        credencial: token,
+        dispositivoId: dispositivoId,
+      );
+      await tokenStore.guardarSesion(canje);
+      return canje;
+    } on AuthApiException catch (e) {
+      if (e.es401) {
+        await tokenStore.borrarToken();
+      }
+      rethrow;
+    }
+  }
+
+  /// Indica si la sesion requiere renovacion: no hay sesion o expira dentro
+  /// de [margen] (por defecto 5 minutos). Ignora un expira_el corrupto
+  /// tratandolo como "renovar ya".
+  Future<bool> requiereRenovacion({
+    Duration margen = const Duration(minutes: 5),
+  }) async {
+    final token = await tokenStore.leerToken();
+    if (token == null || token.isEmpty) return true;
+    final expiraEl = await tokenStore.leerExpiraEl();
+    if (expiraEl == null || expiraEl.isEmpty) return true;
+    final expira = DateTime.tryParse(expiraEl);
+    if (expira == null) return true;
+    return expira.difference(DateTime.now().toUtc()) <= margen;
+  }
+
+  Future<CanjearAuth> _desafiarYCanjear({
+    required String credencial,
+    required String dispositivoId,
+  }) async {
     final spki = await identity.getPublicKeySpki();
     final desafio = DesafioAuth.fromJson(await http.postJson(
       '/api/auth/device/desafio',
       body: const {},
-      token: activacion.credencialBootstrap,
+      token: credencial,
     ));
 
-    final firma = await _firmarAuth(desafio, activacion.dispositivoId, spki);
-    final canje = CanjearAuth.fromJson(await http.postJson(
+    final firma = await _firmarAuth(desafio, dispositivoId, spki);
+    return CanjearAuth.fromJson(await http.postJson(
       '/api/auth/device/canjear',
       body: {'challenge_id': desafio.challengeId, 'firma': firma},
     ));
-    await tokenStore.guardarToken(canje.token);
-    return canje;
   }
 
   /// Paso 4: obtiene la identidad operativa con el access token. Un 401
