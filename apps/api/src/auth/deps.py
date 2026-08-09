@@ -96,6 +96,7 @@ def _context_from_jwt(request: Request, db: Session) -> RequestContext:
         role=role,
         route_id=route_id,
         device_id=dispositivo_id,
+        version_asignacion=dispositivo.version_asignacion or 1,
     )
 
 
@@ -169,3 +170,20 @@ def get_request_context_optional(
         device_id=device_id,
         require_route=False,
     )
+
+
+def get_request_context_jwt(
+    request: Request,
+    db: DbSession,
+) -> RequestContext:
+    """Contexto SOLO por Bearer JWT (bootstrap productivo del movil).
+
+    El bootstrap nunca acepta autoridad desde query/body: ni en dev ni en
+    test el stub query-param vale para esta ruta. Sin JWT -> 401 directo.
+    """
+    if not request.headers.get("authorization"):
+        raise HTTPException(
+            status_code=401,
+            detail="Credencial de sesion (Bearer JWT) requerida",
+        )
+    return _context_from_jwt(request, db)

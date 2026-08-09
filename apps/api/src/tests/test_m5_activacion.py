@@ -33,6 +33,12 @@ from src.models import (
     Usuario,
 )
 from src.services.activacion_service import desafio
+from src.services.auth_jcs import (
+    PURPOSE_ISSUE_ACCESS_TOKEN,
+)
+from src.services.auth_jcs import (
+    build_signed_payload as build_auth_payload,
+)
 from src.services.jcs import PROTOCOL_VERSION, build_signed_payload
 
 # === helpers criptograficos ===
@@ -117,6 +123,36 @@ def _flujo_completo(client, token, private_key, spki, pk_hash):
     assert r.status_code == 200, r.text
     intento_id, firma = _firma_valida(r, private_key, pk_hash)
     return _canje(client, intento_id, firma)
+
+
+def _primer_jwt(client, credencial_bootstrap, dispositivo_id, private_key, pk_hash):
+    """Primer JWT de sesion: desafio + canje autenticado con la credencial.
+
+    La credencial bootstrap NO autentica el bootstrap productivo; su unica
+    funcion post-canje es obtener el primer access token (D7-H2).
+    """
+    r = client.post(
+        "/api/auth/device/desafio",
+        headers={"Authorization": f"Bearer {credencial_bootstrap}"},
+    )
+    assert r.status_code == 200, r.text
+    d = r.json()
+    payload = build_auth_payload(
+        purpose=PURPOSE_ISSUE_ACCESS_TOKEN,
+        environment=d["environment"],
+        challenge_id=d["challenge_id"],
+        device_id=str(dispositivo_id),
+        nonce=d["nonce"],
+        public_key_hash=pk_hash,
+        expires_at=d["expira_el"],
+    )
+    firma = _sign(private_key, payload)
+    r = client.post(
+        "/api/auth/device/canjear",
+        json={"challenge_id": d["challenge_id"], "firma": firma},
+    )
+    assert r.status_code == 200, r.text
+    return r.json()["token"]
 
 
 # === fixtures ===
@@ -251,19 +287,32 @@ class TestFlujoActivacion:
         assert dev.algoritmo_clave == "EC_P256"
         assert dev.huella is None
 
-        # Bootstrap devuelve SOLO R1
+        # Primer JWT de sesion (la credencial bootstrap autentica el desafio)
+        jwt_token = _primer_jwt(
+            client,
+            canje["credencial_bootstrap"],
+            canje["dispositivo_id"],
+            private_key,
+            pk_hash,
+        )
+
+        # Bootstrap productivo devuelve SOLO R1 + negocio/cobrador/versiones
         b = client.get(
             "/api/mobile/bootstrap",
-            headers={"Authorization": f"Bearer {canje['credencial_bootstrap']}"},
+            headers={"Authorization": f"Bearer {jwt_token}"},
         )
         assert b.status_code == 200, b.text
         data = b.json()
         assert data["ruta_id"] == str(escenario["ruta_id"])
         assert data["ruta_nombre"] == "R1"
+        assert data["ruta_version"] == 1
         assert data["cobrador_id"] == str(escenario["cobrador_id"])
+        assert data["cobrador_nombre"] == "Cob"
         assert data["dispositivo_id"] == str(canje["dispositivo_id"])
+        assert data["version_asignacion"] == 1
         assert data["rol"] == "COBRADOR"
         assert data["negocio_id"] == str(escenario["negocio_id"])
+        assert data["negocio_nombre"] == "Neg"
 
     def test_02_dispositivo_solo_r1_no_ve_r2(self, client, db_session, escenario):
         """D1 (bootstrap) y el cobrador solo ven/operan R1; R2 invisible."""
@@ -277,9 +326,16 @@ class TestFlujoActivacion:
         codigo = _emitir_codigo(client, escenario)
         r = _flujo_completo(client, codigo["token"], private_key, spki, pk_hash)
         assert r.status_code == 200, r.text
-        cred = r.json()["credencial_bootstrap"]
+        canje = r.json()
+        jwt_token = _primer_jwt(
+            client,
+            canje["credencial_bootstrap"],
+            canje["dispositivo_id"],
+            private_key,
+            pk_hash,
+        )
 
-        b = client.get("/api/mobile/bootstrap", headers={"Authorization": f"Bearer {cred}"})
+        b = client.get("/api/mobile/bootstrap", headers={"Authorization": f"Bearer {jwt_token}"})
         assert b.json()["ruta_id"] == str(escenario["ruta_id"])
 
         # El cobrador autenticado (query-auth dev) solo lista su ruta
@@ -382,15 +438,17 @@ class TestFlujoActivacion:
         assert r6.json()["detail"] == "Codigo expirado"
 
     def test_06_revocar_invalida_token_y_bootstrap(self, client, db_session, escenario):
-        """Revocar D1 -> su credencial bootstrap deja de funcionar (401)."""
+        """Revocar D1 -> su JWT de sesion deja de funcionar en el bootstrap (401)."""
         private_key, spki, pk_hash = _ec_keypair()
         codigo = _emitir_codigo(client, escenario)
         r = _flujo_completo(client, codigo["token"], private_key, spki, pk_hash)
         assert r.status_code == 200
-        cred = r.json()["credencial_bootstrap"]
-        dev_id = r.json()["dispositivo_id"]
+        canje = r.json()
+        cred = canje["credencial_bootstrap"]
+        dev_id = canje["dispositivo_id"]
+        jwt_token = _primer_jwt(client, cred, dev_id, private_key, pk_hash)
 
-        b = client.get("/api/mobile/bootstrap", headers={"Authorization": f"Bearer {cred}"})
+        b = client.get("/api/mobile/bootstrap", headers={"Authorization": f"Bearer {jwt_token}"})
         assert b.status_code == 200
 
         resp = client.post(
@@ -402,8 +460,13 @@ class TestFlujoActivacion:
         dev = db_session.query(Dispositivo).filter(Dispositivo.id == uuid.UUID(dev_id)).first()
         assert dev.estado == "REVOKED"
 
-        b2 = client.get("/api/mobile/bootstrap", headers={"Authorization": f"Bearer {cred}"})
+        # El JWT muere por el bump de version_asignacion
+        b2 = client.get("/api/mobile/bootstrap", headers={"Authorization": f"Bearer {jwt_token}"})
         assert b2.status_code == 401
+
+        # La credencial bootstrap tampoco autentica el bootstrap productivo
+        b3 = client.get("/api/mobile/bootstrap", headers={"Authorization": f"Bearer {cred}"})
+        assert b3.status_code == 401
 
     def test_07_reemplazo_d1_d2_historia_conservada(self, client, db_session, escenario):
         """Reemplazo D1->D2: D1 REPLACED, D2 ACTIVE, historia de D1 conservada."""
@@ -474,19 +537,31 @@ class TestBodyPublico:
             assert r.status_code == 422, (extra, r.text)
 
     def test_13_bootstrap_ignora_route_id_en_url(self, client, escenario):
-        """Manipular route_id en la URL no amplia permisos: el servidor deriva."""
+        """Manipular route_id/negocio_id/rol en la URL no amplia permisos."""
         private_key, spki, pk_hash = _ec_keypair()
         codigo = _emitir_codigo(client, escenario)
         r = _flujo_completo(client, codigo["token"], private_key, spki, pk_hash)
-        cred = r.json()["credencial_bootstrap"]
+        canje = r.json()
+        jwt_token = _primer_jwt(
+            client,
+            canje["credencial_bootstrap"],
+            canje["dispositivo_id"],
+            private_key,
+            pk_hash,
+        )
 
         b = client.get(
             "/api/mobile/bootstrap",
-            headers={"Authorization": f"Bearer {cred}"},
-            params={"route_id": str(uuid4()), "rol": "ADMINISTRADOR"},
+            headers={"Authorization": f"Bearer {jwt_token}"},
+            params={
+                "route_id": str(uuid4()),
+                "rol": "ADMINISTRADOR",
+                "negocio_id": str(uuid4()),
+            },
         )
         assert b.status_code == 200
         assert b.json()["ruta_id"] == str(escenario["ruta_id"])
+        assert b.json()["rol"] == "COBRADOR"
 
 
 # === gate admin (contrato 10) ===

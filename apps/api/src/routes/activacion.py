@@ -4,7 +4,7 @@ Activacion:
 - POST /api/activaciones/codigos   (ADMINISTRADOR)   genera codigo de un solo uso
 - POST /api/activaciones/desafio   (publico, sin token de sesion)
 - POST /api/activaciones/canjear   (publico, sin token de sesion)
-- GET  /api/mobile/bootstrap       (credencial bootstrap emitida en el canje)
+- GET  /api/mobile/bootstrap       (Bearer JWT de sesion productivo)
 
 Sesion daily-auth-v1 (D7-H2, sustituye a /api/mobile/auth/renovar):
 - POST /api/auth/device/desafio   (Bearer JWT vigente o credencial bootstrap)
@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from src.auth.context import RequestContext
-from src.auth.deps import get_request_context
+from src.auth.deps import get_request_context, get_request_context_jwt
 from src.database import get_db, get_db_transaction
 from src.schemas import (
     BootstrapResponse,
@@ -36,14 +36,18 @@ from src.schemas import (
 )
 from src.services.activacion_service import (
     ActivacionError,
-    bootstrappear,
     canjear,
     desafio,
     generar_codigo,
 )
 from src.services.auth_service import (
     AuthError,
+    bootstrap_productivo,
+)
+from src.services.auth_service import (
     canjear_desafio as canjear_desafio_svc,
+)
+from src.services.auth_service import (
     solicitar_desafio as solicitar_desafio_svc,
 )
 
@@ -124,19 +128,21 @@ def canjear_codigo(
 @mobile_router.get("/bootstrap", response_model=BootstrapResponse)
 def mobile_bootstrap(
     db: Session = Depends(get_db),
-    authorization: str | None = Header(default=None),
+    ctx: Annotated[RequestContext, Depends(get_request_context_jwt)] = None,
 ):
-    """Devuelve la ruta UNICA autorizada + negocio + cobrador.
+    """Bootstrap productivo del movil (Bearer JWT ES256, D7-01).
 
-    La credencial (Bearer) es la emitida en el canje; el servidor deriva todo,
-    sin parametros en la URL. Aqui nace el aislamiento movil.
+    El RequestContext revalida en CADA request el binding completo
+    (dispositivo ACTIVE, version_asignacion, usuario, negocio, public_key_hash)
+    y exige exactamente UNA ruta activa del cobrador (0 y >1 -> 401). El
+    servidor deriva negocio, cobrador, ruta y versiones desde la base: no se
+    aceptan negocio_id/route_id/rol por URL ni por body (aislamiento movil).
+    La credencial bootstrap del canje ya NO autentica esta ruta: su unica
+    funcion posterior al canje es obtener el primer JWT vía desafio/canje.
     """
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail="Credencial bootstrap requerida")
-    credencial = authorization.split(" ", 1)[1].strip()
     try:
-        return bootstrappear(db, credencial)
-    except ActivacionError as e:
+        return bootstrap_productivo(db, ctx)
+    except AuthError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
 

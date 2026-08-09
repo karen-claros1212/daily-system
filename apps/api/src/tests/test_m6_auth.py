@@ -16,6 +16,11 @@ Cubren:
     access token, firma invalida 401, credencial invalida 401, challenge
     inexistente 404, vencido 410 y REPLAY del mismo challenge_id -> 409.
   - Primer JWT post-activacion autenticado con la credencial bootstrap.
+  - Bootstrap productivo del movil (GET /api/mobile/bootstrap): JWT-only
+    (sin stub query ni en test), la credencial bootstrap ya NO autentica,
+    0 o >1 rutas activas -> 401 fail-closed, derivacion de negocio/cobrador/
+    ruta/versiones desde la base, e ignorancia de route_id/negocio_id/rol en
+    la URL.
 
 El payload JCS daily-auth-v1 es SEPARADO del protocolo de activacion
 (daily-v1): campos distintos, mismo motor canonico RFC 8785.
@@ -657,3 +662,168 @@ class TestH3BindingDesafio:
         )
         assert r.status_code == 200, r.text
         assert r.json()["version_asignacion"] == 1
+
+
+# === Bootstrap productivo del movil (GET /api/mobile/bootstrap) ===
+#
+# El bootstrap usa el RequestContext productivo (JWT ES256): el servidor
+# deriva negocio/cobrador/ruta/versiones desde la base y exige exactamente UNA
+# ruta activa. La credencial bootstrap del canje ya NO autentica esta ruta y
+# el stub query-param de dev/test NO vale aqui (aislamiento del movil).
+
+
+class TestBootstrapProductivo:
+    def _bootstrap(self, client, token):
+        return client.get("/api/mobile/bootstrap", headers=_auth_header(token))
+
+    def test_bootstrap_200_exactamente_una_ruta(self, client, escenario, dispositivo_activo):
+        """Respuesta minima del contrato: negocio + cobrador + dispositivo +
+        ruta UNICA + version_asignacion + ruta_version + rol."""
+        token = _token(escenario, dispositivo_activo)
+        r = self._bootstrap(client, token)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["negocio_id"] == str(escenario["negocio_id"])
+        assert data["negocio_nombre"] == "Neg"
+        assert data["cobrador_id"] == str(escenario["cobrador_id"])
+        assert data["cobrador_nombre"] == "Cob"
+        assert data["dispositivo_id"] == str(dispositivo_activo["dispositivo_id"])
+        assert data["version_asignacion"] == 1
+        assert data["ruta_id"] == str(escenario["ruta_id"])
+        assert data["ruta_nombre"] == "R1"
+        assert data["ruta_version"] == 1
+        assert data["rol"] == "COBRADOR"
+
+    def test_bootstrap_sin_jwt_401(self, client, escenario):
+        """Sin Bearer JWT -> 401, incluso con query-params de dev/test."""
+        r = client.get(
+            "/api/mobile/bootstrap",
+            params={
+                "negocio_id": str(escenario["negocio_id"]),
+                "role": "ADMINISTRADOR",
+            },
+        )
+        assert r.status_code == 401, r.text
+
+    def test_bootstrap_credencial_bootstrap_ya_no_autentica(
+        self, client, db_session, escenario, dispositivo_activo
+    ):
+        """La credencial bootstrap del canje NO autentica el bootstrap: 401."""
+        bootstrap = "boot-credencial-test"
+        db_session.add(CodigoActivacion(
+            negocio_id=escenario["negocio_id"],
+            cobrador_id=escenario["cobrador_id"],
+            hash_codigo=hashlib.sha256(b"legacy").hexdigest(),
+            prefijo="legacy02",
+            expira_el=datetime.now(timezone.utc) + timedelta(minutes=5),
+            estado="CONSUMED",
+            consumido_el=datetime.now(timezone.utc),
+            dispositivo_id_canjeado=dispositivo_activo["dispositivo_id"],
+            credencial_bootstrap=bootstrap,
+            credencial_bootstrap_expira_el=datetime.now(timezone.utc) + timedelta(minutes=5),
+            creado_por=escenario["admin_id"],
+        ))
+        db_session.flush()
+
+        r = client.get("/api/mobile/bootstrap", headers=_auth_header(bootstrap))
+        assert r.status_code == 401, r.text
+
+    def test_bootstrap_0_rutas_activas_401(self, client, db_session, escenario, dispositivo_activo):
+        """Ruta desactivada -> 401 fail-closed (0 rutas activas)."""
+        ruta = db_session.get(Ruta, escenario["ruta_id"])
+        ruta.activa = 0
+        db_session.flush()
+
+        token = _token(escenario, dispositivo_activo)
+        r = self._bootstrap(client, token)
+        assert r.status_code == 401, r.text
+
+    def test_bootstrap_mas_de_una_ruta_activa_401(self, client, db_session, escenario, dispositivo_activo):
+        """Dos rutas activas -> 401 fail-closed (o constraint parcial en PG)."""
+        from sqlalchemy.exc import IntegrityError
+
+        db_session.add(Ruta(
+            id=uuid4(),
+            negocio_id=escenario["negocio_id"],
+            nombre="R2",
+            cobrador_id=escenario["cobrador_id"],
+            activa=1,
+        ))
+        try:
+            db_session.flush()
+        except IntegrityError:
+            db_session.rollback()
+            return  # PG: constraint parcial uq_ruta_activa_cobrador es la evidencia
+
+        token = _token(escenario, dispositivo_activo)
+        r = self._bootstrap(client, token)
+        assert r.status_code == 401, r.text
+
+    def test_bootstrap_ignora_route_id_negocio_id_rol_en_url(
+        self, client, escenario, dispositivo_activo
+    ):
+        """route_id/negocio_id/rol en la URL no cambian la autoridad derivada."""
+        token = _token(escenario, dispositivo_activo)
+        r = client.get(
+            "/api/mobile/bootstrap",
+            headers=_auth_header(token),
+            params={
+                "route_id": str(uuid4()),
+                "negocio_id": str(uuid4()),
+                "rol": "ADMINISTRADOR",
+            },
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["ruta_id"] == str(escenario["ruta_id"])
+        assert r.json()["negocio_id"] == str(escenario["negocio_id"])
+        assert r.json()["rol"] == "COBRADOR"
+
+    def test_bootstrap_admin_token_sin_ruta_401(self, client, db_session, escenario):
+        """Un token de ADMINISTRADOR (sin ruta activa) -> 401: solo cobradores."""
+        _k, spki, pk_hash = _ec_keypair()
+        dev_id = uuid4()
+        db_session.add(Dispositivo(
+            id=dev_id,
+            negocio_id=escenario["negocio_id"],
+            usuario_id=escenario["admin_id"],
+            public_key=spki,
+            public_key_hash=pk_hash,
+            algoritmo_clave="EC_P256",
+            estado="ACTIVE",
+            version_asignacion=1,
+            activo=1,
+        ))
+        db_session.flush()
+        token = issue_token(
+            negocio_id=escenario["negocio_id"],
+            usuario_id=escenario["admin_id"],
+            dispositivo_id=dev_id,
+            public_key_hash=pk_hash,
+            version_asignacion=1,
+        )
+        r = self._bootstrap(client, token)
+        assert r.status_code == 401, r.text
+
+    def test_bootstrap_version_bump_revoca_token_401(self, client, db_session, escenario, dispositivo_activo):
+        """Revocacion/reemplazo (bump) mata el token: 401 en el bootstrap."""
+        token = _token(escenario, dispositivo_activo)
+        disp = db_session.get(Dispositivo, dispositivo_activo["dispositivo_id"])
+        disp.estado = "REVOKED"
+        disp.version_asignacion = 2
+        db_session.flush()
+
+        r = self._bootstrap(client, token)
+        assert r.status_code == 401, r.text
+
+    def test_bootstrap_public_key_hash_mismatch_401(self, client, escenario, dispositivo_activo):
+        """Token con public_key_hash distinto al registrado -> 401 (binding clave)."""
+        _k, _s, otra_hash = _ec_keypair()
+        token = issue_token(
+            negocio_id=escenario["negocio_id"],
+            usuario_id=escenario["cobrador_id"],
+            dispositivo_id=dispositivo_activo["dispositivo_id"],
+            public_key_hash=otra_hash,
+            version_asignacion=1,
+        )
+        r = self._bootstrap(client, token)
+        assert r.status_code == 401, r.text

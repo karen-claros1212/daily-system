@@ -35,7 +35,6 @@ from src.models import (
     CodigoActivacion,
     Dispositivo,
     IntentoActivacion,
-    Negocio,
     Ruta,
     Usuario,
 )
@@ -84,18 +83,6 @@ class CanjeResult:
     credencial_bootstrap: str
     expira_el: str
     idempotente: bool = False
-
-
-@dataclass(frozen=True)
-class BootstrapResult:
-    negocio_id: UUID
-    negocio_nombre: str
-    cobrador_id: UUID
-    cobrador_nombre: str
-    dispositivo_id: UUID
-    ruta_id: UUID
-    ruta_nombre: str
-    rol: str
 
 
 def _now() -> datetime:
@@ -501,59 +488,4 @@ def canjear(
         cobrador_id=codigo.cobrador_id,
         credencial_bootstrap=bootstrap,
         expira_el=format_rfc3339_seconds(bootstrap_expira),
-    )
-
-
-def bootstrappear(db: Session, credencial: str) -> BootstrapResult:
-    """Sustituye el bootstrap legacy por credencial (GET /api/mobile/bootstrap).
-
-    El servidor deriva negocio/cobrador/dispositivo/ruta de la credencial de
-    corta vigencia emitida en el canje. Sin parametros en la URL (aislamiento).
-    """
-    codigo = (
-        db.query(CodigoActivacion)
-        .filter(CodigoActivacion.credencial_bootstrap == credencial)
-        .first()
-    )
-    if not codigo or codigo.estado != CODIGO_CONSUMIDO:
-        raise ActivacionError(
-            "Credencial bootstrap invalida",
-            "BOOTSTRAP_INVALIDA",
-            401,
-        )
-    if (
-        not codigo.credencial_bootstrap_expira_el
-        or _aware_utc(codigo.credencial_bootstrap_expira_el) < _now()
-    ):
-        raise ActivacionError(
-            "Credencial bootstrap vencida",
-            "BOOTSTRAP_VENCIDA",
-            401,
-        )
-
-    dispositivo = (
-        db.query(Dispositivo)
-        .filter(Dispositivo.id == codigo.dispositivo_id_canjeado)
-        .first()
-    )
-    if not dispositivo or dispositivo.estado != "ACTIVE":
-        raise ActivacionError(
-            "Credencial bootstrap invalida",
-            "BOOTSTRAP_INVALIDA",
-            401,
-        )
-
-    ruta = _validar_cobrador_con_ruta(db, codigo.negocio_id, codigo.cobrador_id)
-    cobrador = db.query(Usuario).filter(Usuario.id == codigo.cobrador_id).first()
-    negocio = db.query(Negocio).filter(Negocio.id == codigo.negocio_id).first()
-
-    return BootstrapResult(
-        negocio_id=codigo.negocio_id,
-        negocio_nombre=negocio.nombre if negocio else "",
-        cobrador_id=codigo.cobrador_id,
-        cobrador_nombre=cobrador.nombre if cobrador else "",
-        dispositivo_id=codigo.dispositivo_id_canjeado,
-        ruta_id=ruta.id,
-        ruta_nombre=ruta.nombre,
-        rol="COBRADOR",
     )

@@ -449,8 +449,10 @@ class BootstrapResponse(BaseModel):
     cobrador_id: UUID
     cobrador_nombre: str
     dispositivo_id: UUID
+    version_asignacion: int
     ruta_id: UUID
     ruta_nombre: str
+    ruta_version: int
     rol: str
 
 

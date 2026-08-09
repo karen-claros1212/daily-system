@@ -9,6 +9,7 @@ class RequestContext:
     role: str | None = None
     route_id: UUID | None = None
     device_id: UUID | None = None
+    version_asignacion: int | None = None
 
     def is_admin(self) -> bool:
         return self.role == "ADMINISTRADOR"
@@ -29,4 +30,5 @@ class RequestContext:
             "role": self.role,
             "route_id": str(self.route_id) if self.route_id else None,
             "device_id": str(self.device_id) if self.device_id else None,
+            "version_asignacion": self.version_asignacion,
         }

@@ -38,12 +38,20 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from sqlalchemy.orm import Session
 
+from src.auth.context import RequestContext
 from src.auth.token import (
     TokenError,
     decode_token,
     issue_token,
 )
-from src.models import CodigoActivacion, DesafioAuth, Dispositivo, Ruta, Usuario
+from src.models import (
+    CodigoActivacion,
+    DesafioAuth,
+    Dispositivo,
+    Negocio,
+    Ruta,
+    Usuario,
+)
 from src.services.auth_jcs import (
     PURPOSE_ISSUE_ACCESS_TOKEN,
     build_signed_payload,
@@ -467,4 +475,65 @@ def derivar_ruta_activa(db: Session, usuario_id: UUID) -> Ruta | None:
             Ruta.activa == 1,
         )
         .first()
+    )
+
+
+@dataclass(frozen=True)
+class BootstrapResult:
+    """Bootstrap productivo del movil (D7-01). Se deriva TODO desde la base."""
+
+    negocio_id: UUID
+    negocio_nombre: str
+    cobrador_id: UUID
+    cobrador_nombre: str
+    dispositivo_id: UUID
+    version_asignacion: int
+    ruta_id: UUID
+    ruta_nombre: str
+    ruta_version: int
+    rol: str
+
+
+def bootstrap_productivo(db: Session, ctx: RequestContext) -> BootstrapResult:
+    """Bootstrap del movil a partir del RequestContext productivo (JWT ES256).
+
+    El RequestContext ya revalido en cada request el binding completo
+    (deps.py -> validar_dispositivo_claims + exigir_ruta_activa_unica):
+    dispositivo ACTIVE, version_asignacion, usuario_id == sub, negocio_id,
+    public_key_hash, usuario activo, rol COBRADOR y exactamente una ruta
+    activa (0 y >1 -> 401 fail-closed). Aqui solo se derivan los datos de
+    presentacion desde la base: nombres y versiones. No acepta authority desde
+    query/body/JWT: negocio, cobrador y ruta salen del contexto, nunca del
+    cliente.
+    """
+    if not ctx.is_cobrador() or not ctx.route_id:
+        raise AuthError(
+            "El bootstrap esta disponible solo para cobradores con ruta activa",
+            "ROL_NO_PERMITIDO",
+            401,
+        )
+
+    negocio = db.query(Negocio).filter(Negocio.id == ctx.negocio_id).first()
+    if not negocio:
+        raise AuthError("Negocio no encontrado", "NEGOCIO_NO_ENCONTRADO", 401)
+
+    cobrador = db.query(Usuario).filter(Usuario.id == ctx.user_id).first()
+    if not cobrador or cobrador.rol != "COBRADOR" or cobrador.activo != 1:
+        raise AuthError("Cobrador no activo", "COBRADOR_INACTIVO", 401)
+
+    ruta = db.query(Ruta).filter(Ruta.id == ctx.route_id).first()
+    if not ruta or ruta.activa != 1 or ruta.cobrador_id != ctx.user_id:
+        raise AuthError("Ruta no activa", "RUTA_INACTIVA", 401)
+
+    return BootstrapResult(
+        negocio_id=ctx.negocio_id,
+        negocio_nombre=negocio.nombre,
+        cobrador_id=ctx.user_id,
+        cobrador_nombre=cobrador.nombre,
+        dispositivo_id=ctx.device_id,
+        version_asignacion=ctx.version_asignacion,
+        ruta_id=ruta.id,
+        ruta_nombre=ruta.nombre,
+        ruta_version=ruta.version or 1,
+        rol=ctx.role,
     )
