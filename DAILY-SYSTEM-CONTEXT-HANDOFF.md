@@ -90,12 +90,12 @@ S3  Outbox push/ACK/retry (PENDIENTE)
 
 ## 5. Restricciones para el agente siguiente
 
-1. **Master/merge/tag/deploy sin autorización: PROHIBIDO.** Ver AGENTS.md §invariante 8.
+1. **Master/merge/tag/deploy sin autorización: PROHIBIDO.** Ver SECURITY.md §7 ("Prohibido tocar").
 2. **No tocar** sin instrucción explícita: migraciones de activación, `CodigoActivacion`, `IntentoActivacion`, `public_key`, challenge-response, JWT/OAuth/PKCE, Keystore, bootstrap, dependencias Flutter de auth, módulo web.
    - **S3 es el bloque actual autorizado.** El outbox (mobile→server push, ACK, retry, conflictos) puede evolucionarse conforme a `docs/OFFLINE-SYNC.md`, reutilizando servicios y endpoints financieros existentes (`POST /api/pagos`, `POST /api/pagos/{id}/reversar`, `POST /api/movimientos`, `POST /api/jornadas/{id}/cerrar`, `POST /api/jornadas/{id}/sincronizar`). No reconstruir auth, Hoja Viva ni el modelo financiero.
 3. **No renombrar S3 a S4.** S3 es el bloque actual.
 4. **Ruta canónica:** `/home/jesus/proyectos/daily-system`
-5. **Documentación obligatoria como gate de cierre de bloque.** Ver AGENTS.md §invariante 10.
+5. **Documentación obligatoria como gate de cierre de bloque.** Ver AGENTS.md §Workflow (pasos `/plan` → `/review` → `/test` → `/handoff`). Cada bloque requiere su cierre documental antes de avanzar.
 
 ## 6. Tests / gates
 

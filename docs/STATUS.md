@@ -45,7 +45,7 @@
 
 | Campo | Valor |
 |---|---|
-| **Estado general** | M0-M3 completos · B1-B7 hardening PASS · S3 pendiente |
+| **Estado general** | M0-M2 completos · M3 base completo · M3.2-M3.5 históricas no implementadas · B1-B7 hardening PASS · S3 pendiente |
 | **Hito actual** | B1-B7 hardening (código baseline `c0a3a9c`) |
 | **Progreso total** | M0: 22/22 ✅ · M1: 8/8 ✅ · M2: 6/6 ✅ · M3 base: 1/1 ✅ (M3.2-M3.5 históricas, no implementadas en árbol actual) · B1-B7: ✅ |
 | **Tests pasando (backend, SQLite)** | 255 passed, 7 skipped (257 funciones) |
@@ -161,7 +161,7 @@
 
 ---
 
-## Hito M3 — Suscripción, Telegram e inversionista ✅
+## Hito M3 — Suscripción / límites por plan ✅ · M3.2-M3.5 históricos no implementados
 
 **Estado:** COMPLETADO (suscripciones) · **DESACTUALIZADO** (telegram/panel web — ver nota de reconciliación arriba)
 
@@ -246,7 +246,7 @@
 
 ## Próximos pasos
 
-1. **S3** — outbox móvil→servidor: diseñar y documentar contracto de push (POST /api/sync/push o endpoint individual con retry), ACK, resolución de conflictos. Documentar en `docs/OFFLINE-SYNC.md`.
+1. **S3** — outbox móvil→servidor: diseñar y documentar **contrato** de push, ACK, resolución de conflictos. Documentar en `docs/OFFLINE-SYNC.md`.
 2. **M4** — Importación OCR: `ocr_service.py` no existe aún (pendiente).
 3. **M5** — Score, chatbot, inteligencia: pendiente.
 4. **M6** — Producción y despliegue: pendiente.
