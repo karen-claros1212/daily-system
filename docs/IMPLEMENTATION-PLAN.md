@@ -3,7 +3,7 @@
 **Proyecto:** daily-system
 **Versión:** 1.3
 **Fecha:** 2026-07-31
-**Estado:** M0-M3 completos, M2 gate finalizado
+**Estado:** M0-M3 completos, B1-B7 hardening completado, S3 pendiente · M3.6.6-F
 
 > ## ⚠️ NOTA DE RECONCILIACIÓN (2026-08-06) — estados históricos desactualizados
 >
@@ -127,10 +127,10 @@
 | # | Requisito | Estado | Archivos | Pruebas | Commit |
 |---|---|---|---|---|---|
 | M3.1 | Planes y suscripciones | ✅ | `suscripcion.py` | 4 tests | 871d1de |
-| M3.2 | Bot Telegram (cobrador) | ✅ | `apps/telegram-bot/` | — | 871d1de |
-| M3.3 | Bot Telegram (inversionista) | ✅ | `apps/telegram-bot/` | — | 871d1de |
-| M3.4 | Panel inversionista (web) | ✅ | `apps/web/src/app/inversionista/` | — | 871d1de |
-| M3.5 | Reporte diario automático | ✅ | `telegram_bot.py` | 2 tests | 871d1de |
+| M3.2 | Bot Telegram (cobrador) | ⚠️ DESACTUALIZADO — no existe | `apps/telegram-bot/` no existe en árbol | — | 871d1de |
+| M3.3 | Bot Telegram (inversionista) | ⚠️ DESACTUALIZADO — no existe | `apps/telegram-bot/` no existe en árbol | — | 871d1de |
+| M3.4 | Panel inversionista (web) | ⚠️ DESACTUALIZADO — no existe | `apps/web/` está vacío | — | 871d1de |
+| M3.5 | Reporte diario automático | ⚠️ DESACTUALIZADO — no existe | `telegram_bot.py` no está en árbol | — | 871d1de |
 | M3.6 | Límite de rutas por plan | ✅ | `negocio.py` route | 2 tests | e44b09e |
 
 ### Notas M3
@@ -140,6 +140,8 @@
 - M3.6.x: Flutter Offline Alpha + Visual Alpha Premium (Material 3 Expressive)
 - M3.6.6: Domain model unification — JornadaGuard, atomic payments, typed exceptions
 - M3.6.6-F: Migration V4, JornadaSnapshot único, idempotencia obligatoria
+
+> ⚠️ M3.2-M3.5: los ítems de Bot Telegram y Panel inversionista están **DESACTUALIZADOS**. `apps/telegram-bot/` no existe en el árbol real; `apps/web/` está vacío. Estos elementos NO son parte del producto actual. Cualquier bot futuro es exclusivamente administrativo; bot en móvil: **PROHIBIDO**.
 
 ---
 
@@ -180,6 +182,51 @@
 
 ---
 
+## Hito B1-B7 — Harden Auth + Bootstrap + Sync S0-S2
+
+> **Estado:** ✅ COMPLETADO (c0a3a9c, rama `hardening/b1-b7-audit`)
+> **Commit de cierre:** c0a3a9c
+> **Ver:** [Security](SECURITY.md), [Offline Sync](OFFLINE-SYNC.md), [Architecture](ARCHITECTURE.md)
+
+Bloque de endurecimiento de autenticación y sincronización offline. No es M4-M6; vive en `hardening/b1-b7-audit`.
+
+### Entregables
+
+| # | Bloque | Estado | Auth | Descripción |
+|---|---|---|---|---|
+| B1 | JWT ES256 fail-closed | ✅ | backend | Rechaza none/HS256/RS256; claims congeladas |
+| B1b | Device binding | ✅ | backend | public_key_hash en JWT + version_asignacion |
+| B2 | Activation (daily-v1) | ✅ | backend | Challenge-response single-use, MAX_INTENTOS=5→EXPIRED |
+| B2-H2 | Bootstrap | ✅ | backend | GET /api/mobile/bootstrap, ruta única |
+| B3 | AndroidKeyStore | ✅ | mobile | EC P-256 no exportable, MethodChannel |
+| B4 | Route isolation | ✅ | backend+mobile | Scope server-side, 0/>1 rutas → 401 |
+| B7 | Mobile auth bridge | ✅ | mobile | lib/auth/: AuthHttpClient, DeviceAuthClient, JCS |
+| S0 | Session maintenance | ✅ | mobile | Renovación antes de expirar (daily-auth-v1) |
+| S2 | Pull + local persist | ✅ | mobile | GET /api/mobile/sync, SyncRepository UPSERT PK |
+
+### Tests
+
+| Gate | Resultado | Comando |
+|---|---|---|
+| Backend (SQLite) | 255 passed, 7 skipped | `pytest src/tests/ -q` |
+| Mobile | 147 passing | `flutter test` |
+| Alembic | m7_desafio_auth (head), clean | `alembic check` |
+| Analyzer | No issues found | `flutter analyze` |
+
+---
+
+## Hito S3 — Offline sync outbox (mobile → server)
+
+> **Estado:** ⏳ PENDIENTE
+> **Dependencias:** B1-B7 + S0-S2 completos
+> **Commit de cierre:** — (no iniciado)
+
+Outbox push, ACK, retry con backoff, resolución de conflictos. Ver [OFFLINE-SYNC.md](OFFLINE-SYNC.md).
+
+**NO** enviar `negocio_id`/`cobrador_id`/`ruta_id` como autoridad desde el móvil hasta que S3 esté implementado.
+
+---
+
 ## Hito M6 — Producción y despliegue
 
 **Estado:** PENDIENTE
@@ -213,7 +260,8 @@
 | **M4** | ⬜ PENDIENTE | 0/3 (0%) | — |
 | **M5** | ⬜ PENDIENTE | 0/4 (0%) | — |
 | **M6** | ⬜ PENDIENTE | 0/7 (0%) | — |
-| **TOTAL** | M0-M3 ✅ | **42/54 (78%)** | **138/138** |
+| **B1-B7 hardening** | ✅ COMPLETADO | — | 255 passed + 7 skip (backend) / 147 (mobile) |
+| **TOTAL** | M0-M3 + B1-B7 ✅ | **78% base + hardening** | **255+147** |
 
 ---
 

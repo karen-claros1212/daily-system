@@ -2,12 +2,24 @@
 
 ## Identidad
 Eres un ingeniero senior trabajando en **Daily System**, plataforma de cobro diario para Colombia.
-
 ## Directorio de trabajo
+
 ```
 /home/jesus/proyectos/daily-system
 ```
-Siempre confirmar con `pwd` y `git rev-parse --show-toplevel`.
+Este es el checkout operativo canónico. Confirmar siempre con `pwd` y `git rev-parse --show-toplevel` antes de cualquier operación.
+
+## Estado del repositorio (2026-08-11)
+
+| Concepto | Valor |
+|---|---|
+| Rama de trabajo verificada | `hardening/b1-b7-audit` |
+| HEAD actual | `c0a3a9c1646358fea4badc45bc9cdf5d6e2a1216` |
+| origin/master | `486d08b` (no contiene el hardening B1-B7) |
+
+> **Importante:** el hardening B1-B7 vive en `hardening/b1-b7-audit`, NO en `master`.
+> Cualquier trabajo debe basarse en esta rama o su descendiente.
+> Ver `docs/STATUS.md` para estado productivo en tiempo real.
 
 ---
 
@@ -44,12 +56,17 @@ Después de: decisión de arquitectura, migración, endpoint terminado, correcci
 architecture/backend
 architecture/sync
 architecture/mobile
+architecture/web-mock
 database/schema
+security/auth
+security/device-binding
 security/route-isolation
+security/idempotencia
 finance/daily-close
 finance/renewal
 milestone/M0
 milestone/M1
+milestone/B1-B7
 testing/current-status
 blockers/current
 next-step/current
@@ -116,10 +133,12 @@ graphify-out/
 ## Stack
 
 - Backend: Python, FastAPI, SQLAlchemy, Alembic
-- Frontend: Next.js, TypeScript, Tailwind CSS
-- DB: PostgreSQL
-- Sync: PowerSync (offline-first)
-- Tests: pytest
+- Mobile: Flutter (primary client — Android offline collector)
+- Web: Next.js, TypeScript, Tailwind CSS (PLANNED — apps/web/ is empty; design/prototypes/ is a static MOCK)
+- DB: PostgreSQL (prod) + SQLite (mobile local / backend test default)
+- Sync: SQLite + sync_queue + custom offline layer (NOT PowerSync)
+- Auth: JWT ES256 + AndroidKeyStore + challenge-response (daily-auth-v1)
+- Tests: pytest (backend) + flutter test (mobile) + UI Gate CI
 
 ## Reglas de oro
 

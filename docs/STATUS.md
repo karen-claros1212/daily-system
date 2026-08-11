@@ -1,38 +1,87 @@
 # STATUS — Daily System
 
 **Proyecto:** daily-system
-**Última actualización:** 2026-08-06
-**Rama:** master
-**HEAD:** 486d08b (código real vigente)
+**Última actualización:** 2026-08-11
+**Ruta de trabajo verificada (local):** `/home/jesus/proyectos/daily-system`
+**Rama de trabajo:** `hardening/b1-b7-audit`
+**HEAD (verificado en disco):** `c0a3a9c1646358fea4badc45bc9cdf5d6e2a1216`
+**master:** `486d08b1584684a4328825142209776fce477670` (no contiene el hardening B1-B7; 0/7 detrás de HEAD)
 **Repo:** https://github.com/karen-claros1212/daily-system
 
-> ## ⚠️ NOTA DE RECONCILIACIÓN (2026-08-06)
+> ## ⚠️ NOTA DE RECONCILIACIÓN (2026-08-06 → 2026-08-11)
 >
-> Las secciones históricas de este archivo se conservan como historia. Los estados que NO se corresponden con el árbol real del repositorio están **DESACTUALIZADOS** y NO son evidencia de implementación:
+> Las secciones históricas de este archivo (abajo) se conservan como historia. Los estados que NO se corresponden con el árbol real del repositorio están **DESACTUALIZADOS** y NO son evidencia de implementación:
 >
-> - **`apps/web` productiva: NO EXISTE** (carpeta vacía; `apps/` solo tiene `api` y `mobile`).
-> - **Panel inversionista productivo: NO EXISTE.** El material web es un prototipo estático `design/prototypes/web/` (MOCK visual).
+> - **`apps/web` productiva: NO EXISTE** (carpeta vacía; `apps/` solo tiene `api` y `mobile`). El material web es un prototipo estático HTML/CSS en `design/prototypes/web/` (MOCK visual, sin JS/API/auth/build).
+> - **Panel inversionista productivo: NO EXISTE.** El material web actual es un prototipo estático HTML/CSS en `design/prototypes/web/`.
 > - **Bot Telegram (cobrador/inversionista): NO EXISTE** (`apps/telegram-bot/` no está en el árbol).
 > - **Bot en móvil: PROHIBIDO.** Cualquier bot futuro es exclusivamente administrativo.
+> - **PowerSync: NO EXISTE.** La sincronización offline usa SQLite + sync_queue + capa propia. `flutter pub deps` confirma cero dependencia de PowerSync.
+> - **Autenticación por sesión: NO EXISTEN** en el hardening. La auth productiva es JWT ES256 + AndroidKeyStore + challenge-response.
+> - **master (486d08b) NO contiene el hardening B1-B7.** Todo el trabajo de auth/sync productivo vive en `hardening/b1-b7-audit`.
 >
-> **Estado oficial (2026-08-06):** Backend en desarrollo, Bloques 1–6 PASS (activación/contrato §4-§10 implementado y verificado) · Móvil implementado y probado, activación/sync pendientes · Web productiva PENDIENTE · Prototipo web MOCK visual · Blueprint web IMPLEMENTADO · Stack web APROBADO (Next.js 14 + TypeScript + Tailwind + shadcn/ui) · Autenticación web PENDIENTE · Integración API web PENDIENTE · Bot administrativo FUTURO.
+> **Estado oficial (2026-08-11 verificado sobre `c0a3a9c`):**
+> - Backend financiero: **PASS / implementado**
+> - Hoja Viva: **implementada y preservada**
+> - B1-B7 hardening: **PASS**
+> - Auth productivo (JWT ES256 + AndroidKeyStore + challenge-response): **PASS**
+> - Bootstrap single-route: **PASS**
+> - Mobile auth bridge: **PASS**
+> - S0 session maintenance: **PASS**
+> - S1 route isolation: **PASS**
+> - S2 pull servidor→móvil: **PASS**
+> - S3 outbox móvil→servidor: **PENDIENTE**
+> - Web productiva: **PENDIENTE** (`apps/web/` vacío)
+> - Prototipo web: **existente, NO productivo**
+> - Bot administrativo: **FUTURO**
+> - Bot en móvil: **NO FORMA PARTE DEL PRODUCTO**
 >
-> **La evidencia real del repositorio y las pruebas prevalece sobre estados históricos incorrectos.**
+> > **Ejecución local de esta reconciliación (2026-08-11):** no equivale a GitHub Actions salvo el workflow `ui-gate.yml` que existe explícitamente. Ver [TESTING.md](TESTING.md) para comandos reproducibles.
 
 ---
 
-## Resumen Ejecutivo
+## Resumen ejecutivo
 
 | Campo | Valor |
 |---|---|
-| **Estado general** | M0-M3 completos, M2 gate finalizado |
-| **Hito actual** | M3.6.6-F — Visual Alpha Premium + Offline Alpha |
-| **Progreso total** | M0: 22/22 ✅, M1: 8/8 ✅, M2: 6/6 ✅, M3: 6/6 ✅ |
-| **Tests pasando** | 181/181 + 1 skip (SQLite; concurrencia PG evidenciada aparte) |
-| **PostgreSQL** | Corriendo (cobro-postgres, Docker) |
-| **Alembic** | head = m5_dispositivo_activacion (aplicado; `alembic check` limpio) |
-| **ruff** | 0 errors (130 UP045 auto-fixed) |
-| **Documento maestro** | docs/DOCUMENTO-MAESTRO-Plataforma-Cobro-Colombia-v1.3-CERRADO.md |
+| **Estado general** | M0-M3 completos · B1-B7 hardening PASS · S3 pendiente |
+| **Hito actual** | B1-B7 hardening (HEAD `c0a3a9c`) |
+| **Progreso total** | M0: 22/22 ✅ · M1: 8/8 ✅ · M2: 6/6 ✅ · M3: 6/6 (3 históricas no implementadas) ✅ · B1-B7: ✅ |
+| **Tests pasando (backend, SQLite)** | 255 passed, 7 skipped (257 funciones) |
+| **Tests pasando (mobile)** | 147 passing |
+| **Tests PG concurrency** | Pendientes (requieren scratch DB: `cobro_scratch_b6_pg` + `ALLOW_PG_TRUNCATE=1`) |
+| **PostgreSQL** | Corriendo (cobro-postgres, Docker, puerto 7103) |
+| **Alembic** | `m7_desafio_auth` (head); `alembic check` limpio |
+| **ruff** | 97 errores en `src/` (deuda conocida — no limpiado en hardening) |
+| **flutter analyze** | No issues found |
+| **UI Gate CI** | PASS (GitHub Actions `ui-gate.yml`) |
+| **Backend CI** | ⛔ NO EXISTE |
+| **Documento maestro** | `docs/DOCUMENTO-MAESTRO-Plataforma-Cobro-Colombia-v1.3-CERRADO.md` + `DAILY-SYSTEM-ARCHIVO-MAESTRO-CONTINUIDAD-OPENCODE.md` |
+
+### Estado de bloques
+
+| Estado | Bloque |
+|---|---|
+| ✅ PASS | Backend financiero (M0-M2) |
+| ✅ PASS | Hoja Viva y pagos |
+| ✅ PASS | B1-B7 hardening (auth, device, activation, bootstrap) |
+| ✅ PASS | JWT ES256 (fail-closed, claims congeladas) |
+| ✅ PASS | AndroidKeyStore EC P-256 no exportable |
+| ✅ PASS | Bootstrap single-route (daily-v1 / daily-auth-v1) |
+| ✅ PASS | Mobile auth bridge (`lib/auth/`) |
+| ✅ PASS | S0 — session maintenance (renovación antes de expirar) |
+| ✅ PASS | S1 — route isolation (scope server-side; cliente no elige ruta) |
+| ✅ PASS | S2 — pull servidor→móvil + persistencia SQLite (UPSERT por PK) |
+| ⏳ PENDIENTE | S3 — outbox móvil→servidor (push / ACK / retry / conflictos) |
+| ⏳ PENDING | Verificado en dispositivo físico |
+| ⏳ PENDIENTE | M4: Importación OCR (`ocr_service.py` no existe) |
+| ⏳ PENDIENTE | M5: Score, chatbot, inteligencia |
+| ⏳ PENDIENTE | M6: Producción y despliegue |
+| ⛔ NO EXISTE | Bot Telegram (histórico, no implementado) |
+| ⛔ NO EXISTE | Panel inversionista productivo (solo MOCK web) |
+| ⛔ PROHIBIDO | Bot en móvil |
+| ⛔ NO EXISTE | PowerSync (no es la arquitectura de sync) |
+| ⛔ NO EXISTE | Auth por sesión (es JWT ES256) |
 
 ---
 
@@ -175,7 +224,7 @@
 | Tipo | Cantidad | Estado |
 |---|---|---|
 | Código Python | 34 | Normalizado (ruff clean) |
-| Tests | 6 | 138/138 passing |
+| Tests | 257 funciones backend (255 passed + 7 skip SQLite) / 147 mobile | Normalizado |
 | Migraciones | 4 | init → m2_apertura → m2_jornada → m3_dispositivo |
 | Infraestructura | 3 | docker-compose + init.sql + .env.example |
 | Documentación | 8 | AGENTS.md, README, docs/*.md, ADR |
@@ -194,9 +243,12 @@
 
 ---
 
-## Próximos Pasos
+## Próximos pasos
 
-1. Graphify re-run (deepseek balance insufficient, retry with different backend)
-2. M4: Importación OCR (pendiente)
-3. M5: Score, chatbot e inteligencia (pendiente)
-4. M6: Producción y despliegue (pendiente)
+1. **S3** — outbox móvil→servidor: diseñar y documentar contracto de push (POST /api/sync/push o endpoint individual con retry), ACK, resolución de conflictos. Documentar en `docs/OFFLINE-SYNC.md`.
+2. **M4** — Importación OCR: `ocr_service.py` no existe aún (pendiente).
+3. **M5** — Score, chatbot, inteligencia: pendiente.
+4. **M6** — Producción y despliegue: pendiente.
+5. **Verificado en dispositivo físico**: PENDING (solo emulador API 35).
+6. **CI backend**: crear workflow de GitHub Actions para pytest + alembic check.
+7. **ruff**: limpiar 97 errores en `src/` (deuda conocida en hardening).

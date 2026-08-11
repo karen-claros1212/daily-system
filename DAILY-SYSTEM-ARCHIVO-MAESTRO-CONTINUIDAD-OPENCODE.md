@@ -62,6 +62,10 @@ No saltar etapas ni declarar una etapa terminada sin evidencia reproducible.
 
 9. **Actualizar Engram y el handoff al finalizar cada bloque.**
    - Guardar decisiones, comandos, resultados, defectos, pruebas, archivos modificados y siguiente paso exacto.
+10. **Actualizar la documentación pública como gate de cierre de bloque.**
+   - Un bloque puede quedar CODE PASS, pero NO puede declararse PROJECT CLOSED sin reconciliar `docs/STATUS.md`, `CHANGELOG.md` y `DAILY-SYSTEM-CONTEXT-HANDOFF.md` (marcar obsoletos si corresponde).
+   - La documentación debe reflejar el estado verificado (SHA + resultados de tests), no estados históricos o proyectados.
+   - No documentar como "implementado/PENDIENTE" algo que no está implementado ni planeado concretamente. Si S3 es el bloque actual, S3 debe documentarse como PENDIENTE, no como S2.5, ni renombrarse arbitrariamente.
 
 ---
 
@@ -825,10 +829,10 @@ Fixture: 1 negocio, 1 admin, varios cobradores, R1–R4 + R5/R6 dinámicas; cré
 
 | Gate | Resultado | Comando |
 |---|---|---|
-| Suite backend | 181 passed + 1 skip | `pytest src/tests/ -q` (166 previos + 15 nuevos §9; skip = concurrencia PG) |
-| `test_m5_activacion.py` | 15 passed + 1 skip | `pytest src/tests/test_m5_activacion.py -q` |
+| Suite backend | 255 passed + 7 skipped | `pytest src/tests/ -q` (257 funciones; skip = concurrencia PG) |
+| `test_m5_activacion.py` | 19 passed + 1 skip | `pytest src/tests/test_m5_activacion.py -q` |
 | `alembic check` | No new upgrade operations detected | `python3 -m alembic check` (PG dev, puerto 7103) |
-| Alembic current dev | `m5_dispositivo_activacion (head)` | `python3 -m alembic current` |
+| Alembic current dev | `m7_desafio_auth (head)` | `python3 -m alembic current` |
 | Migración reversible | upgrade→downgrade→re-upgrade OK | scratch `cobro_scratch_b6` (SQLite-compatible) y `cobro_scratch_b6_pg` (cadena m2→m5 desde cero) |
 | Evidencia concurrencia PG | 1 consumo + 1 idempotente → 1 dispositivo | script `evidencia_concurrencia_b6.py` contra `cobro_scratch_b6_pg` |
 | `git diff --check` | OK | `git diff --check` |
@@ -837,11 +841,28 @@ Fixture: 1 negocio, 1 admin, varios cobradores, R1–R4 + R5/R6 dinámicas; cré
 - **Defectos §10 corregidos:** `POST /api/dispositivos` admin-only (403); device id = uuid4 (no derivado de `hash()`); bootstrap devuelve solo la ruta activa del cobrador.
 - Evidencia completa en handoff §5 y en `apps/api/src/tests/test_m5_activacion.py`. Sin commit/push/deploy/reinicio.
 
-### SIGUIENTE PASO → BLOQUE 7 — AUTENTICACIÓN Y VINCULACIÓN DEL DISPOSITIVO (backend productivo)
+### SIGUIENTE PASO → BLOQUE 7 (AUTENTICACIÓN) — SUPERSEDED → BLOQUE 7 → PASS (c0a3a9c)
 
-Orden seguro aprobado (dictamen 2026-08-06): **1)** ✅ contrato de activación revisión 4 (PASS DOCUMENTAL) → **2)** ✅ activación backend implementada y verificada (Bloque 6 PASS) → **3)** autenticación + vinculación del dispositivo móvil (bootstrap móvil limitado a una ruta) → **4)** crear `apps/web` productiva con el stack aprobado → **5)** integrar cobradores/rutas/activaciones/dispositivos/revocaciones/reemplazos → **6)** sincronización sobre identidad y alcance reales.
+> **[ACTUALIZADO 2026-08-11 — `hardening/b1-b7-audit` @ `c0a3a9c`:**]
+> La sección "SIGUIENTE PASO → BLOQUE 7" que sigue es **histórica** (redactada 2026-08-06 cuando B7 era el siguiente paso). En la rama de hardening `c0a3a9c`, **Bloque 7 está IMPLEMENTADO Y VERIFICADO**:
+> - **Auth productivo:** JWT ES256 fail-closed (rechaza none/HS256/RS256), claims congeladas (issuer/audience/type/protocol_version), device/user/negocio/public_key_hash/version_asignacion binding
+> - **AndroidKeyStore:** EC P-256 no exportable (SHA256withECDSA), `MethodChannel daily_system/device_identity`
+> - **Challenge-response:** daily-v1 (activación) + daily-auth-v1 (renovación), single-use, SELECT FOR UPDATE
+> - **Bootstrap:** `GET /api/mobile/bootstrap` (Bearer JWT), rutna activa única derivada server-side
+> - **S0:** atomic session envelope (daily_session) — PASS
+> - **S1:** route isolation (scope server-side, cliente no elige ruta) — PASS
+> - **S2:** pull servidor→móvil + persistencia SQLite — PASS
+> - **S3:** outbox móvil→servidor (push/ACK/retry/conflictos) — **PENDIENTE**
+> - Alembic head: `m7_desafio_auth`
+> - Backend tests: 255 passed + 7 skipped (257 funciones)
+> - Mobile tests: 147 passing
+>
+> **S3 (no S4) es el bloque actual.** No renombrar arbitrariamente S3 → S4.
+>
+> Orden seguro aprobado (dictamen 2026-08-06, actualizado 2026-08-11):
+> **1)** ✅ Bloque 6 — activación backend (PASS) → **2)** ✅ Bloque 7 — auth productivo + device binding (PASS a c0a3a9c) → **3)** ✅ S0-S2 — sync offline pull + session (PASS) → **4)** ⏳ S3 — outbox push/ACK/retry (PENDIENTE) → **5)** ⏳ apps/web productiva (PENDIENTE) → **6)** ⏳ M4-M6.
 
-**NO** comenzar todavía sincronización que confíe en IDs de negocio/cobrador/ruta enviados libremente por el móvil. Hasta aprobar la revisión completa, NO crear/modificar: migraciones de activación, `CodigoActivacion`, `IntentoActivacion`, `public_key`, challenge-response, JWT/OAuth/PKCE, Keystore, bootstrap, sincronización HTTP, dependencias Flutter, módulo productivo de activación web.
+> **[RESTABLECIDO — NO SUPERSEDED:** la restricción de no confiar en `route_id` enviado libremente por el móvil sigue VIGENTE.] Hasta que S3 esté implementado, el móvil no debe enviar `negocio_id`/`cobrador_id`/`ruta_id` como autoridad en push. El scope se deriva del JWT + dispositivo activo en el servidor. **NO** crear/modificar: migraciones de activación, `CodigoActivacion`, `IntentoActivacion`, `public_key`, challenge-response, JWT/OAuth/PKCE, Keystore, bootstrap, dependencias Flutter, módulo productivo de activación web, o el outbox S3, sin instrucción explícita. Solo lectura y documentación.
 
 ### ESTADO WEB OFICIAL + NOTA DE RECONCILIACIÓN (2026-08-06)
 
@@ -849,8 +870,8 @@ Orden seguro aprobado (dictamen 2026-08-06): **1)** ✅ contrato de activación 
 
 | Componente | Estado |
 |---|---|
-| Backend | Productivo en desarrollo, Bloques 1–6 PASS (activación backend implementada) |
-| Móvil | Implementado y probado; activación/sync productivos pendientes |
+| Backend | Productivo en desarrollo, Bloques 1–6 PASS + Bloque 7 PASS (hardenig c0a3a9c) |
+| Móvil | Implementado y probado; auth productivo (JWT ES256 + AndroidKeyStore + challenge-response) + S0-S2 sync PASS; S3 outbox PENDIENTE |
 | Web productiva (`apps/web`) | **PENDIENTE** (carpeta vacía) |
 | Prototipo web HTML/CSS | MOCK visual |
 | Blueprint web (`WEB-UI-BLUEPRINT.md`) | IMPLEMENTADO (documento) |

@@ -1,12 +1,29 @@
 # DAILY SYSTEM — CONTEXTO MAESTRO CONSOLIDADO
+
+> **⚠️ HISTÓRICO (2026-08-06). NO USAR COMO VERDAD VIGENTE.**
+> Este documento fue una fotografía del estado al 5-6 de agosto (master `486d08b`).
+> El estado actual verificado (2026-08-11) es:
+> - **Rama:** `hardening/b1-b7-audit` · **HEAD:** `c0a3a9c` · **master:** `486d08b`
+> - B1-B7 hardening: ✅ PASS · S0-S2 sync: ✅ PASS · S3 outbox: ⏳ PENDIENTE
+>
+> **Documentos vigentes (primera lectura obligatoria):**
+> - [README.md](../README.md) — estado verificado + inicio rápido
+> - [docs/STATUS.md](STATUS.md) — estado productivo actual (números reales)
+> - [docs/ARCHITECTURE.md](ARCHITECTURE.md) — arquitectura vigente
+> - [docs/SECURITY.md](SECURITY.md) — auth, device, tenant, ruta, idempotencia
+> - [docs/OFFLINE-SYNC.md](OFFLINE-SYNC.md) — contrato S0-S3
+> - [docs/TESTING.md](TESTING.md) — suites, gates, CI
+> - [DAILY-SYSTEM-CONTEXT-HANDOFF.md](../DAILY-SYSTEM-CONTEXT-HANDOFF.md) — handoff operativo vigente
+
 ## Producto, código real, decisiones, estado, riesgos y continuidad
 
-**Fecha de consolidación:** 2026-08-06  
-**Proyecto canónico:** `Daily System`  
-**Repositorio:** `karen-claros1212/daily-system`  
-**Ruta local conocida:** `/home/jesus/proyectos/daily-system`  
-**Rama oficial conocida:** `master`  
-**HEAD remoto verificado:** `486d08b1584684a4328825142209776fce477670`  
+**Fecha de consolidación:** 2026-08-06 (⚠️ HISTÓRICO — ver banner arriba)
+**Proyecto canónico:** `Daily System`
+**Repositorio:** `karen-claros1212/daily-system`
+**Ruta local canónica:** `/home/jesus/proyectos/daily-system`
+**Rama de trabajo vigente:** `hardening/b1-b7-audit` (HEAD `c0a3a9c`)
+**master:** `486d08b` (no contiene el hardening)
+**HEAD verificado en disco:** `c0a3a9c1646358fea4badc45bc9cdf5d6e2a1216`
 **Memoria del proyecto:** Engram, `project: "daily-system"`
 
 ---
