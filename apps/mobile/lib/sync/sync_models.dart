@@ -186,22 +186,28 @@ class SyncPago implements SyncFila {
   final String negocioId;
   final String? creditoId;
   final String? jornadaId;
+  final String? cobradorId;
   final String tipo;
   final int monto;
   final String? registradoElDispositivo;
   final String? recibidoElServidor;
   final String claveIdempotencia;
+  final String? nota;
+  final String? reversalOfPaymentId;
 
   const SyncPago({
     required this.id,
     required this.negocioId,
     this.creditoId,
     this.jornadaId,
+    this.cobradorId,
     required this.tipo,
     required this.monto,
     this.registradoElDispositivo,
     this.recibidoElServidor,
     required this.claveIdempotencia,
+    this.nota,
+    this.reversalOfPaymentId,
   });
 
   factory SyncPago.fromJson(Map<String, dynamic> json) {
@@ -210,11 +216,14 @@ class SyncPago implements SyncFila {
       negocioId: json['negocio_id'] as String,
       creditoId: json['credito_id'] as String?,
       jornadaId: json['jornada_id'] as String?,
+      cobradorId: json['cobrador_id'] as String?,
       tipo: json['tipo'] as String,
       monto: json['monto'] as int,
       registradoElDispositivo: json['registrado_el_dispositivo'] as String?,
       recibidoElServidor: json['recibido_el_servidor'] as String?,
       claveIdempotencia: json['clave_idempotencia'] as String,
+      nota: json['nota'] as String?,
+      reversalOfPaymentId: json['reversal_of_payment_id'] as String?,
     );
   }
 
@@ -224,11 +233,14 @@ class SyncPago implements SyncFila {
         'negocio_id': negocioId,
         'credito_id': creditoId,
         'jornada_id': jornadaId,
+        'cobrador_id': cobradorId,
         'tipo': tipo,
         'monto': monto,
         'clave_idempotencia': claveIdempotencia,
+        'nota': nota,
         'registrado_el_dispositivo': registradoElDispositivo,
         'recibido_el_servidor': recibidoElServidor,
+        'reversal_of_payment_id': reversalOfPaymentId,
       };
 }
 

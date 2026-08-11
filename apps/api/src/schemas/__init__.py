@@ -184,6 +184,31 @@ class PagoResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PagoSyncResponse(BaseModel):
+    """Vista de pago para el sync móvil.
+
+    Expone, además de los campos base de PagoResponse, los que el modelo local
+    pago necesita para preservar la fidelidad financiera: cobrador_id, nota y
+    reversal_of_payment_id. Critical para que un REVERSAL del servidor no pierda
+    su enlace al pago original y el movil no permita revertir dos veces.
+    """
+
+    id: UUID
+    negocio_id: UUID
+    credito_id: UUID | None
+    jornada_id: UUID | None
+    cobrador_id: UUID | None
+    tipo: str
+    monto: int
+    clave_idempotencia: str
+    nota: str | None
+    registrado_el_dispositivo: datetime | None
+    recibido_el_servidor: datetime
+    reversal_of_payment_id: UUID | None
+
+    model_config = {"from_attributes": True}
+
+
 # --- Jornada ---
 
 class JornadaResponse(BaseModel):
@@ -545,6 +570,6 @@ class SyncResponse(BaseModel):
     clientes: list[ClienteSyncResponse]
     creditos: list[CreditoResponse]
     cuotas: list[CuotaProgramadaResponse]
-    pagos: list[PagoResponse]
+    pagos: list[PagoSyncResponse]
     movimientos: list[MovimientoResponse]
     jornadas: list[JornadaResponse]

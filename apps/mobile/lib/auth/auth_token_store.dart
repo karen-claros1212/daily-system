@@ -1,20 +1,28 @@
-// ─── Almacenamiento seguro de la sesion (JWT productivo) ─────────────────────
+// ─── Almacenamiento seguro de la sesión (JWT productivo) ──────────────────────
 //
-// El token de sesion se guarda SOLO en secure storage respaldado por
-// AndroidKeyStore (flutter_secure_storage). Prohibido por contrato usar
-// SharedPreferences para el access token.
+// La sesión (access token JWT + expira_el + dispositivo_id) se guarda como un
+// ÚNICO envelope JSON bajo la clave `daily_session` en flutter_secure_storage
+// (respaldado por AndroidKeyStore). Una sola write() garantiza atomicidad: el
+// JWT nuevo nunca queda aparejado a metadata vieja/incompleta; la renovación
+// sustituye el envelope completo en un único write. Prohibido por contrato
+// usar SharedPreferences para el access token.
 //
-// La sesion tambien conserva expira_el (RFC3339) y el dispositivo_id: son los
-// datos que permiten RENOVAR la sesion (~5 min antes de expirar) reutilizando
-// los mismos endpoints /api/auth/device/desafio + /canjear sin refresh token
-// y sin una segunda arquitectura de auth.
+// Migración tolerante: si existen las 3 claves legadas del commit anterior
+// (daily_access_token / _expira_el / _dispositivo_id), se leen como
+// compatibilidad y se migran al envelope la primera vez.
+
+import 'dart:convert';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'models.dart';
 
-/// Puerta de entrada unica al almacenamiento de la sesion.
+/// Puerta de entrada única al almacenamiento de la sesión.
 class AuthTokenStore {
+  /// Clave única del envelope serializado.
+  static const String kSessionKey = 'daily_session';
+
+  /// Claves legadas (solo para migración tolerante, no se escriben de nuevo).
   static const String kTokenKey = 'daily_access_token';
   static const String kExpiraElKey = 'daily_access_token_expira_el';
   static const String kDispositivoKey = 'daily_dispositivo_id';
@@ -24,28 +32,68 @@ class AuthTokenStore {
   AuthTokenStore({FlutterSecureStorage? storage})
       : _storage = storage ?? const FlutterSecureStorage();
 
-  /// Token JWT de sesion, o null si no hay sesion activa.
-  Future<String?> leerToken() => _storage.read(key: kTokenKey);
+  Map<String, dynamic> get _emptySession =>
+      {'token': null, 'expira_el': null, 'dispositivo_id': null};
 
-  /// expira_el (RFC3339) del token vigente, o null si no hay sesion.
-  Future<String?> leerExpiraEl() => _storage.read(key: kExpiraElKey);
+  /// Lee el envelope, migrando tolerante desde las claves legadas si aún no
+  /// existe. Un envelope corrupto se invalida (borra la clave quedada pegada).
+  Future<Map<String, dynamic>> _leerEnvelope() async {
+    final raw = await _storage.read(key: kSessionKey);
+    if (raw != null) {
+      try {
+        final decoded = jsonDecode(raw) as Map<String, dynamic>;
+        return Map<String, dynamic>.from(decoded);
+      } catch (_) {
+        await _storage.delete(key: kSessionKey);
+        return _emptySession;
+      }
+    }
 
-  /// Dispositivo autenticado, requerido para firmar la renovacion.
-  Future<String?> leerDispositivoId() => _storage.read(key: kDispositivoKey);
-
-  /// Persiste la sesion completa emitida por /api/auth/device/canjear:
-  /// token + expira_el + dispositivo_id. Solo se llama con un canje EXITOSO
-  /// (el JWT nuevo nunca se escribe si el canje fallo).
-  Future<void> guardarSesion(CanjearAuth canje) async {
-    await _storage.write(key: kTokenKey, value: canje.token);
-    await _storage.write(key: kExpiraElKey, value: canje.expiraEl);
-    await _storage.write(key: kDispositivoKey, value: canje.dispositivoId);
+    final token = await _storage.read(key: kTokenKey);
+    final expiraEl = await _storage.read(key: kExpiraElKey);
+    final dispositivoId = await _storage.read(key: kDispositivoKey);
+    final migrado = {
+      'token': token,
+      'expira_el': expiraEl,
+      'dispositivo_id': dispositivoId,
+    };
+    if (token != null || expiraEl != null || dispositivoId != null) {
+      await _storage.write(key: kSessionKey, value: jsonEncode(migrado));
+      await _storage.delete(key: kTokenKey);
+      await _storage.delete(key: kExpiraElKey);
+      await _storage.delete(key: kDispositivoKey);
+    }
+    return migrado;
   }
 
-  /// Limpia la sesion (contrato: un 401 de auth/bootstrap termina la sesion).
+  Future<T?> _leerCampo<T>(String campo) async {
+    final env = await _leerEnvelope();
+    final v = env[campo];
+    return v is T ? v : null;
+  }
+
+  /// Token JWT de sesión, o null si no hay sesión activa.
+  Future<String?> leerToken() => _leerCampo<String>('token');
+
+  /// expira_el (RFC3339) del token vigente, o null si no hay sesión.
+  Future<String?> leerExpiraEl() => _leerCampo<String>('expira_el');
+
+  /// Dispositivo autenticado, requerido para firmar la renovación.
+  Future<String?> leerDispositivoId() => _leerCampo<String>('dispositivo_id');
+
+  /// Persiste la sesión completa emitida por /api/auth/device/canjear en un
+  /// único write() atómico (el JWT nuevo nunca se escribe si el canje falló).
+  Future<void> guardarSesion(CanjearAuth canje) async {
+    final env = {
+      'token': canje.token,
+      'expira_el': canje.expiraEl,
+      'dispositivo_id': canje.dispositivoId,
+    };
+    await _storage.write(key: kSessionKey, value: jsonEncode(env));
+  }
+
+  /// Limpia la sesión (contrato: un 401 de auth/bootstrap termina la sesión).
   Future<void> borrarToken() async {
-    await _storage.delete(key: kTokenKey);
-    await _storage.delete(key: kExpiraElKey);
-    await _storage.delete(key: kDispositivoKey);
+    await _storage.delete(key: kSessionKey);
   }
 }

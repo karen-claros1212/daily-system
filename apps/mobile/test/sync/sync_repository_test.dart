@@ -19,6 +19,8 @@
 //     pendiente o jornada de cierre local pendiente.
 
 import 'package:daily_system/database/database.dart';
+import 'package:daily_system/domain/domain_exceptions.dart';
+import 'package:daily_system/services/pago_service.dart';
 import 'package:daily_system/sync/sync_models.dart';
 import 'package:daily_system/sync/sync_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -142,6 +144,49 @@ SyncDataset _datasetConPagoConflicto() {
         monto: 5000,
         claveIdempotencia: 'sync-pago-1',
         recibidoElServidor: '2026-08-08T18:01:00Z',
+      ),
+    ],
+    movimientos: _movimientos,
+  );
+}
+
+/// Dataset que incluye un PAYMENT (p1) y su REVERSAL (r1) enlazado vía
+/// reversal_of_payment_id: el servidor envía el reversal con el enlace al pago
+/// original, y el pull local debe preservarlo para bloquear un doble reverso.
+SyncDataset _datasetConPagoYReversal() {
+  return SyncDataset(
+    negocioId: 'n1',
+    cobradorId: 'c1',
+    rutaId: 'r1',
+    rutaVersion: 2,
+    clientes: _clientes,
+    creditos: _creditos,
+    cuotas: _cuotas,
+    jornadas: _jornadas,
+    pagos: [
+      const SyncPago(
+        id: 'p1',
+        negocioId: 'n1',
+        creditoId: 'cr1',
+        jornadaId: 'j1',
+        tipo: 'PAYMENT',
+        monto: 5000,
+        claveIdempotencia: 'sync-pago-1',
+        recibidoElServidor: '2026-08-08T18:00:00Z',
+      ),
+      SyncPago(
+        id: 'r1',
+        negocioId: 'n1',
+        creditoId: 'cr1',
+        jornadaId: 'j1',
+        cobradorId: 'c1',
+        tipo: 'REVERSAL',
+        monto: 5000,
+        claveIdempotencia: 'sync-reversal-1',
+        registradoElDispositivo: '2026-08-08T17:00:00Z',
+        recibidoElServidor: '2026-08-08T18:05:00Z',
+        nota: 'Reversal de prueba',
+        reversalOfPaymentId: 'p1',
       ),
     ],
     movimientos: _movimientos,
@@ -465,6 +510,29 @@ void main() {
       expect(cu1['estado'], 'PAGADO');
       expect(cu2['estado'], 'PAGADO');
       expect(await db.query('pago', where: 'id = ?', whereArgs: ['lp1']), hasLength(1));
+    });
+
+    test('S2-H2) reversal del servidor preserva reversal_of_payment_id y bloquea '
+        'un doble reverso local', () async {
+      await repo.importar(_datasetConPagoYReversal());
+
+      final r1 = (await db.query('pago', where: 'id = ?', whereArgs: ['r1'])).first;
+      expect(r1['reversal_of_payment_id'], 'p1');
+      expect(r1['nota'], 'Reversal de prueba');
+
+      await db.update('jornada', {'estado': 'OPEN'},
+          where: 'id = ?', whereArgs: ['j1']);
+
+      await expectLater(
+        PagoService.reversarPago(
+          'p1',
+          'j1',
+          'c1',
+          'n1',
+          'intento de doble reversal',
+        ),
+        throwsA(isA<PagoYaReversadoException>()),
+      );
     });
   });
 

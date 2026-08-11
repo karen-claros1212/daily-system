@@ -329,6 +329,10 @@ class TestMobileSync:
         assert len(data["pagos"]) == 1
         assert data["pagos"][0]["id"] == str(dataset_ruta["pago_id"])
         assert data["pagos"][0]["monto"] == 10000
+        assert data["pagos"][0]["cobrador_id"] == str(escenario["cobrador_id"])
+        assert data["pagos"][0]["clave_idempotencia"]
+        assert data["pagos"][0]["nota"] is None
+        assert data["pagos"][0]["reversal_of_payment_id"] is None
 
         assert len(data["movimientos"]) == 1
         assert data["movimientos"][0]["id"] == str(dataset_ruta["movimiento_id"])
@@ -448,3 +452,105 @@ class TestMobileSync:
         )
         r = self._sync(client, token)
         assert r.status_code == 401, r.text
+
+    def test_sync_pagos_expone_reversal_of_payment_id(
+        self, client, db_session, escenario, dispositivo_activo
+    ):
+        """Un REVERSAL del servidor debe circular con su enlace al pago original
+        (reversal_of_payment_id) para que el movil preserve la relacion y no
+       permita revertir dos veces el mismo pago."""
+        from datetime import datetime, timezone
+        from uuid import uuid4 as _uuid4
+
+        cliente = Cliente(
+            id=_uuid4(),
+            negocio_id=escenario["negocio_id"],
+            tipo_documento="CC",
+            documento_normalizado="1000000010",
+            primer_apellido="Rojas",
+            nombres="Pedro",
+            telefono_1="3000000010",
+            direccion="Calle 10",
+            barrio="Centro",
+            ciudad="Bogota",
+            ocupacion="Comerciante",
+            identity_status="VERIFIED",
+        )
+        db_session.add(cliente)
+        db_session.flush()
+
+        credito = Credito(
+            id=_uuid4(),
+            negocio_id=escenario["negocio_id"],
+            cliente_id=cliente.id,
+            ruta_id=escenario["ruta_id"],
+            origination_type="NEW",
+            cuota=10000,
+            n_cuotas=1,
+            monto=10000,
+            total=10000,
+            periodicidad="DIARIO",
+            fecha_inicio=date(2026, 8, 1),
+            estado="ACTIVO",
+            version=1,
+        )
+        db_session.add(credito)
+        db_session.flush()
+
+        jornada = Jornada(
+            id=_uuid4(),
+            negocio_id=escenario["negocio_id"],
+            ruta_id=escenario["ruta_id"],
+            cobrador_id=escenario["cobrador_id"],
+            fecha=date(2026, 8, 8),
+            estado="CLOSED_SYNCED",
+            opening_base=100000,
+            opening_carry=0,
+            esperado=10000,
+            contado=10000,
+            diferencia=0,
+            sobrante_manana=0,
+            cierre_version=2,
+        )
+        db_session.add(jornada)
+        db_session.flush()
+
+        now = datetime.now(timezone.utc)
+        pago = Pago(
+            id=_uuid4(),
+            negocio_id=escenario["negocio_id"],
+            credito_id=credito.id,
+            jornada_id=jornada.id,
+            cobrador_id=escenario["cobrador_id"],
+            tipo="PAYMENT",
+            monto=10000,
+            registrado_el_dispositivo=now,
+            clave_idempotencia=str(_uuid4()),
+        )
+        reversal = Pago(
+            id=_uuid4(),
+            negocio_id=escenario["negocio_id"],
+            credito_id=credito.id,
+            jornada_id=jornada.id,
+            cobrador_id=escenario["cobrador_id"],
+            tipo="REVERSAL",
+            monto=10000,
+            registrado_el_dispositivo=now,
+            clave_idempotencia=str(_uuid4()),
+            reversal_of_payment_id=pago.id,
+            nota="Reversal de prueba",
+        )
+        db_session.add_all([pago, reversal])
+        db_session.flush()
+
+        token = _token(escenario, dispositivo_activo)
+        r = self._sync(client, token)
+        assert r.status_code == 200, r.text
+        pagos = {p["id"]: p for p in r.json()["pagos"]}
+
+        assert str(pago.id) in pagos
+        assert str(reversal.id) in pagos
+        assert pagos[str(reversal.id)]["reversal_of_payment_id"] == str(pago.id)
+        assert pagos[str(reversal.id)]["tipo"] == "REVERSAL"
+        assert pagos[str(reversal.id)]["nota"] == "Reversal de prueba"
+        assert pagos[str(pago.id)]["reversal_of_payment_id"] is None
