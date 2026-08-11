@@ -1,8 +1,9 @@
 # Offline Sync — Daily System
 
-**Documento:** Normativo  
-**Última actualización:** 2026-08-11  
-**Base verificada:** `hardening/b1-b7-audit` @ `c0a3a9c`  
+**Documento:** Normativo
+**Última actualización:** 2026-08-11
+**Base verificada:** `c0a3a9c` (baseline código S0-S2)
+**HEAD repositorio (documental):** `35adf24`
 **Ver también:** [Security](SECURITY.md), [Architecture](ARCHITECTURE.md)
 
 ---
@@ -95,8 +96,8 @@ El pull preserva `reversal_of_payment_id` en `Pago` y bloquea un doble reverso l
 **Objetivo:** cuando el móvil está offline, los eventos financieros (pagos, movimientos, cierres) se encolan localmente y se empujan al servidor al recuperar conectividad. El servidor responde con ACK/NACK; el móvil hace retry con backoff y resuelve conflictos.
 
 ### Estado actual
-- **`sync_queue_service.dart`** existe (push local de la cola de eventos pendientes) pero los endpoints de push todavía no existen en el backend para S3.
-- **Pendiente definir:** el contrato de push, ACK, retry con backoff, idempotency keys en S3, resolución de conflictos (snapshot de jornada, casos de cierre simultáneo, etc.)
+- **`sync_queue_service.dart`** existe (push local de la cola de eventos pendientes). Los endpoints individuales de push **YA EXISTEN** en el backend: POST /api/pagos, POST /api/pagos/{id}/reversar, POST /api/movimientos, POST /api/jornadas/{id}/cerrar, POST /api/jornadas/{id}/sincronizar.
+- **Lo que falta (S3):** el envelope de outbox móvil (envelope atómico de push, ACK/NACK, idempotency key persistence, retry con backoff, resolución de conflictos, reasignación segura). Si se demuestra necesaria una fachada batch/mobile para S3, será una decisión de S3 — **no** una ausencia general de endpoints.
 - **No documentar como implementado.** No asumir.
 
 ### Flujo objetivo (no implementado)

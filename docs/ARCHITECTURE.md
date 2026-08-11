@@ -1,8 +1,9 @@
 # Arquitectura — Daily System
 
-**Documento:** Normativo  
-**Última actualización:** 2026-08-11  
-**Base verificada:** `hardening/b1-b7-audit` @ `c0a3a9c`
+**Documento:** Normativo
+**Última actualización:** 2026-08-11
+**Base verificada:** `c0a3a9c` (baseline código S0-S2)
+**HEAD repositorio (documental):** `35adf24`
 
 ---
 
@@ -169,10 +170,10 @@ Ver [`OFFLINE-SYNC.md`](OFFLINE-SYNC.md) para el contrato completo.
 1. Device genera EC P-256 en AndroidKeyStore (privada no exportable)
 2. POST /api/activaciones/desafio → nonce + intento_id
 3. Device firma nonce con JCS (RFC 8785) → SHA256withECDSA
-4. POST /api/activaciones/canjear → credencial_bootstrap (1º JWT)
-5. GET /api/mobile/bootstrap → identity (negocio, cobrador, ruta única)
-6. POST /api/auth/device/desafio → challenge
-7. Device firma → POST /api/auth/device/canjear → access token JWT ES256
+4. POST /api/activaciones/canjear → credencial_bootstrap TEMPORAL (no JWT; un solo uso, nunca reutilizado como access token)
+5. POST /api/auth/device/desafio (Bearer: credencial_bootstrap) → challenge (daily-auth-v1)
+6. Device firma challenge → POST /api/auth/device/canjear → access token JWT ES256 (claims congeladas)
+7. GET /api/mobile/bootstrap (Bearer: access JWT) → identity (negocio, cobrador, ruta única)
 8. SyncClient usa Bearer JWT; DeviceAuthClient renueva antes de expirar (S0)
 ```
 

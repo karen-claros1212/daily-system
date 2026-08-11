@@ -1,8 +1,9 @@
 # Seguridad — Daily System
 
-**Documento:** Normativo  
-**Última actualización:** 2026-08-11  
-**Base verificada:** `hardening/b1-b7-audit` @ `c0a3a9c`  
+**Documento:** Normativo
+**Última actualización:** 2026-08-11
+**Base verificada:** `c0a3a9c` (baseline código S0-S2)
+**HEAD repositorio (documental):** `35adf24`
 **Ver también:** [ARCHITECTURE.md](ARCHITECTURE.md), [OFFLINE-SYNC.md](OFFLINE-SYNC.md)
 
 ---
@@ -44,8 +45,10 @@
 ```
 POST /api/activaciones/codigos          (admin-only) → codigo_activacion (hash)
 POST /api/activaciones/desafio          (público) → intento_id, nonce, expira_el
-POST /api/activaciones/canjear          (público) → firma JCS + intento_id → credencial_bootstrap (1er JWT)
-GET  /api/mobile/bootstrap              (Bearer JWT) → identity + ruta_activa_unica
+POST /api/activaciones/canjear          (público) → firma JCS + intento_id → credencial_bootstrap TEMPORAL (no JWT; un solo uso)
+POST /api/auth/device/desafio           (Bearer: credencial_bootstrap) → challenge_id, nonce (daily-auth-v1)
+POST /api/auth/device/canjear           → access token JWT ES256
+GET  /api/mobile/bootstrap              (Bearer: access JWT) → identity + ruta_activa_unica
 ```
 
 - Código de activación: un solo uso, vence con `MAX_INTENTOS_FALLIDOS=5` → estado `EXPIRED`
@@ -81,9 +84,9 @@ En `apps/api/src/auth/token.py`:
 
 ### Renewal (daily-auth-v1)
 ```
-POST /api/auth/device/desafio    (Bearer JWT vigente o credencial_bootstrap) → challenge_id, nonce
+POST /api/auth/device/desafio    (Bearer access JWT vigente o credencial_bootstrap) → challenge_id, nonce
 Device firma nonce →
-POST /api/auth/device/canjear     → nuevo JWT (version_asignacion ACTUAL de la base)
+POST /api/auth/device/canjear     → nuevo access JWT (version_asignacion ACTUAL de la base)
 ```
 - Single-use (consumido en transaction con SELECT FOR UPDATE)
 - `version_asignacion` verificado en cada canje → bump de versión revoca tokens anteriores
@@ -110,7 +113,7 @@ POST /api/auth/device/canjear     → nuevo JWT (version_asignacion ACTUAL de la
 
 | Entidad | Clave | Payload comparison | On match | On mismatch |
 |---|---|---|---|---|
-| Pago | `clave_idempotencia` | full payload | Return existing | 409 (MovimientoIdempotencyError) |
+| Pago | `clave_idempotencia` | full payload | Return existing | 409 (PaymentIdempotencyError) |
 | Movimiento | `clave_idempotencia` | full payload | Return existing | 409 |
 | Jornada cierre | `idempotencia_cierre` | canonical JSON (sort_keys) | Re-sync accepted | 409 (JornadaSyncException) |
 | Device canje | `intento_id` | JCS signature | Idempotent return | 401 FIRMA_INVALIDA |

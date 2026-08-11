@@ -34,8 +34,8 @@
 | Pruebas golden y semantics | ✅ Implementado (31 goldens + 37 semantics/widgets) + 77 sync/paridad/integration |
 | Producción | Pendiente |
 
-> **Rama de trabajo verificada:** `hardening/b1-b7-audit` — HEAD `c0a3a9c`.
-> `master` (`486d08b`) no contiene el hardening B1-B7. Ver [Estado del proyecto](docs/STATUS.md) para detalle en vivo.
+> **Rama de trabajo verificada:** `hardening/b1-b7-audit` — código baseline `c0a3a9c`; HEAD repositorio documental `35adf24`.
+> `master` (`486d08b`) no contiene el hardening B1-B7 (hardening está **9 commits ahead / 0 behind** de master). Ver [Estado del proyecto](docs/STATUS.md) para detalle en vivo.
 
 ---
 
@@ -80,8 +80,8 @@ está en [docs/ui-audit/screenshots/](docs/ui-audit/screenshots/) con manifest S
 ### Auth y seguridad del dispositivo
 - Auth productivo: JWT ES256 con device/user/business/version binding
 - AndroidKeyStore EC P-256 no exportable (SHA256withECDSA)
-- Challenge-response single-use (daily-auth-v1)
-- Bootstrap: credencial → primer JWT → sesión persistente móvil (envelope atómico daily_session)
+- Challenge-response single-use (daily-v1 para activación; daily-auth-v1 para auth)
+- Bootstrap: credencial_bootstrap temporal → desafío/auth → access JWT → GET /api/mobile/bootstrap → sesión persistente (envelope atómico daily_session)
 - Android permissions y `MethodChannel daily_system/device_identity` en `MainActivity.kt`
 
 ### Negocio y cobro
@@ -268,7 +268,8 @@ python3 -m alembic check       # No new upgrade operations detected
 - [x] M0: Fundación ejecutable
 - [x] M1: Hoja viva y pagos
 - [x] M2: Jornada, caja y Terminar Jornada
-- [x] M3: Suscripción, Telegram, inversionista
+- [x] M3 base: Suscripción / límites por plan
+- [!] M3.2-M3.5 históricos: Bot Telegram, panel inversionista, reporte diario — **no implementados** en el árbol actual
 - [x] M3.6: Flutter Offline Alpha + Visual Alpha Premium
 - [x] UX/UI Premium: marca, tokens, componentes, tema
 - [x] UX/UI Phase 2: splash nativo, DAILY_DEMO, light/dark, CSS generator, gate estricto
@@ -325,8 +326,8 @@ Ver [Security](docs/SECURITY.md), [Offline Sync](docs/OFFLINE-SYNC.md), [Archite
 | [Auditoría UI/UX](docs/ui-audit/) | Evidencia | Before/after premium |
 | [Web Blueprint](docs/web/WEB-UI-BLUEPRINT.md) | Normativo | Prototipo web MOCK |
 
-> 📌 **Verdad documental vigente:** `docs/STATUS.md` + `DAILY-SYSTEM-ARCHIVO-MAESTRO-CONTINUIDAD-OPENCODE.md`.
-> Los archivos históricos (`DAILY-SYSTEM-CONTEXT-HANDOFF.md` 2026-08-05) se archivan a `docs/historical/` al reconcilar.
+> 📌 **Verdad documental vigente:** `docs/STATUS.md` + `DAILY-SYSTEM-CONTEXT-HANDOFF.md` + `DAILY-SYSTEM-ARCHIVO-MAESTRO-CONTINUIDAD-OPENCODE.md`.
+> El handoff operativo vigente es `DAILY-SYSTEM-CONTEXT-HANDOFF.md` (verificación 2026-08-11 sobre `c0a3a9c`).
 
 ---
 

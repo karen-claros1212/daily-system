@@ -4,8 +4,9 @@
 **Última actualización:** 2026-08-11
 **Ruta de trabajo verificada (local):** `/home/jesus/proyectos/daily-system`
 **Rama de trabajo:** `hardening/b1-b7-audit`
-**HEAD (verificado en disco):** `c0a3a9c1646358fea4badc45bc9cdf5d6e2a1216`
-**master:** `486d08b1584684a4328825142209776fce477670` (no contiene el hardening B1-B7; 0/7 detrás de HEAD)
+**HEAD (repositorio, documental):** `35adf24576a44c9843b73a4d047c0623f7f9d345`
+**HEAD (código S0-S2 baseline):** `c0a3a9c1646358fea4badc45bc9cdf5d6e2a1216`
+**master:** `486d08b1584684a4328825142209776fce477670` (no contiene el hardening B1-B7; `hardening/b1-b7-audit` está 9 commits ahead / 0 behind de master)
 **Repo:** https://github.com/karen-claros1212/daily-system
 
 > ## ⚠️ NOTA DE RECONCILIACIÓN (2026-08-06 → 2026-08-11)
@@ -45,7 +46,7 @@
 | Campo | Valor |
 |---|---|
 | **Estado general** | M0-M3 completos · B1-B7 hardening PASS · S3 pendiente |
-| **Hito actual** | B1-B7 hardening (HEAD `c0a3a9c`) |
+| **Hito actual** | B1-B7 hardening (código baseline `c0a3a9c`; HEAD repo doc `35adf24`) |
 | **Progreso total** | M0: 22/22 ✅ · M1: 8/8 ✅ · M2: 6/6 ✅ · M3: 6/6 (3 históricas no implementadas) ✅ · B1-B7: ✅ |
 | **Tests pasando (backend, SQLite)** | 255 passed, 7 skipped (257 funciones) |
 | **Tests pasando (mobile)** | 147 passing |
