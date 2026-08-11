@@ -14,9 +14,10 @@ Este es el checkout operativo canónico. Confirmar siempre con `pwd` y `git rev-
 | Concepto | Valor |
 |---|---|
 | Rama de trabajo verificada | `hardening/b1-b7-audit` |
-| HEAD repositorio (documental) | `35adf24576a44c9843b73a4d047c0623f7f9d345` |
-| HEAD código (S0-S2 baseline) | `c0a3a9c1646358fea4badc45bc9cdf5d6e2a1216` |
-| origin/master | `486d08b` (no contiene el hardening B1-B7; hardening está 9 ahead / 0 behind) |
+| HEAD (repositorio) | **Dinámico** — `git rev-parse HEAD` (Git es autoridad; SHA no se hardcodea en docs) |
+| HEAD (código S0-S2 baseline) | `c0a3a9c1646358fea4badc45bc9cdf5d6e2a1216` |
+| HEAD (checkpoint DOC-SYNC inicial) | `35adf24576a44c9843b73a4d047c0623f7f9d345` (histórico, no autoridad actual) |
+| origin/master | `486d08b` (no contiene el hardening B1-B7) |
 
 > **Importante:** el hardening B1-B7 vive en `hardening/b1-b7-audit`, NO en `master`.
 > Cualquier trabajo debe basarse en esta rama o su descendiente.

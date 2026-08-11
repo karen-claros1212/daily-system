@@ -3,7 +3,7 @@
 **Documento:** Normativo
 **Última actualización:** 2026-08-11
 **Base verificada:** `c0a3a9c` (baseline código S0-S2)
-**HEAD repositorio (documental):** `35adf24`
+**HEAD (repositorio):** dinámico — `git rev-parse HEAD`
 **Ver también:** [ARCHITECTURE.md](ARCHITECTURE.md), [OFFLINE-SYNC.md](OFFLINE-SYNC.md)
 
 ---
@@ -142,8 +142,9 @@ Ver `DAILY-SYSTEM-ARCHIVO-MAESTRO-CONTINUIDAD-OPENCODE.md` §invariantes. Hasta 
 - Migraciones de activación, `CodigoActivacion`, `IntentoActivacion`, `public_key`
 - Challenge-response, JWT, OAuth/PKCE, Keystore
 - Bootstrap, dependencias Flutter de auth, módulo productivo de activación web
-- S3 outbox (push/ACK/retry)
 - Renombrar S3 → S4
+
+> **S3 es el bloque actual autorizado.** El outbox (sync_queue, push, ACK, retry, conflictos) puede evolucionarse conforme a `docs/OFFLINE-SYNC.md`, reutilizando servicios y endpoints financieros existentes (`POST /api/pagos`, `POST /api/movimientos`, `POST /api/jornadas/{id}/cerrar`, `POST /api/jornadas/{id}/sincronizar`). No reconstruir auth, Hoja Viva ni el modelo financiero.
 
 ---
 

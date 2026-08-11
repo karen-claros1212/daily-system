@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — Hardening B1–B7 + Mobile Auth/Sync (código S0-S2: c0a3a9c · HEAD doc: 35adf24)
+## [Unreleased] — Hardening B1–B7 + Mobile Auth/Sync (código S0-S2: c0a3a9c)
 
 Rama de trabajo: `hardening/b1-b7-audit`. `master` (`486d08b`) no contiene estos cambios.
 
@@ -52,7 +52,7 @@ Rama de trabajo: `hardening/b1-b7-audit`. `master` (`486d08b`) no contiene estos
 
 ### Repository
 - `hardening/b1-b7-audit` contiene todos los cambios B1–B7
-- `master` (`486d08b`) no fusionado; hardening está **9 commits ahead / 0 behind** de master
+- `master` (`486d08b`) no fusionado; hardening diverge de master (ver con `git rev-list --count master..HEAD`)
 
 ### Historias no implementadas (arqueología del CHANGELOG)
 - [M3.5] Bot Telegram (cobrador/inversionista): **NO EXISTE** en el árbol (`apps/telegram-bot/` no existe)

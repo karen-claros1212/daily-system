@@ -39,8 +39,9 @@
 ## Ruta de trabajo canónica
 
 - **Checkout operativo:** `/home/jesus/proyectos/daily-system`
-- **Rama de trabajo:** `hardening/b1-b7-audit` (HEAD doc: `35adf24`; HEAD código S0-S2: `c0a3a9c`)
-- **master:** `486d08b` (no contiene el hardening B1-B7; hardening está 9 ahead / 0 behind)
+- **Ruta de trabajo canónica:** `/home/jesus/proyectos/daily-system`
+- **Rama de trabajo:** `hardening/b1-b7-audit` (HEAD: `git rev-parse HEAD`; código S0-S2 baseline `c0a3a9c`)
+- **master:** `486d08b` (no contiene el hardening B1-B7)
 
 ## Estado actual resumido
 

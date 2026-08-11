@@ -7,9 +7,9 @@
 | Campo | Valor |
 |---|---|
 | **Rama de trabajo** | `hardening/b1-b7-audit` |
-| **HEAD (repositorio, doc)** | `35adf24576a44c9843b73a4d047c0623f7f9d345` |
+| **HEAD (repositorio)** | Dinámico: `git rev-parse HEAD` (Git es autoridad; SHA no se hardcodea) |
 | **HEAD (código S0-S2 baseline)** | `c0a3a9c1646358fea4badc45bc9cdf5d6e2a1216` |
-| **master** | `486d08b1584684a4328825142209776fce477670` (no contiene el hardening B1-B7; hardening está 9 commits ahead / 0 behind) |
+| **master** | `486d08b` (no contiene el hardening B1-B7) |
 | **Alembic head** | `m7_desafio_auth` |
 | **Tests backend (SQLite)** | 255 passed, 7 skipped (257 funciones) |
 | **Tests mobile** | 147 passing |
@@ -75,7 +75,7 @@ S3  Outbox push/ACK/retry (PENDIENTE)
 - `lib/auth/` — AuthHttpClient, DeviceAuthClient, DeviceIdentity, JCS, TokenStore
 
 **Pendiente (S3):**
-- Outbox local → push al server → ACK/NACK → backoff retry → resolución de conflictos
+- Outbox local → push al server → ACK/NACK → retry reintentable → resolución de conflictos
 - Los endpoints individuales de push YA EXISTEN (POST /api/pagos, POST /api/pagos/{id}/reversar, POST /api/movimientos, POST /api/jornadas/{id}/cerrar, POST /api/jornadas/{id}/sincronizar). Lo que falta: el envelope de outbox móvil, ACK/NACK, persistencia de idempotency keys, resolución de conflictos. Definir en `docs/OFFLINE-SYNC.md` (sección S3).
 
 ## 4. Hoja Viva y modelo offline existente
@@ -91,7 +91,8 @@ S3  Outbox push/ACK/retry (PENDIENTE)
 ## 5. Restricciones para el agente siguiente
 
 1. **Master/merge/tag/deploy sin autorización: PROHIBIDO.** Ver AGENTS.md §invariante 8.
-2. **No tocar** sin instrucción explícita: migraciones de activación, `CodigoActivacion`, `IntentoActivacion`, `public_key`, challenge-response, JWT/OAuth/PKCE, Keystore, bootstrap, dependencias Flutter de auth, S3 outbox, módulo web.
+2. **No tocar** sin instrucción explícita: migraciones de activación, `CodigoActivacion`, `IntentoActivacion`, `public_key`, challenge-response, JWT/OAuth/PKCE, Keystore, bootstrap, dependencias Flutter de auth, módulo web.
+   - **S3 es el bloque actual autorizado.** El outbox (mobile→server push, ACK, retry, conflictos) puede evolucionarse conforme a `docs/OFFLINE-SYNC.md`, reutilizando servicios y endpoints financieros existentes (`POST /api/pagos`, `POST /api/pagos/{id}/reversar`, `POST /api/movimientos`, `POST /api/jornadas/{id}/cerrar`, `POST /api/jornadas/{id}/sincronizar`). No reconstruir auth, Hoja Viva ni el modelo financiero.
 3. **No renombrar S3 a S4.** S3 es el bloque actual.
 4. **Ruta canónica:** `/home/jesus/proyectos/daily-system`
 5. **Documentación obligatoria como gate de cierre de bloque.** Ver AGENTS.md §invariante 10.
@@ -126,7 +127,7 @@ scripts/ci/ui_gate.sh                     # PASS (GitHub Actions)
 
 **S3 — outbox móvil→servidor (push/ACK/retry/conflictos).**
 - Diseñar contrato de push (POST individual con idempotency keys, o endpoint batch)
-- ACK/NACK, backoff retry, resolución de conflictos (snapshot de jornada)
+- ACK/NACK, retry reintentable, resolución de conflictos (snapshot de jornada)
 - Documentar en `docs/OFFLINE-SYNC.md`
 
 **Pendientes adicionales:**

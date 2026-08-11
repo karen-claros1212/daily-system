@@ -3,7 +3,7 @@
 **Documento:** Normativo
 **Última actualización:** 2026-08-11
 **Base verificada:** `c0a3a9c` (baseline código S0-S2)
-**HEAD repositorio (documental):** `35adf24`
+**HEAD (repositorio):** dinámico — `git rev-parse HEAD`
 
 ---
 

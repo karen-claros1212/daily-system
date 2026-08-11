@@ -34,8 +34,9 @@
 | Pruebas golden y semantics | ✅ Implementado (31 goldens + 37 semantics/widgets) + 77 sync/paridad/integration |
 | Producción | Pendiente |
 
-> **Rama de trabajo verificada:** `hardening/b1-b7-audit` — código baseline `c0a3a9c`; HEAD repositorio documental `35adf24`.
-> `master` (`486d08b`) no contiene el hardening B1-B7 (hardening está **9 commits ahead / 0 behind** de master). Ver [Estado del proyecto](docs/STATUS.md) para detalle en vivo.
+> **Rama de trabajo verificada:** `hardening/b1-b7-audit` — código baseline S0-S2 `c0a3a9c`.
+> `master` (`486d08b`) no contiene el hardening B1-B7. Ver [Estado del proyecto](docs/STATUS.md) para detalle en vivo.
+> (HEAD actual: `git rev-parse HEAD`; no hardcodeado en docs)
 
 ---
 
