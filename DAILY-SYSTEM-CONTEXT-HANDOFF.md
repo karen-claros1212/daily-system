@@ -1,214 +1,65 @@
-# DAILY-SYSTEM-CONTEXT-HANDOFF
+# Daily System — Context Handoff
 
-**Handoff operativo vigente — Daily System**
-
-**Ruta de checkout canónica:** `/home/jesus/proyectos/daily-system`
-
-| Campo | Valor |
-|---|---|
-| **Rama de trabajo** | `hardening/b1-b7-audit` |
-| **HEAD (repositorio)** | Dinámico: `git rev-parse HEAD` (Git es autoridad; SHA no se hardcodea) |
-| **HEAD (código S0-S2 baseline)** | `c0a3a9c1646358fea4badc45bc9cdf5d6e2a1216` |
-| **master** | `486d08b` (no contiene el hardening B1-B7) |
-| **Alembic head** | `m7_desafio_auth` |
-| **Tests backend (SQLite)** | 262 passed, 7 skipped (269 funciones) |
-| **Tests mobile** | 163 passing |
-| **flutter analyze** | No issues found |
-
-> `master` (486d08b) es una línea histórica que precede al hardening. Todo el trabajo de auth/sync productivo está en `hardening/b1-b7-audit`. No usar master como base.
-
----
-
-## 1. Estado del producto (verificado 2026-08-11)
-
-| Estado | Bloque |
-|---|---|
-| ✅ PASS | M0-M3 (backend financiero, hoja viva, suscripciones) |
-| ✅ PASS | B1-B7 hardening (auth, device, activation, bootstrap) |
-| ✅ PASS | S0 — session maintenance (renovación antes de expirar) |
-| ✅ PASS | S1 — route isolation (scope server-side, cliente no elige ruta) |
-| ✅ PASS | S2 — pull servidor→móvil + persistencia SQLite (UPSERT por PK) |
-| ✅ PASS | S3 — outbox móvil→servidor (push / ACK / retry / conflictos) |
-| ⏳ PENDIENTE | Web productiva (`apps/web/` vacío; solo prototipo MOCK) |
-| ⏳ PENDIENTE | Verificado en dispositivo físico (solo emulador API 35) |
-| ⛔ NO EXISTE | PowerSync (no es la arquitectura; usa SQLite + sync_queue + capa propia) |
-| ⛔ NO EXISTE | Auth por sesión (es JWT ES256 + AndroidKeyStore) |
-| ⛔ NO EXISTE | Bot Telegram, panel inversionista productivo |
-| ⛔ PROHIBIDO | Bot en móvil |
-
----
-
-## 2. Arquitectura productiva de auth
+## Estado Canónico Actual
 
 ```
-1. Device genera EC P-256 en AndroidKeyStore (privada no exportable)
-2. POST /api/activaciones/desafio → nonce + intento_id (daily-v1, single-use)
-3. Device firma nonce con JCS (RFC 8785) → SHA256withECDSA
-4. POST /api/activaciones/canjear → credencial_bootstrap TEMPORAL (no JWT; un solo uso, nunca reutilizado como access token)
-5. POST /api/auth/device/desafio (Bearer: credencial_bootstrap) → challenge (daily-auth-v1)
-6. Device firma challenge → POST /api/auth/device/canjear → access token JWT ES256 (claims congeladas)
-7. GET /api/mobile/bootstrap (Bearer: access JWT) → identity (negocio, cobrador, ruta única)
-8. AuthHttpClient (mobile) usa Bearer JWT; renovación S0 antes de expirar
+S0–S5: PASS
+BASELINE: 877f24d70dc43246f968e32e50e1bcc8e450191b
+RAMA: hardening/b1-b7-audit
+WORKTREE: CLEAN
+MASTER: INTACTO (remote: 486d08b, sin push)
 ```
 
-**Componentes:**
-- `MethodChannel daily_system/device_identity` → `MainActivity.kt` → AndroidKeyStore (EC P-256)
-- JWT claims congeladas: iss/aud/sub/negocio_id/device_id/public_key_hash/version_asignacion/protocol_version/typ/jti/iat/exp
-- Fail-closed: rechaza none/HS256/RS256
-- `get_request_context` (deps.py): fail-closed; 0 o >1 rutas activas → 401
+## S5 Cerrado
 
-Ver `docs/SECURITY.md`.
+**Baseline S5:** `877f24d70dc43246f968e32e50e1bcc8e450191b`
 
-## 3. Arquitectura productiva de sync
+**Deliverables:**
+- `apps/api/src/services/conflict_service.py` — 6 verificadores de conflicto
+- `apps/api/src/tests/test_s5_conflict_service.py` — 48 tests unitarios
 
-```
-S0  Session maintenance (mobile)     — ✅ PASS
-S1  Route isolation (backend)        — ✅ PASS
-S2  Pull + local persistence (S2)    — ✅ PASS
-S3  Outbox push/ACK/retry            — ✅ PASS
-```
+**Funciones conflict_service.py:**
+1. `verificar_conflicto_pago` — tipo, credito_id, monto, jornada_id
+2. `verificar_conflicto_movimiento` — 8 campos (jornada_id, tipo, naturaleza, monto, nota, credito_id, renovacion_id, ajuste_de_movimiento_id)
+3. `verificar_conflicto_jornada` — hash + IDs financieros + renovaciones_ids + server-caja + consistency
+4. `verificar_conflicto_jornada_abrir` — ruta_id, opening_base, fecha, cobrador_id
+5. `verificar_conflicto_reversal` — tipo, reversal_of_payment_id, monto
+6. `verificar_conflicto_ruta` — R1→R2 mismatch
 
-**Implementado (S0-S2):**
-- `lib/sync/sync_client.dart` — GET /api/mobile/sync, session renewal
-- `lib/sync/sync_repository.dart` — UPSERT por PK (ON CONFLICT), protección de pendientes
-- `lib/sync/sync_models.dart` — SyncDataset/DTOs (snake_case ←→ camelCase)
-- `lib/auth/` — AuthHttpClient, DeviceAuthClient, DeviceIdentity, JCS, TokenStore
+**Arquitectura:** PRE-CHECK layer — no Full Replacement. Preserva validaciones inline en payment_service.py, movimiento_service.py, jornada_service.py.
 
-**Implementado (S3):**
-- `migration_v5.dart` — sync_queue evolucionada: datos JSON, idempotency_key, provenance, intento, ultimo_error, ultima_transicion
-- `push_orchestrator.dart` — PushOrchestrator: lee sync_queue pendiente, envía por tipo al endpoint correcto, maneja ACK/NACK/conflicto/retry
-- Estados: PENDIENTE_DE_SINCRONIZAR, ENVIANDO, SINCRONIZADO, ERROR_REINTENTABLE, CONFLICTO
-- PAYMENT → POST /api/pagos, REVERSAL → POST /api/pagos/{id}/reversar, MOVIMIENTO → POST /api/movimientos, JORNADA_CIERRE → POST /cerrar + POST /sincronizar
-- Idempotent retry: misma key/payload/provenance; lost response converge idempotentemente
-- server_entity_id durable: se guarda en sync_queue al recibir ACK
-- Local↔server ID mapping: REVERSAL usa server_payment_id
-- Route provenance R1→R2: fila de R1 no se transmite bajo R2 → CONFLICTO
-- 401 preserva outbox; 409 mismatch → CONFLICTO; 409 "ya cerrada" → sincronizar directo
-- ENVIANDO abandonado → recupera misma fila
-- Jornada: depende PAYMENT/REVERSAL ACK; CLOSED_LOCAL_PENDING_SYNC → CLOSED_SYNCED tras ACK /sincronizar
-- Push→pull reconciliation: pagos/movimientos/reversales empujados aparecen en GET /sync
-- `sync_queue_service.dart` — helper methods para transiciones de estado
+**Metrics:**
+- API: 323 passed, 7 skipped
+- Mobile: 177/177 passed
+- Flutter analyze: 14 preexistentes, 0 nuevos
 
-**Componentes productivos S3:**
-- `apps/mobile/lib/database/migration_v5.dart`
-- `apps/mobile/lib/sync/push_orchestrator.dart`
-- `apps/mobile/lib/services/sync_queue_service.dart` (estados S3)
-- `apps/mobile/test/sync/push_orchestrator_test.dart` (163 tests mobile)
+## S4 Baseline (anterior)
+`b75f2c482d5b3f42d60cdbb0f384195c1df73ffc`
 
-## 4. Hoja Viva y modelo offline existente
+## Protocolo de Recuperación de Sesión
 
-- SQLite local con migraciones v2/v3/v4 (`lib/database/`)
-- `lib/domain/` — tipos financieros, excepciones, `JornadaGuard`
-- `lib/services/` — caja, pago, hoja_viva, jornada, movimiento, sync_queue, pdf
-- `lib/models/` — JornadaSnapshot, CajaResultado
-- Jornada state machine: OPEN → CLOSING → CLOSED_LOCAL_PENDING_SYNC → CLOSED_SYNCED
-- Pagos/movimientos: append-only, trazables, idempotentes (clave_idempotencia, full-payload, 409)
-- Snapshot con hash SHA-256 reproducible (canonical JSON)
+Antes de iniciar cualquier trabajo nuevo:
 
-## 5. Restricciones para el agente siguiente
+1. **Engram:** `mem_context` project: daily-system
+2. **Handoff local:** leer `DAILY-SYSTEM-CONTEXT-HANDOFF.md`
+3. **Graphify:** consultar si disponible
+4. **Git:**
+   ```
+   cd /home/jesus/proyectos/daily-system
+   git branch --show-current   # → hardening/b1-b7-audit
+   git rev-parse HEAD          # → 877f24d70dc43246f968e32e50e1bcc8e450191b
+   git status --short          # → limpio
+   ```
+5. **Determinar S6:** leer plan/handoff, NO inventar
+6. **Regresión:** reabrir S0-S5 solo si regresión demostrable
 
-1. **Master/merge/tag/deploy sin autorización: PROHIBIDO.** Ver SECURITY.md §7 ("Prohibido tocar").
-2. **No tocar** sin instrucción explícita: migraciones de activación, `CodigoActivacion`, `IntentoActivacion`, `public_key`, challenge-response, JWT/OAuth/PKCE, Keystore, bootstrap, dependencias Flutter de auth, módulo web.
-   - **S3 es el bloque actual autorizado.** El outbox (mobile→server push, ACK, retry, conflictos) puede evolucionarse conforme a `docs/OFFLINE-SYNC.md`, reutilizando servicios y endpoints financieros existentes (`POST /api/pagos`, `POST /api/pagos/{id}/reversar`, `POST /api/movimientos`, `POST /api/jornadas/{id}/cerrar`, `POST /api/jornadas/{id}/sincronizar`). No reconstruir auth, Hoja Viva ni el modelo financiero.
-3. **No renombrar S3 a S4.** S3 es el bloque actual.
-4. **Ruta canónica:** `/home/jesus/proyectos/daily-system`
-5. **Documentación obligatoria como gate de cierre de bloque.** Ver AGENTS.md §Workflow (pasos `/plan` → `/review` → `/test` → `/handoff`). Cada bloque requiere su cierre documental antes de avanzar.
+## Restricciones
+- NO PUSH
+- NO MERGE
+- NO REBASE
+- NO TAG
+- NO TOCAR MASTER
 
-## 6. Tests / gates
-
-```bash
-# Mobile
-cd apps/mobile && flutter analyze        # No issues found
-cd apps/mobile && flutter test          # 163 passing
-dart run tool/generate_design_tokens.dart --check  # tokens determinísticos
-
-# Backend (SQLite — default)
-cd apps/api/src && python3 -m pytest tests/ -q    # 262 passed, 7 skipped
-cd apps/api && python3 -m alembic check          # No new upgrade operations
-
-# Backend (PG concurrency — requiere scratch DB)
-export API_DATABASE_URL="postgresql://cobro:cobro_secret@localhost:7103/cobro_scratch_b6_pg"
-export DAILY_ENV=test
-export ALLOW_PG_TRUNCATE=1
-python3 -m pytest src/tests/ -q
-# Nota: cobro-postgres necesita `ALTER ROLE cobro WITH PASSWORD 'cobro_secret'` al reiniciar
-
-# UI Gate
-scripts/ci/ui_gate.sh                     # PASS (GitHub Actions)
-```
-
-> **Backend CI no existe** en GitHub Actions (solo `ui-gate.yml` para mobile).
-> **ruff:** 97 errores en `apps/api/src/` (deuda conocida, no resuelta en hardening).
-
-## 7. Próximos pasos (siguiente bloque)
-
-**M4 — Importación OCR (`ocr_service.py`).**
-- `ocr_service.py` no existe aún (pendiente).
-- Documentar en `docs/OFFLINE-SYNC.md`
-
-**Pendientes adicionales:**
-
-**Pendientes adicionales:**
-- M4: Importación OCR (`ocr_service.py` no existe)
-- M5: Score, chatbot, inteligencia
-- M6: Producción y despliegue
-- Verificado en dispositivo físico (solo emulador API 35)
-- CI backend (GitHub Actions)
-
-## 8. Documentación actual
-
-| Documento | Tipo | Propósito |
-|---|---|---|
-| [README.md](README.md) | Raíz | Índice + inicio rápido |
-| [docs/STATUS.md](docs/STATUS.md) | Estado vivo | Estado productivo verificado |
-| [docs/README.md](docs/README.md) | Índice | Navegador documental |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Normativo | Arquitectura vigente |
-| [docs/SECURITY.md](docs/SECURITY.md) | Normativo | Auth, device, tenant, ruta, idempotencia |
-| [docs/OFFLINE-SYNC.md](docs/OFFLINE-SYNC.md) | Normativo | S0-S3 contract |
-| [docs/TESTING.md](docs/TESTING.md) | Estado vivo | Suites, gates, CI, scratch DB |
-| [docs/IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md) | Estado vivo | Roadmap |
-| [AGENTS.md](AGENTS.md) | Protocolo | Instrucciones para agentes OpenCode |
-| [DAILY-SYSTEM-ARCHIVO-MAESTRO-CONTINUIDAD-OPENCODE.md](DAILY-SYSTEM-ARCHIVO-MAESTRO-CONTINUIDAD-OPENCODE.md) | Archivo maestro | Continuidad entre sesiones |
-
----
-
-> **Histórico:** esta sección preserva la auditoría UX/UI del 5 de agosto. El contenido original de esta auditoría se mueve a `docs/historical/` al finalizar la reconciliación. El handoff operativo vigente está arriba.
-
----
-
-## 9. Historial de auditoría UX/UI (2026-08-05)
-
-**Fecha de auditoría:** 2026-08-05
-**Auditor:** opencode (big-pickle) — reconstrucción desde copia local
-
-### Cadena de cierre de la auditoría
-
-```
-BASE_SHA        3a1a566  (punto de comparación "antes")
-CODE_SHA        8cfe225  (código auditado — UI, tests, goldens)
-EVIDENCE_SHA    95b2488  (68 capturas + script autovalidado + manifest)
-GATE_SHA        fec6fa5 + 30b2984  (corrección y dedupe del paso generador)
-AUDIT_CONTENT   10ea745  (contenido sustantivo del audit)
-FINAL_HEAD      72f6ac2  (último commit auditado)
-486d08b         (commits posteriores documentales, no alteran el contenido auditado)
-```
-
-### Estado de verificación (según README/audit — 2026-08-05)
-
-| Verificación | Estado |
-|---|---|
-| APK debug construido | ✅ PASS |
-| Verificado en emulador API 35 | ✅ PASS |
-| Verificado en dispositivo físico | ⏳ PENDING |
-| Tests móviles | 68/68 — **declarado, no re-ejecutado por este auditor** |
-| Analyzer | "No issues found!" — **no re-ejecutado** |
-| Backend pytest | 138/138 (STATUS.md, stale) — **no re-ejecutado** |
-
-### Veredicto UX/UI
-
-- APK debug construido ✅ PASS
-- Emulador API 35 ✅ PASS
-- Dispositivo físico ⏳ PENDING
-- 68 capturas reales (phone/tablet × light/dark + web) con manifest SHA-256
-
-Ver `docs/ui-audit/` para la auditoría completa.
+## Historial de Baselines
+- S4: b75f2c482d5b3f42d60cdbb0f384195c1df73ffc
+- S5: 877f24d70dc43246f968e32e50e1bcc8e450191b
