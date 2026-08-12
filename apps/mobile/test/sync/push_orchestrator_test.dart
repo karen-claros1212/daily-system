@@ -10,6 +10,8 @@ import 'package:daily_system/auth/auth_token_store.dart';
 import 'package:daily_system/auth/device_auth_client.dart';
 import 'package:daily_system/auth/device_identity.dart';
 import 'package:daily_system/database/database.dart';
+import 'package:daily_system/database/migration_v5.dart';
+import 'package:daily_system/database/migration_v6.dart';
 import 'package:daily_system/services/sync_queue_service.dart';
 import 'package:daily_system/sync/push_orchestrator.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -789,6 +791,256 @@ void main() {
       final filasRev = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-rev-err']);
       // Puede estar SINCRONIZADO o ERROR_REINTENTABLE (si el PAYMENT PENDIENTE no se envía en este ciclo)
       // Lo importante: el REVERSAL se envió DESPUÉS del PAYMENT
+    });
+  });
+
+  // ===== limpiarSincronizados() durability =====
+
+  group('S3 — limpiarSincronizados() durability', () {
+    test('filas con server_entity_id preservadas tras limpiarSincronizados()', () async {
+      final orch = await buildOrchestrator();
+      final db = await database;
+
+      // Push un pago para generar server_entity_id
+      await db.insert('sync_queue', {
+        'id': 'sq-ls-1',
+        'tipo': 'pago',
+        'entidad_id': 'p-ls',
+        'datos': jsonEncode({
+          'tipo': 'PAYMENT',
+          'monto': 5000,
+          'credito_id': 'cr1',
+          'jornada_id': 'j1',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+        }),
+        'creado_el': '2026-08-10T10:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'idem-ls-1',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T10:00:00Z',
+      });
+
+      await orch.ejecutarPush();
+
+      // Verificar que ahora tiene server_entity_id
+      var filas = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-ls-1']);
+      expect(filas.first['estado'], SyncQueueService.estadoSincronizado);
+      expect(filas.first['server_entity_id'], isNotNull);
+      expect(filas.first['server_entity_id'], isNot(equals('')));
+      final serverIdPreservado = filas.first['server_entity_id'];
+
+      // Limpiar sincronizados
+      final eliminados = await SyncQueueService.limpiarSincronizados();
+      expect(eliminados, 0, reason: 'cero eliminados — server_entity_id preservado');
+
+      // Verificar fila aún existe con server_entity_id intacto
+      filas = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-ls-1']);
+      expect(filas, hasLength(1));
+      expect(filas.first['server_entity_id'], serverIdPreservado);
+    });
+
+    test('filas sin server_entity_id eliminadas por limpiarSincronizados()', () async {
+      final db = await database;
+
+      // Insertar fila SINCRONIZADA sin server_entity_id (legacy)
+      await db.insert('sync_queue', {
+        'id': 'sq-ls-legacy',
+        'tipo': 'pago',
+        'entidad_id': 'p-legacy',
+        'datos': jsonEncode({'tipo': 'PAYMENT', 'monto': 5000}),
+        'creado_el': '2026-08-10T10:00:00Z',
+        'estado': SyncQueueService.estadoSincronizado,
+        'idempotency_key': 'idem-legacy',
+        'negocio_id': 'n1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T10:00:00Z',
+      });
+
+      // Insertar fila SINCRONIZADA con server_entity_id vacío
+      await db.insert('sync_queue', {
+        'id': 'sq-ls-empty',
+        'tipo': 'pago',
+        'entidad_id': 'p-empty',
+        'datos': jsonEncode({'tipo': 'PAYMENT', 'monto': 5000}),
+        'creado_el': '2026-08-10T11:00:00Z',
+        'estado': SyncQueueService.estadoSincronizado,
+        'idempotency_key': 'idem-empty',
+        'negocio_id': 'n1',
+        'server_entity_id': '',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T11:00:00Z',
+      });
+
+      final eliminados = await SyncQueueService.limpiarSincronizados();
+      expect(eliminados, 2, reason: '2 filas legacy eliminadas');
+
+      // Verificar que solo quedan filas con server_entity_id
+      final restantes = await db.query('sync_queue');
+      expect(restantes, isEmpty);
+    });
+
+    test('filas PENDIENTE y ERROR_REINTENTABLE no afectadas por limpiarSincronizados()', () async {
+      final db = await database;
+
+      await db.insert('sync_queue', {
+        'id': 'sq-ls-pend',
+        'tipo': 'pago',
+        'entidad_id': 'p-pend-ls',
+        'datos': jsonEncode({'tipo': 'PAYMENT', 'monto': 5000}),
+        'creado_el': '2026-08-10T10:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'idem-ls-pend',
+        'negocio_id': 'n1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T10:00:00Z',
+      });
+
+      await db.insert('sync_queue', {
+        'id': 'sq-ls-err',
+        'tipo': 'pago',
+        'entidad_id': 'p-err-ls',
+        'datos': jsonEncode({'tipo': 'PAYMENT', 'monto': 5000}),
+        'creado_el': '2026-08-10T11:00:00Z',
+        'estado': SyncQueueService.estadoError,
+        'idempotency_key': 'idem-ls-err',
+        'negocio_id': 'n1',
+        'intento': 1,
+        'ultimo_error': 'timeout',
+        'ultima_transicion': '2026-08-10T11:00:00Z',
+      });
+
+      final eliminados = await SyncQueueService.limpiarSincronizados();
+      expect(eliminados, 0);
+
+      final pendientes = await db.query('sync_queue',
+          where: 'estado IN (?, ?)',
+          whereArgs: [SyncQueueService.estadoPendiente, SyncQueueService.estadoError]);
+      expect(pendientes, hasLength(2));
+    });
+  });
+
+  // ===== V5→V6 Upgrade =====
+
+  group('S3 — V5→V6 upgrade', () {
+    test('DB con datos S3 V5 migrados: server_entity_id propagado a pago', () async {
+      final db = await database;
+
+      // Insertar jornada abierta (trigger de pago requiere jornada abierta)
+      await db.insert('jornada', {
+        'id': 'j-v6-1',
+        'negocio_id': 'n1',
+        'ruta_id': 'r1',
+        'cobrador_id': 'c1',
+        'estado': 'OPEN',
+        'fecha': '2026-08-10',
+        'esperado': 0,
+      });
+
+      // Insertar pago local sin server_entity_id
+      await db.insert('pago', {
+        'id': 'pay-v6-1',
+        'negocio_id': 'n1',
+        'credito_id': 'cr1',
+        'jornada_id': 'j-v6-1',
+        'cobrador_id': 'c1',
+        'tipo': 'PAYMENT',
+        'monto': 5000,
+        'clave_idempotencia': 'idem-v6-1',
+        'nota': 'test',
+        'registrado_el_dispositivo': '2026-08-10T10:00:00Z',
+        'recibido_el_servidor': '2026-08-10T10:01:00Z',
+        'reversal_of_payment_id': null,
+        'server_entity_id': null,
+      });
+
+      // Insertar sync_queue con server_entity_id (V5 data)
+      await db.insert('sync_queue', {
+        'id': 'sq-v6-1',
+        'tipo': 'pago',
+        'entidad_id': 'pay-v6-1',
+        'datos': jsonEncode({'tipo': 'PAYMENT', 'monto': 5000}),
+        'creado_el': '2026-08-10T10:00:00Z',
+        'estado': SyncQueueService.estadoSincronizado,
+        'idempotency_key': 'idem-v6-1',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 1,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T10:01:00Z',
+        'server_entity_id': 'pago_server_v6_123',
+      });
+
+      // Ejecutar migration v6 manualmente
+      await MigrationV6.migrate(db);
+
+      // Verificar que server_entity_id se propagó al pago
+      final pagos = await db.query('pago',
+          where: 'id = ?',
+          whereArgs: ['pay-v6-1']);
+      expect(pagos, hasLength(1));
+      expect(pagos.first['server_entity_id'], 'pago_server_v6_123');
+    });
+
+    test('DB V5 legacy: json_extract() extrae provenance de datos JSON', () async {
+      // Simular DB en versión 5 (sin server_entity_id en sync_queue ni pago)
+      var db = await database;
+
+      // Eliminar columnas server_entity_id si existen
+      try {
+        await db.execute('ALTER TABLE sync_queue DROP COLUMN server_entity_id');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE pago DROP COLUMN server_entity_id');
+      } catch (_) {}
+
+      // Insertar fila con datos legacy en formato JSON (como V5 migraría)
+      await db.insert('sync_queue', {
+        'id': 'sq-v5-legacy',
+        'tipo': 'pago',
+        'entidad_id': 'p-v5',
+        'datos': jsonEncode({
+          'tipo': 'PAYMENT',
+          'monto': 5000,
+          'idempotency_key': 'idem-v5-key',
+          'cobrador_id': 'c1',
+          'jornada_id': 'j1',
+          'negocio_id': 'n1',
+        }),
+        'creado_el': '2026-08-10T10:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': null,
+        'negocio_id': null,
+        'ruta_id_origen': null,
+        'cobrador_id_origen': null,
+        'jornada_id_origen': null,
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T10:00:00Z',
+      });
+
+      // Ejecutar migration v5
+      await MigrationV5.migrate(db);
+
+      // Verificar que json_extract() extrajo los campos
+      final filas = await db.query('sync_queue',
+          where: 'id = ?',
+          whereArgs: ['sq-v5-legacy']);
+      expect(filas, hasLength(1));
+      expect(filas.first['idempotency_key'], 'idem-v5-key');
+      expect(filas.first['cobrador_id_origen'], 'c1');
+      expect(filas.first['jornada_id_origen'], 'j1');
+      expect(filas.first['negocio_id'], 'n1');
     });
   });
 
