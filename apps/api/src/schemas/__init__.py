@@ -51,6 +51,10 @@ class RutaCreate(BaseModel):
     cobrador_id: UUID | None = None
 
 
+class RutaReasignarRequest(BaseModel):
+    nombre: str = Field(..., min_length=1, max_length=100)
+
+
 class RutaResponse(BaseModel):
     id: UUID
     negocio_id: UUID
@@ -59,6 +63,18 @@ class RutaResponse(BaseModel):
     activa: int
     version: int
     creado_el: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class RutaReasignarResponse(BaseModel):
+    ruta_anterior_id: UUID
+    ruta_anterior_nombre: str
+    ruta_nueva_id: UUID
+    ruta_nueva_nombre: str
+    cobrador_id: UUID
+    cobrador_nombre: str
+    version_asignacion: int
 
     model_config = {"from_attributes": True}
 

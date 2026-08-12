@@ -48,14 +48,12 @@ class PushOrchestrator {
   final AuthTokenStore tokenStore;
   final DeviceAuthClient auth;
   final String? currentRutaId; // ruta operativa actual (del bootstrap)
-  final String? currentCobradorId; // cobrador actual para S4 reasignación
 
   PushOrchestrator({
     required this.http,
     required this.tokenStore,
     required this.auth,
     this.currentRutaId,
-    this.currentCobradorId,
   });
 
   /// Ejecuta el ciclo completo de push: recupera ENVIANDO abandonados,

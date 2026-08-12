@@ -167,6 +167,8 @@ def _cargar_dispositivo_activo(db: Session, dispositivo_id: UUID) -> Dispositivo
 def validar_dispositivo_claims(
     db: Session,
     claims: dict,
+    *,
+    accept_any_version: bool = False,
 ) -> Dispositivo:
     """Valida el dispositivo contra los claims del JWT (binding completo, H3).
 
@@ -176,6 +178,8 @@ def validar_dispositivo_claims(
       - usuario_id == claims["sub"]
       - negocio_id == claims["negocio_id"]
       - public_key_hash == claims["public_key_hash"]
+    accept_any_version: si True, salta la validacion de version_asignacion.
+    Se usa en /desafio para permitir JWT viejos post-bump.
     Cualquier mismatch -> AuthError 401. Es el helper comun usado por el
     RequestContext (deps.py) y por el flujo de desafio/canje (auth_service):
     la misma regla congelada aplica a ambas rutas de autenticacion.
@@ -192,12 +196,13 @@ def validar_dispositivo_claims(
             "DISPOSITIVO_NO_ACTIVO",
             401,
         )
-    if (dispositivo.version_asignacion or 1) != int(claims["version_asignacion"]):
-        raise AuthError(
-            "Asignacion del dispositivo cambiada; se requiere reactivacion",
-            "VERSION_DESACTUALIZADA",
-            401,
-        )
+    if not accept_any_version:
+        if (dispositivo.version_asignacion or 1) != int(claims["version_asignacion"]):
+            raise AuthError(
+                "Asignacion del dispositivo cambiada; se requiere reactivacion",
+                "VERSION_DESACTUALIZADA",
+                401,
+            )
     if dispositivo.negocio_id != UUID(claims["negocio_id"]):
         raise AuthError(
             "Negocio del token no coincide",
@@ -222,19 +227,19 @@ def validar_dispositivo_claims(
     return dispositivo
 
 
-def _dispositivo_desde_jwt(db: Session, credencial: str) -> Dispositivo | None:
+def _dispositivo_desde_jwt(
+    db: Session, credencial: str, *, accept_any_version: bool = False
+) -> Dispositivo | None:
     """Resuelve el dispositivo a partir de un JWT de sesion vigente.
 
-    Binding completo (H3): no basta la firma valida; el dispositivo debe ser
-    ACTIVE, con la version vigente y pertenecer al usuario/negocio/clave del
-    token. Un JWT firmado con binding incorrecto NO cae al bootstrap: AuthError
-    401 directo.
+    accept_any_version: si True, salta la validacion de version_asignacion.
+    Se usa en /desafio para permitir JWT viejos post-bump.
     """
     try:
         claims = decode_token(credencial)
     except TokenError:
         return None
-    return validar_dispositivo_claims(db, claims)
+    return validar_dispositivo_claims(db, claims, accept_any_version=accept_any_version)
 
 
 def _dispositivo_desde_bootstrap(db: Session, credencial: str) -> Dispositivo | None:
@@ -259,9 +264,18 @@ def _dispositivo_desde_bootstrap(db: Session, credencial: str) -> Dispositivo | 
     return _cargar_dispositivo_activo(db, codigo.dispositivo_id_canjeado)
 
 
-def _resolver_dispositivo(db: Session, credencial: str) -> Dispositivo:
-    """Autentica el dispositivo por JWT vigente o credencial bootstrap."""
-    dispositivo = _dispositivo_desde_jwt(db, credencial)
+def _resolver_dispositivo(
+    db: Session, credencial: str, *, accept_any_version: bool = False
+) -> Dispositivo:
+    """Autentica el dispositivo por JWT vigente o credencial bootstrap.
+
+    accept_any_version: permite JWT con version_asignacion desactualizada.
+    Se usa en /desafio para que un JWT viejo (post-bump) identifique al
+    dispositivo y canjear_desafio emita uno nuevo con la version vigente.
+    """
+    dispositivo = _dispositivo_desde_jwt(
+        db, credencial, accept_any_version=accept_any_version
+    )
     if dispositivo is None:
         dispositivo = _dispositivo_desde_bootstrap(db, credencial)
     if dispositivo is None:
@@ -274,8 +288,13 @@ def _resolver_dispositivo(db: Session, credencial: str) -> Dispositivo:
 
 
 def solicitar_desafio(db: Session, credencial: str) -> DesafioAuthResult:
-    """Paso 1: crea un DesafioAuth de un solo uso. No consume nada."""
-    dispositivo = _resolver_dispositivo(db, credencial)
+    """Paso 1: crea un DesafioAuth de un solo uso. No consume nada.
+
+    acepta JWT con version desactualizada (accept_any_version=True) para
+    permitir renovacion post-bump: el JWT viejo identifica al dispositivo,
+    canjear_desafio emite uno nuevo con la version vigente de la DB.
+    """
+    dispositivo = _resolver_dispositivo(db, credencial, accept_any_version=True)
     if not dispositivo.public_key or not dispositivo.public_key_hash:
         raise AuthError(
             "Dispositivo sin clave publica registrada",

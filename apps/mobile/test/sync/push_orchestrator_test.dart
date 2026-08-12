@@ -223,7 +223,6 @@ void main() {
         tokenStore: AuthTokenStore(),
       ),
       currentRutaId: rutaId ?? 'r1',
-      currentCobradorId: cobradorId ?? 'c1',
     );
   }
 
