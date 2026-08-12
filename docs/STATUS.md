@@ -1,7 +1,7 @@
 # STATUS — Daily System
 
 **Proyecto:** daily-system
-**Última actualización:** 2026-08-11
+**Última actualización:** 2026-08-12
 **Ruta de trabajo verificada (local):** `/home/jesus/proyectos/daily-system`
 **Rama de trabajo:** `hardening/b1-b7-audit`
 **HEAD (repositorio):** dinámico — `git rev-parse HEAD` (Git es autoridad; SHA no se hardcodea en docs)
@@ -49,12 +49,12 @@
 | **Hito actual** | S3 outbox push/ACK/retry/conflictos (IMPLEMENTADO)
 | **Progreso total** | M0: 22/22 ✅ · M1: 8/8 ✅ · M2: 6/6 ✅ · M3 base: 1/1 ✅ (M3.2-M3.5 históricas, no implementadas en árbol actual) · B1-B7: ✅ |
 | **Tests pasando (backend, SQLite)** | 262 passed, 7 skipped (269 funciones) |
-| **Tests pasando (mobile)** | 163 passing |
+| **Tests pasando (mobile)** | 175 passing |
 | **Tests PG concurrency** | Pendientes (requieren scratch DB: `cobro_scratch_b6_pg` + `ALLOW_PG_TRUNCATE=1`) |
 | **PostgreSQL** | Corriendo (cobro-postgres, Docker, puerto 7103) |
 | **Alembic** | `m7_desafio_auth` (head); `alembic check` limpio |
 | **ruff** | 97 errores en `src/` (deuda conocida — no limpiado en hardening) |
-| **flutter analyze** | No issues found |
+| **flutter analyze** | 14 infos preexistentes (migration_v5/v7) / 0 nuevos |
 | **UI Gate CI** | PASS (GitHub Actions `ui-gate.yml`) |
 | **Backend CI** | ⛔ NO EXISTE |
 | **Documento maestro** | `docs/DOCUMENTO-MAESTRO-Plataforma-Cobro-Colombia-v1.3-CERRADO.md` + `DAILY-SYSTEM-ARCHIVO-MAESTRO-CONTINUIDAD-OPENCODE.md` |
@@ -225,7 +225,7 @@
 | Tipo | Cantidad | Estado |
 |---|---|---|
 | Código Python | 34 | Normalizado (ruff clean) |
-| Tests | 269 funciones backend (262 passed + 7 skip SQLite) / 163 mobile | Normalizado |
+| Tests | 269 funciones backend (262 passed + 7 skip SQLite) / 175 mobile | Normalizado |
 | Migraciones | 4 | init → m2_apertura → m2_jornada → m3_dispositivo |
 | Infraestructura | 3 | docker-compose + init.sql + .env.example |
 | Documentación | 8 | AGENTS.md, README, docs/*.md, ADR |
@@ -247,8 +247,8 @@
 ## Próximos pasos
 
 1. **M4** — Importación OCR: `ocr_service.py` no existe aún (pendiente).
-3. **M5** — Score, chatbot, inteligencia: pendiente.
-4. **M6** — Producción y despliegue: pendiente.
-5. **Verificado en dispositivo físico**: PENDING (solo emulador API 35).
-6. **CI backend**: crear workflow de GitHub Actions para pytest + alembic check.
-7. **ruff**: limpiar 97 errores en `src/` (deuda conocida en hardening).
+2. **M5** — Score, chatbot, inteligencia: pendiente.
+3. **M6** — Producción y despliegue: pendiente.
+4. **Verificado en dispositivo físico**: PENDING (solo emulador API 35).
+5. **CI backend**: crear workflow de GitHub Actions para pytest + alembic check.
+6. **ruff**: limpiar 97 errores en `src/` (deuda conocida en hardening).
