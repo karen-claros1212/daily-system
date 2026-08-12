@@ -146,63 +146,60 @@ class PushOrchestrator {
   /// - MOVIMIENTO = 2
   /// - JORNADA_CIERRE = 3 (siempre ultimo)
   int _prioridadTipoDependiente(String tipo, Map<String, dynamic> datos) {
-    switch (tipo) {
-      case 'pago':
-        return 0;
-      case 'movimiento':
-        return 2;
-      case 'jornada_cierre':
-        return 3;
-      default:
-        return 1; // reversal
+    if (tipo == 'pago') {
+      // Distinguir PAYMENT de REVERSAL dentro del mismo tipo 'pago'
+      final datosTipo = datos['tipo'] as String?;
+      if (datosTipo == 'REVERSAL') return 1;
+      return 0; // PAYMENT
     }
+    if (tipo == 'movimiento') return 2;
+    if (tipo == 'jornada_cierre') return 3;
+    return 1; // reversal por defecto
   }
 
   /// Intercala ERROR_REINTENTABLE con PENDIENTE respetando dependencias.
-  /// Un REVERSAL ERROR_REINTENTABLE se inserta después de cualquier PAYMENT
-  /// en la misma jornada (tanto PENDIENTE como ERROR_REINTENTABLE).
+  /// Todos los reintentables se ordenan por prioridad dentro de su jornada:
+  /// PAYMENT(0) → REVERSAL(1) → MOVIMIENTO(2) → JORNADA_CIERRE(3).
+  /// Esto garantiza que un PAYMENT en retry nunca quede después de una
+  /// JORNADA_CIERRE de la misma jornada (defecto 3).
   List<SyncQueueItem> _intercalarReintentables(
     List<SyncQueueItem> pendientes,
     List<SyncQueueItem> reintentables,
   ) {
     if (reintentables.isEmpty) return pendientes;
+    final combinados = <SyncQueueItem>[...pendientes, ...reintentables];
+    combinados.sort(_compararOrdenPush);
+    return combinados;
+  }
 
-    // Separar reintentables por tipo
-    final revReintentables = reintentables.where((i) => i.tipo == 'pago' && i.datos['tipo'] == 'REVERSAL').toList();
-    final otrosReintentables = reintentables.where((i) => !(i.tipo == 'pago' && i.datos['tipo'] == 'REVERSAL')).toList();
+  /// Comparador para ordenar filas de push: jornada → prioridad tipo → creado_el.
+  int _compararOrdenPush(SyncQueueItem a, SyncQueueItem b) {
+    final jornadaA = a.jornadaIdOrigen ?? '';
+    final jornadaB = b.jornadaIdOrigen ?? '';
+    if (jornadaA != jornadaB) return jornadaA.compareTo(jornadaB);
+    final prioA = _prioridadTipoDependiente(a.tipo, a.datos);
+    final prioB = _prioridadTipoDependiente(b.tipo, b.datos);
+    if (prioA != prioB) return prioA.compareTo(prioB);
+    return a.creadoEl.compareTo(b.creadoEl);
+  }
 
-    // Para cada jornada, encontrar el índice del último PAYMENT (pendiente o reintentable)
-    final resultado = List<SyncQueueItem>.from(pendientes);
-
-    for (final rev in revReintentables) {
-      final jornadaId = rev.datos['jornada_id'] as String?;
-      if (jornadaId == null) {
-        resultado.add(rev);
-        continue;
-      }
-
-      // Buscar el último PAYMENT de esta jornada en resultado
-      int ultimoPagoIdx = -1;
-      for (int i = 0; i < resultado.length; i++) {
-        final item = resultado[i];
-        if (item.tipo == 'pago' && item.datos['tipo'] == 'PAYMENT' && item.datos['jornada_id'] == jornadaId) {
-          ultimoPagoIdx = i;
-        }
-      }
-
-      if (ultimoPagoIdx >= 0) {
-        // Insertar después del último PAYMENT
-        resultado.insert(ultimoPagoIdx + 1, rev);
-      } else {
-        // Sin pagos en la jornada, añadir al final
-        resultado.add(rev);
-      }
-    }
-
-    // Añadir otros reintentables (no REVERSAL) al final
-    resultado.addAll(otrosReintentables);
-
-    return resultado;
+  /// Verifica si hay filas financieras (pago/movimiento) de la jornada
+  /// que aún no están sincronizadas (PENDIENTE/ENVIANDO/ERROR_REINTENTABLE).
+  Future<bool> _tieneDependenciasPendientes(String jornadaId) async {
+    final db = await database;
+    final resultados = await db.query(
+      'sync_queue',
+      columns: ['id'],
+      where: "jornada_id_origen = ? AND tipo IN ('pago', 'movimiento') AND estado IN (?, ?, ?)",
+      whereArgs: [
+        jornadaId,
+        SyncQueueService.estadoPendiente,
+        SyncQueueService.estadoEnviando,
+        SyncQueueService.estadoError,
+      ],
+      limit: 1,
+    );
+    return resultados.isNotEmpty;
   }
 
   /// Envía una fila individual al servidor.
@@ -334,7 +331,12 @@ class PushOrchestrator {
   Future<PushResult> _enviarReversal(String filaId, Map<String, dynamic> datos, String token, String idempotencyKey) async {
     final localPagoId = datos['reversal_of_payment_id'];
 
-    // Resolver server ID del PAYMENT original consultando sync_queue
+    // Resolver server ID del PAYMENT original:
+    // 1. Si tiene sync_queue → usar server_entity_id / estado
+    // 2. Si no tiene sync_queue pero tiene recibido_el_servidor →
+    //    PAYMENT descargado del servidor (pull): local id == server id
+    // 3. Si no tiene sync_queue ni recibido_el_servidor →
+    //    PAYMENT local roto/sin outbox → CONFLICTO
     String serverPagoId = localPagoId;
     final db = await database;
     final queueRow = await db.query('sync_queue',
@@ -342,33 +344,68 @@ class PushOrchestrator {
         where: 'entidad_id = ? AND tipo = ?',
         whereArgs: [localPagoId, 'pago'],
         limit: 1);
-    if (queueRow.isEmpty) {
-      // PAYMENT nunca en outbox → CONFLICTO permanente
-      await SyncQueueService.marcarConflicto(
-        filaId,
-        'PAYMENT original no encontrado: $localPagoId',
-      );
-      return PushResult(
-        filaId: filaId,
-        tipo: 'REVERSAL',
-        status: PushStatus.conflicto,
-        detail: 'PAYMENT original no encontrado',
-      );
-    }
 
-    final svrId = queueRow.first['server_entity_id'] as String?;
-    final paymentEstado = queueRow.first['estado'] as String?;
+    final svrId = queueRow.isNotEmpty
+        ? queueRow.first['server_entity_id'] as String?
+        : null;
+    final paymentEstado = queueRow.isNotEmpty
+        ? queueRow.first['estado'] as String?
+        : null;
 
     if (svrId != null && svrId.isNotEmpty) {
       // PAYMENT SINCRONIZADO → usar server ID
       serverPagoId = svrId;
+    } else if (queueRow.isEmpty) {
+      // No hay fila en sync_queue: verificar si es PAYMENT del servidor
+      final pagoRow = await db.query('pago',
+          columns: ['recibido_el_servidor'],
+          where: 'id = ?',
+          whereArgs: [localPagoId],
+          limit: 1);
+      if (pagoRow.isNotEmpty) {
+        final recibido = pagoRow.first['recibido_el_servidor'] as String?;
+        if (recibido != null && recibido.isNotEmpty) {
+          // PAYMENT descargado del servidor: local id == server id
+          serverPagoId = localPagoId;
+        } else {
+          // PAYMENT local sin outbox y sin ACK → CONFLICTO
+          await SyncQueueService.marcarConflicto(
+            filaId,
+            'PAYMENT original no encontrado: $localPagoId',
+          );
+          return PushResult(
+            filaId: filaId,
+            tipo: 'REVERSAL',
+            status: PushStatus.conflicto,
+            detail: 'PAYMENT original no encontrado',
+          );
+        }
+      } else {
+        // No existe en pago → CONFLICTO
+        await SyncQueueService.marcarConflicto(
+          filaId,
+          'PAYMENT original no encontrado: $localPagoId',
+        );
+        return PushResult(
+          filaId: filaId,
+          tipo: 'REVERSAL',
+          status: PushStatus.conflicto,
+          detail: 'PAYMENT original no encontrado',
+        );
+      }
     } else {
-      // PAYMENT no sincronizado aún: verificar estado
+      // Hay fila en sync_queue pero sin server_entity_id: verificar estado
       switch (paymentEstado) {
         case 'PENDIENTE_DE_SINCRONIZAR':
         case 'ENVIANDO':
         case 'ERROR_REINTENTABLE':
-          // Wait state: 0 HTTP, recoverable en próximo ciclo
+          // Wait state: 0 HTTP, recoverable en próximo ciclo.
+          // Marcar ERROR_REINTENTABLE explícitamente para que el
+          // siguiente ciclo la intercale después del PAYMENT.
+          await SyncQueueService.marcarError(
+            filaId,
+            'PAYMENT pendiente: $localPagoId (esperando ACK)',
+          );
           return PushResult(
             filaId: filaId,
             tipo: 'REVERSAL',
@@ -388,9 +425,42 @@ class PushOrchestrator {
             detail: 'PAYMENT original CONFLICTO',
           );
         default:
-          // SINCRONIZADO sin server_entity_id (raro pero posible)
-          // Usar local ID como fallback
-          serverPagoId = localPagoId;
+          // SINCRONIZADO sin server_entity_id: verificar procedencia
+          final pagoRow = await db.query('pago',
+              columns: ['recibido_el_servidor'],
+              where: 'id = ?',
+              whereArgs: [localPagoId],
+              limit: 1);
+          if (pagoRow.isNotEmpty) {
+            final recibido = pagoRow.first['recibido_el_servidor'] as String?;
+            if (recibido != null && recibido.isNotEmpty) {
+              // PAYMENT del servidor: local id == server id
+              serverPagoId = localPagoId;
+            } else {
+              // PAYMENT local SINCRONIZADO sin server_entity_id → CONFLICTO
+              await SyncQueueService.marcarConflicto(
+                filaId,
+                'PAYMENT SINCRONIZADO sin server ID: $localPagoId',
+              );
+              return PushResult(
+                filaId: filaId,
+                tipo: 'REVERSAL',
+                status: PushStatus.conflicto,
+                detail: 'PAYMENT SINCRONIZADO sin server ID',
+              );
+            }
+          } else {
+            await SyncQueueService.marcarConflicto(
+              filaId,
+              'PAYMENT SINCRONIZADO sin server ID: $localPagoId',
+            );
+            return PushResult(
+              filaId: filaId,
+              tipo: 'REVERSAL',
+              status: PushStatus.conflicto,
+              detail: 'PAYMENT SINCRONIZADO sin server ID',
+            );
+          }
       }
     }
 
@@ -439,8 +509,25 @@ class PushOrchestrator {
   /// Enviar JORNADA_CIERRE: POST /cerrar + POST /sincronizar.
   /// 409 "ya cerrada" → probar /sincronizar.
   /// 409 "Misma clave" → CONFLICTO (mismatch).
+  /// S3: antes de enviar, verificar que todas las filas financieras de la
+  /// jornada (PAYMENT/REVERSAL/MOVIMIENTO) estén SINCRONIZADAS.
   Future<PushResult> _enviarJornadaCierre(String filaId, Map<String, dynamic> datos, String token, String idempotencyKey) async {
     final jornadaId = datos['jornada_id'] ?? datos['entidad_id'];
+
+    // Guardia de dependencias: no cerrar mientras haya filas financieras
+    // de la misma jornada pendientes o en retry.
+    if (await _tieneDependenciasPendientes(jornadaId)) {
+      await SyncQueueService.marcarError(
+        filaId,
+        'jornada espera dependencias: $jornadaId',
+      );
+      return PushResult(
+        filaId: filaId,
+        tipo: 'JORNADA_CIERRE',
+        status: PushStatus.reintentable,
+        detail: 'jornada espera dependencias: $jornadaId',
+      );
+    }
 
     // Paso 1: POST /cerrar
     final cierreBody = {
