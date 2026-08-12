@@ -52,7 +52,7 @@
 | S0 (session maintenance) | ✅ PASS |
 | S1 (route isolation) | ✅ PASS |
 | S2 (server→mobile pull + persist) | ✅ PASS |
-| S3 (mobile→server outbox/ACK/retry) | ⏳ PENDIENTE |
+| S3 (mobile→server outbox/ACK/retry) | ✅ IMPLEMENTADO |
 | Web productivo (`apps/web/`) | ⏳ PENDIENTE (MOCK solo) |
 | M4 (OCR) | ⏳ PENDIENTE |
 | M5 (score/chatbot) | ⏳ PENDIENTE |

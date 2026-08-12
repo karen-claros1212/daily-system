@@ -3,7 +3,7 @@
 **Proyecto:** daily-system
 **Versión:** 1.3
 **Fecha:** 2026-07-31
-**Estado:** M0-M3 completos, B1-B7 hardening completado, S3 pendiente · M3.6.6-F
+**Estado:** M0-M3 completos, B1-B7 hardening completado, S0-S3 sync completo · M3.6.6-F
 
 > ## ⚠️ NOTA DE RECONCILIACIÓN (2026-08-06) — estados históricos desactualizados
 >
@@ -208,22 +208,38 @@ Bloque de endurecimiento de autenticación y sincronización offline. No es M4-M
 
 | Gate | Resultado | Comando |
 |---|---|---|
-| Backend (SQLite) | 255 passed, 7 skipped | `pytest src/tests/ -q` |
-| Mobile | 147 passing | `flutter test` |
+| Backend (SQLite) | 262 passed, 7 skipped | `pytest src/tests/ -q` |
+| Mobile | 163 passing | `flutter test` |
 | Alembic | m7_desafio_auth (head), clean | `alembic check` |
 | Analyzer | No issues found | `flutter analyze` |
 
 ---
 
-## Hito S3 — Offline sync outbox (mobile → server)
+## Hito S3 — Offline sync outbox (mobile → server) ✅ IMPLEMENTADO
 
-> **Estado:** ⏳ PENDIENTE
+> **Estado:** ✅ IMPLEMENTADO
 > **Dependencias:** B1-B7 + S0-S2 completos
-> **Commit de cierre:** — (no iniciado)
+> **Commit de implementación:** 6dc8312 (commit local)
 
 Outbox push, ACK, retry con backoff, resolución de conflictos. Ver [OFFLINE-SYNC.md](OFFLINE-SYNC.md).
 
-**NO** enviar `negocio_id`/`cobrador_id`/`ruta_id` como autoridad desde el móvil hasta que S3 esté implementado.
+### Implementación real
+
+- **`migration_v5.dart`** — sync_queue evolucionada: datos JSON, idempotency_key, provenance, intento, ultimo_error, ultima_transicion
+- **`push_orchestrator.dart`** — PushOrchestrator: lee sync_queue pendiente, envía por tipo al endpoint correcto
+- **`sync_queue_service.dart`** — estados: PENDIENTE_DE_SINCRONIZAR, ENVIANDO, SINCRONIZADO, ERROR_REINTENTABLE, CONFLICTO
+- **Payloads:** PAYMENT → POST /api/pagos, REVERSAL → POST /api/pagos/{id}/reversar, MOVIMIENTO → POST /api/movimientos, JORNADA_CIERRE → POST /cerrar + /sincronizar
+- **Idempotent retry:** misma key/payload/provenance; lost response converge idempotentemente
+- **server_entity_id durable:** se guarda en sync_queue al recibir ACK
+- **Local↔server ID:** REVERSAL usa server_payment_id (no local ID)
+- **Route provenance R1→R2:** fila de R1 no se transmite bajo R2 → CONFLICTO
+- **401** preserva outbox; **409** mismatch → CONFLICTO; **409** "ya cerrada" → sincronizar directo
+- **ENVIANDO abandonado** → recupera misma fila, no INSERT nueva
+- **Jornada:** depende PAYMENT/REVERSAL ACK; CLOSED_LOCAL_PENDING_SYNC → CLOSED_SYNCED tras ACK /sincronizar
+- **Push→pull:** pagos/movimientos/reversales empujados aparecen en GET /sync
+- **Tests:** 163 mobile passing, 262 backend passing, 7 skipped, flutter analyze clean
+
+**S3 ya está implementado.** NO enviar `negocio_id`/`cobrador_id`/`ruta_id` como autoridad desde el móvil.
 
 ---
 
@@ -260,7 +276,7 @@ Outbox push, ACK, retry con backoff, resolución de conflictos. Ver [OFFLINE-SYN
 | **M4** | ⬜ PENDIENTE | 0/3 (0%) | — |
 | **M5** | ⬜ PENDIENTE | 0/4 (0%) | — |
 | **M6** | ⬜ PENDIENTE | 0/7 (0%) | — |
-| **B1-B7 hardening** | ✅ COMPLETADO | — | 255 passed + 7 skip (backend) / 147 (mobile) |
+| **B1-B7 hardening** | ✅ COMPLETADO | — | 262 passed + 7 skip (backend) / 163 (mobile) |
 | **TOTAL** | M0-M3 + B1-B7 ✅ | **78% base + hardening** | **255+147** |
 
 ---

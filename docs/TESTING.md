@@ -13,8 +13,8 @@ Ejecución local en `/home/jesus/proyectos/daily-system` (checkout operativo can
 | Gate | Resultado | Comando |
 |---|---|---|
 | Flutter analyze | No issues found | `cd apps/mobile && flutter analyze` |
-| Flutter test (mobile) | **147 passing** | `cd apps/mobile && flutter test` |
-| Backend pytest (SQLite) | **255 passed, 7 skipped** (257 funciones) | `cd apps/api/src && python3 -m pytest tests/ -q` |
+| Flutter test (mobile) | **163 passing** | `cd apps/mobile && flutter test` |
+| Backend pytest (SQLite) | **262 passed, 7 skipped** (269 funciones) | `cd apps/api/src && python3 -m pytest tests/ -q` |
 | Ruff (backend) | **97 errors** (deuda conocida) | `cd apps/api && ruff check src/` |
 | Alembic | head = m7_desafio_auth, clean | `python3 -m alembic check` |
 | UI Gate CI | PASS (GitHub Actions) | `scripts/ci/ui_gate.sh` |
@@ -140,7 +140,27 @@ Alembic reversible: upgrade → downgrade → re-upgrade verificado en scratch D
 |---|---|
 | ruff | 97 errores en `src/` (deuda no limpiada en hardening — principalmente imports no usados) |
 | Backend CI | No hay workflow de pytest/alembic en GitHub Actions (solo `ui-gate.yml` para mobile) |
-| S3 outbox | No implementado (push/ACK/retry/conflictos) |
+| S3 outbox | ✅ IMPLEMENTADO — 163 mobile tests cubren push/ACK/retry/conflictos |
 | Dispositivo físico | No verificado (solo emulador API 35) |
 | Web productivo | `apps/web/` vacío — solo prototipo MOCK |
 | ruff | No se ejecuta en CI (no está en el ui-gate ni en ningún workflow) |
+| PostgreSQL S3 | NOT RUN — scratch PostgreSQL no disponible |
+
+### S3 test matrix (mobile — push_orchestrator_test.dart)
+
+| Escenario | Qué valida | Estado |
+|---|---|---|
+| PAYMENT happy path | Pago offline → queue → push → ACK → SINCRONIZADO | ✅ |
+| PAYMENT lost response | Server commit + retry → ACK cero duplicados | ✅ |
+| REVERSAL lost response | Local R1 → server SR1 → retry → server_entity_id persistido | ✅ |
+| 401 preserva outbox | Fila outbox preservada tras 401 | ✅ |
+| 409 mismatch PAYMENT | Misma idempotency key + payload distinto → CONFLICTO | ✅ |
+| ENVIANDO recovery misma fila | Count(sync_queue) antes == después recovery | ✅ |
+| R1→R2 0 HTTP requests | Fila R1 en R2 → CONFLICTO, 0 requests | ✅ |
+| PAYMENT→REVERSAL dependency | REVERSAL espera PAYMENT ACK | ✅ |
+| Jornada /cerrar + /sincronizar | Cierre con 409 → sincronizar directo | ✅ |
+| CLOSED_SYNCED after sync ACK | CLOSED_LOCAL_PENDING_SYNC → CLOSED_SYNCED tras ACK | ✅ |
+| Push→pull PAYMENT | Local L1 → push → server S1 → pull reconcilia | ✅ |
+| Push→pull REVERSAL | Local R1 → push → server SR1 → pull reconcilia | ✅ |
+| Push→pull MOVIMIENTO | Local M1 → push → server SM1 → pull reconcilia | ✅ |
+| reversal_of_payment_id reconciliation | Pull preserva reversal_of_payment_id | ✅ |

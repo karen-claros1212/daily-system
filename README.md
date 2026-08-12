@@ -20,7 +20,7 @@
 | Bootstrap single-route | ✅ Implementado |
 | Mobile auth bridge | ✅ Implementado |
 | Offline sync (S0-S2 pull + session) | ✅ Implementado |
-| Offline sync outbox (S3 push/ACK/retry) | ⏳ PENDIENTE |
+| Offline sync outbox (S3 push/ACK/retry) | ✅ Implementado |
 | Splash nativo (Android 12+) | ✅ Implementado |
 | Icono adaptable (adaptive) | ✅ Implementado |
 | Tema claro/oscuro | ✅ Implementado |
@@ -101,7 +101,7 @@ está en [docs/ui-audit/screenshots/](docs/ui-audit/screenshots/) con manifest S
 - **S0**: session maintenance (renew antes de expirar) — ✅ PASS
 - **S1**: aislamiento de ruta (scope derivado por servidor; cliente no elige ruta) — ✅ PASS
 - **S2**: pull servidor→móvil (GET /api/mobile/sync) + persistencia SQLite (UPSERT por PK, ON CONFLICT) — ✅ PASS
-- **S3**: outbox móvil→servidor, push, ACK, retry y resolución de conflictos — ⏳ PENDIENTE
+- **S3**: outbox móvil→servidor, push, ACK, retry y resolución de conflictos — ✅ Implementado
 
 ### UI/UX
 - Flutter Offline Alpha con SQLite local
@@ -219,7 +219,7 @@ uvicorn src.main:app --reload  # servidor desarrollo
 cd apps/mobile
 flutter pub get
 flutter analyze          # No issues found!
-flutter test             # 147/147 passing (incluye goldens, semantics, paridad, sync)
+flutter test             # 163/163 passing (incluye goldens, semantics, paridad, sync, S3)
 flutter run              # requiere dispositivo/emulador
 flutter build apk --debug  # genera build/app/outputs/flutter-apk/app-debug.apk
 ```
@@ -238,14 +238,14 @@ scripts/ci/ui_gate.sh
 # Tests móviles
 cd apps/mobile
 flutter analyze          # No issues found!
-flutter test             # 147 passing
+flutter test             # 163 passing
 
 # Tokens (deterministic)
 dart run tool/generate_design_tokens.dart --check
 
 # Backend (SQLite default)
 cd apps/api
-python3 -m pytest src/tests/   # 255 passed, 7 skipped (257 funciones)
+python3 -m pytest src/tests/   # 262 passed, 7 skipped (269 funciones)
 python3 -m alembic check       # No new upgrade operations detected
 
 # Backend (PostgreSQL — requiere scratch DB)
@@ -256,8 +256,8 @@ python3 -m alembic check       # No new upgrade operations detected
 | Gate | Resultado | Tool |
 |---|---|---|
 | Flutter analyze | No issues found | flutter analyzer |
-| Flutter test (mobile) | 147 passing | flutter_test |
-| Backend pytest (SQLite) | 255 passed, 7 skipped | pytest |
+| Flutter test (mobile) | 163 passing | flutter_test |
+| Backend pytest (SQLite) | 262 passed, 7 skipped | pytest |
 | Alembic | head = m7_desafio_auth, clean | alembic |
 | UI Gate CI | PASS (GitHub Actions) | `.github/workflows/ui-gate.yml` |
 | Backend CI | ⛔ NO EXISTE | — |
@@ -283,7 +283,7 @@ python3 -m alembic check       # No new upgrade operations detected
 - [ ] Verificado en dispositivo físico
 - [x] Capturas profesionales before/after con manifest SHA-256
 - [x] **B1-B7 hardening:** JWT ES256, AndroidKeyStore, challenge-response, bootstrap productivo, S0-S2 sync
-- [ ] S3: outbox móvil→servidor (push/ACK/retry/conflictos)
+- [x] **S3:** outbox móvil→servidor (push/ACK/retry/conflictos) — IMPLEMENTADO
 - [ ] M4: Importación OCR (_`ocr_service.py` no existe en árbol_)
 - [ ] M5: Score, chatbot, inteligencia
 - [ ] M6: Producción y despliegue

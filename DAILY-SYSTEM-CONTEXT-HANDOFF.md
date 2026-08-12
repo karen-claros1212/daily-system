@@ -11,8 +11,8 @@
 | **HEAD (código S0-S2 baseline)** | `c0a3a9c1646358fea4badc45bc9cdf5d6e2a1216` |
 | **master** | `486d08b` (no contiene el hardening B1-B7) |
 | **Alembic head** | `m7_desafio_auth` |
-| **Tests backend (SQLite)** | 255 passed, 7 skipped (257 funciones) |
-| **Tests mobile** | 147 passing |
+| **Tests backend (SQLite)** | 262 passed, 7 skipped (269 funciones) |
+| **Tests mobile** | 163 passing |
 | **flutter analyze** | No issues found |
 
 > `master` (486d08b) es una línea histórica que precede al hardening. Todo el trabajo de auth/sync productivo está en `hardening/b1-b7-audit`. No usar master como base.
@@ -28,7 +28,7 @@
 | ✅ PASS | S0 — session maintenance (renovación antes de expirar) |
 | ✅ PASS | S1 — route isolation (scope server-side, cliente no elige ruta) |
 | ✅ PASS | S2 — pull servidor→móvil + persistencia SQLite (UPSERT por PK) |
-| ⏳ PENDIENTE | S3 — outbox móvil→servidor (push / ACK / retry / conflictos) |
+| ✅ PASS | S3 — outbox móvil→servidor (push / ACK / retry / conflictos) |
 | ⏳ PENDIENTE | Web productiva (`apps/web/` vacío; solo prototipo MOCK) |
 | ⏳ PENDIENTE | Verificado en dispositivo físico (solo emulador API 35) |
 | ⛔ NO EXISTE | PowerSync (no es la arquitectura; usa SQLite + sync_queue + capa propia) |
@@ -65,7 +65,7 @@ Ver `docs/SECURITY.md`.
 S0  Session maintenance (mobile)     — ✅ PASS
 S1  Route isolation (backend)        — ✅ PASS
 S2  Pull + local persistence (S2)    — ✅ PASS
-S3  Outbox push/ACK/retry (PENDIENTE)
+S3  Outbox push/ACK/retry            — ✅ PASS
 ```
 
 **Implementado (S0-S2):**
@@ -74,9 +74,26 @@ S3  Outbox push/ACK/retry (PENDIENTE)
 - `lib/sync/sync_models.dart` — SyncDataset/DTOs (snake_case ←→ camelCase)
 - `lib/auth/` — AuthHttpClient, DeviceAuthClient, DeviceIdentity, JCS, TokenStore
 
-**Pendiente (S3):**
-- Outbox local → push al server → ACK/NACK → retry reintentable → resolución de conflictos
-- Los endpoints individuales de push YA EXISTEN (POST /api/pagos, POST /api/pagos/{id}/reversar, POST /api/movimientos, POST /api/jornadas/{id}/cerrar, POST /api/jornadas/{id}/sincronizar). Lo que falta: el envelope de outbox móvil, ACK/NACK, persistencia de idempotency keys, resolución de conflictos. Definir en `docs/OFFLINE-SYNC.md` (sección S3).
+**Implementado (S3):**
+- `migration_v5.dart` — sync_queue evolucionada: datos JSON, idempotency_key, provenance, intento, ultimo_error, ultima_transicion
+- `push_orchestrator.dart` — PushOrchestrator: lee sync_queue pendiente, envía por tipo al endpoint correcto, maneja ACK/NACK/conflicto/retry
+- Estados: PENDIENTE_DE_SINCRONIZAR, ENVIANDO, SINCRONIZADO, ERROR_REINTENTABLE, CONFLICTO
+- PAYMENT → POST /api/pagos, REVERSAL → POST /api/pagos/{id}/reversar, MOVIMIENTO → POST /api/movimientos, JORNADA_CIERRE → POST /cerrar + POST /sincronizar
+- Idempotent retry: misma key/payload/provenance; lost response converge idempotentemente
+- server_entity_id durable: se guarda en sync_queue al recibir ACK
+- Local↔server ID mapping: REVERSAL usa server_payment_id
+- Route provenance R1→R2: fila de R1 no se transmite bajo R2 → CONFLICTO
+- 401 preserva outbox; 409 mismatch → CONFLICTO; 409 "ya cerrada" → sincronizar directo
+- ENVIANDO abandonado → recupera misma fila
+- Jornada: depende PAYMENT/REVERSAL ACK; CLOSED_LOCAL_PENDING_SYNC → CLOSED_SYNCED tras ACK /sincronizar
+- Push→pull reconciliation: pagos/movimientos/reversales empujados aparecen en GET /sync
+- `sync_queue_service.dart` — helper methods para transiciones de estado
+
+**Componentes productivos S3:**
+- `apps/mobile/lib/database/migration_v5.dart`
+- `apps/mobile/lib/sync/push_orchestrator.dart`
+- `apps/mobile/lib/services/sync_queue_service.dart` (estados S3)
+- `apps/mobile/test/sync/push_orchestrator_test.dart` (163 tests mobile)
 
 ## 4. Hoja Viva y modelo offline existente
 
@@ -102,11 +119,11 @@ S3  Outbox push/ACK/retry (PENDIENTE)
 ```bash
 # Mobile
 cd apps/mobile && flutter analyze        # No issues found
-cd apps/mobile && flutter test          # 147 passing
+cd apps/mobile && flutter test          # 163 passing
 dart run tool/generate_design_tokens.dart --check  # tokens determinísticos
 
 # Backend (SQLite — default)
-cd apps/api/src && python3 -m pytest tests/ -q    # 255 passed, 7 skipped
+cd apps/api/src && python3 -m pytest tests/ -q    # 262 passed, 7 skipped
 cd apps/api && python3 -m alembic check          # No new upgrade operations
 
 # Backend (PG concurrency — requiere scratch DB)
@@ -125,10 +142,11 @@ scripts/ci/ui_gate.sh                     # PASS (GitHub Actions)
 
 ## 7. Próximos pasos (siguiente bloque)
 
-**S3 — outbox móvil→servidor (push/ACK/retry/conflictos).**
-- Diseñar contrato de push (POST individual con idempotency keys, o endpoint batch)
-- ACK/NACK, retry reintentable, resolución de conflictos (snapshot de jornada)
+**M4 — Importación OCR (`ocr_service.py`).**
+- `ocr_service.py` no existe aún (pendiente).
 - Documentar en `docs/OFFLINE-SYNC.md`
+
+**Pendientes adicionales:**
 
 **Pendientes adicionales:**
 - M4: Importación OCR (`ocr_service.py` no existe)

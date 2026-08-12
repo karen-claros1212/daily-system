@@ -31,7 +31,7 @@
 > - S0 session maintenance: **PASS**
 > - S1 route isolation: **PASS**
 > - S2 pull servidor→móvil: **PASS**
-> - S3 outbox móvil→servidor: **PENDIENTE**
+> - S3 outbox móvil→servidor: **✅ PASS / IMPLEMENTADO**
 > - Web productiva: **PENDIENTE** (`apps/web/` vacío)
 > - Prototipo web: **existente, NO productivo**
 > - Bot administrativo: **FUTURO**
@@ -45,11 +45,11 @@
 
 | Campo | Valor |
 |---|---|
-| **Estado general** | M0-M2 completos · M3 base completo · M3.2-M3.5 históricas no implementadas · B1-B7 hardening PASS · S3 pendiente |
-| **Hito actual** | B1-B7 hardening (código baseline `c0a3a9c`) |
+| **Estado general** | M0-M3 completos · M3.2-M3.5 históricas no implementadas · B1-B7 hardening PASS · S0-S3 sync completo |
+| **Hito actual** | S3 outbox push/ACK/retry/conflictos (IMPLEMENTADO)
 | **Progreso total** | M0: 22/22 ✅ · M1: 8/8 ✅ · M2: 6/6 ✅ · M3 base: 1/1 ✅ (M3.2-M3.5 históricas, no implementadas en árbol actual) · B1-B7: ✅ |
-| **Tests pasando (backend, SQLite)** | 255 passed, 7 skipped (257 funciones) |
-| **Tests pasando (mobile)** | 147 passing |
+| **Tests pasando (backend, SQLite)** | 262 passed, 7 skipped (269 funciones) |
+| **Tests pasando (mobile)** | 163 passing |
 | **Tests PG concurrency** | Pendientes (requieren scratch DB: `cobro_scratch_b6_pg` + `ALLOW_PG_TRUNCATE=1`) |
 | **PostgreSQL** | Corriendo (cobro-postgres, Docker, puerto 7103) |
 | **Alembic** | `m7_desafio_auth` (head); `alembic check` limpio |
@@ -73,7 +73,7 @@
 | ✅ PASS | S0 — session maintenance (renovación antes de expirar) |
 | ✅ PASS | S1 — route isolation (scope server-side; cliente no elige ruta) |
 | ✅ PASS | S2 — pull servidor→móvil + persistencia SQLite (UPSERT por PK) |
-| ⏳ PENDIENTE | S3 — outbox móvil→servidor (push / ACK / retry / conflictos) |
+| ✅ PASS | S3 — outbox móvil→servidor (push / ACK / retry / conflictos) |
 | ⏳ PENDING | Verificado en dispositivo físico |
 | ⏳ PENDIENTE | M4: Importación OCR (`ocr_service.py` no existe) |
 | ⏳ PENDIENTE | M5: Score, chatbot, inteligencia |
@@ -225,7 +225,7 @@
 | Tipo | Cantidad | Estado |
 |---|---|---|
 | Código Python | 34 | Normalizado (ruff clean) |
-| Tests | 257 funciones backend (255 passed + 7 skip SQLite) / 147 mobile | Normalizado |
+| Tests | 269 funciones backend (262 passed + 7 skip SQLite) / 163 mobile | Normalizado |
 | Migraciones | 4 | init → m2_apertura → m2_jornada → m3_dispositivo |
 | Infraestructura | 3 | docker-compose + init.sql + .env.example |
 | Documentación | 8 | AGENTS.md, README, docs/*.md, ADR |
@@ -246,8 +246,7 @@
 
 ## Próximos pasos
 
-1. **S3** — outbox móvil→servidor: diseñar y documentar **contrato** de push, ACK, resolución de conflictos. Documentar en `docs/OFFLINE-SYNC.md`.
-2. **M4** — Importación OCR: `ocr_service.py` no existe aún (pendiente).
+1. **M4** — Importación OCR: `ocr_service.py` no existe aún (pendiente).
 3. **M5** — Score, chatbot, inteligencia: pendiente.
 4. **M6** — Producción y despliegue: pendiente.
 5. **Verificado en dispositivo físico**: PENDING (solo emulador API 35).

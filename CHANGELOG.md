@@ -30,6 +30,23 @@ Rama de trabajo: `hardening/b1-b7-audit`. `master` (`486d08b`) no contiene estos
 - S0: atomic session envelope (daily_session)
 - S1: route isolation (scope derivado del servidor)
 - S2: pull + local persistence
+- **S3: outbox móvil→servidor — IMPLEMENTADO**
+  - `migration_v5.dart` — sync_queue evolucionada: `datos` JSON, `idempotency_key`, provenance, `intento`, `ultimo_error`, `ultima_transicion`
+  - `push_orchestrator.dart` — PushOrchestrator: lee sync_queue pendiente, envía por tipo al endpoint correcto
+  - Payloads: PAYMENT → POST /api/pagos, REVERSAL → POST /api/pagos/{id}/reversar, MOVIMIENTO → POST /api/movimientos, JORNADA_CIERRE → POST /cerrar + POST /sincronizar
+  - Estados: PENDIENTE_DE_SINCRONIZAR, ENVIANDO, SINCRONIZADO, ERROR_REINTENTABLE, CONFLICTO
+  - Idempotent retry: misma key/payload/provenance en retry; lost response converge idempotentemente
+  - server_entity_id durable: se guarda en sync_queue al recibir ACK
+  - Local↔server ID mapping: REVERSAL usa server_payment_id (no local ID)
+  - Route provenance R1→R2: fila de R1 no se transmite bajo R2 → CONFLICTO, 0 requests HTTP
+  - 401 preserva outbox (ERROR_REINTENTABLE)
+  - 409 mismatch → CONFLICTO (no reintentable); 409 match → 200 idempotente
+  - ENVIANDO abandonado → recupera misma fila, no INSERT nueva
+  - Dependencia: JORNADA_CIERRE espera PAYMENT/REVERSAL ACK de misma jornada
+  - CLOSED_LOCAL_PENDING_SYNC → CLOSED_SYNCED solo tras ACK válido de /sincronizar
+  - Push→pull reconciliation: pagos/movimientos/reversales empujados aparecen en GET /sync
+  - reversal_of_payment_id reconciliado en pull
+  - Tests: 163 mobile passing, 262 backend passing, 7 skipped, flutter analyze clean
 
 ### Backend
 - 409 idempotent en pago/movimiento/jornada; comparación full-payload
@@ -44,9 +61,10 @@ Rama de trabajo: `hardening/b1-b7-audit`. `master` (`486d08b`) no contiene estos
 - S0 session maintenance: PASS
 - S1 route isolation: PASS
 - S2 server→mobile pull/persistence: PASS
-- S3 outbox (mobile→server push/ACK/retry/conflictos): PENDIENTE
-- Backend pytest: 255 passed, 7 skipped (257 funciones)
-- Mobile flutter test: 147 passing
+- S3 outbox (mobile→server push/ACK/retry/conflictos): ✅ IMPLEMENTADO
+- Backend pytest: 262 passed, 7 skipped (269 funciones)
+- Mobile flutter test: 163 passing
+- flutter analyze: No issues found
 - alembic: m7_desafio_auth (head), clean
 - ruff: 97 errors en src/ (deuda conocida — no fue limpiado en hardening)
 
@@ -86,7 +104,7 @@ Rama de trabajo: `hardening/b1-b7-audit`. `master` (`486d08b`) no contiene estos
 - S0 session maintenance: PASS.
 - S1 aislamiento ruta: PASS.
 - S2 pull servidor→móvil: PASS.
-- S3 outbox móvil→servidor: PENDIENTE.
+- S3 outbox móvil→servidor: ✅ IMPLEMENTADO.
 
 ### Repository
 - `hardening/b1-b7-audit` contiene estos cambios.

@@ -65,7 +65,7 @@ No saltar etapas ni declarar una etapa terminada sin evidencia reproducible.
 10. **Actualizar la documentación pública como gate de cierre de bloque.**
    - Un bloque puede quedar CODE PASS, pero NO puede declararse PROJECT CLOSED sin reconciliar `docs/STATUS.md`, `CHANGELOG.md` y `DAILY-SYSTEM-CONTEXT-HANDOFF.md` (marcar obsoletos si corresponde).
    - La documentación debe reflejar el estado verificado (SHA + resultados de tests), no estados históricos o proyectados.
-   - No documentar como "implementado/PENDIENTE" algo que no está implementado ni planeado concretamente. Si S3 es el bloque actual, S3 debe documentarse como PENDIENTE, no como S2.5, ni renombrarse arbitrariamente.
+    - No documentar como "implementado/PENDIENTE" algo que no está implementado ni planeado concretamente. Si S3 es el bloque actual, S3 debe documentarse como PENDIENTE, no como S2.5, ni renombrarse arbitrariamente. S3 ya está implementado.
 
 ---
 
@@ -852,7 +852,7 @@ Fixture: 1 negocio, 1 admin, varios cobradores, R1–R4 + R5/R6 dinámicas; cré
 > - **S0:** atomic session envelope (daily_session) — PASS
 > - **S1:** route isolation (scope server-side, cliente no elige ruta) — PASS
 > - **S2:** pull servidor→móvil + persistencia SQLite — PASS
-> - **S3:** outbox móvil→servidor (push/ACK/retry/conflictos) — **PENDIENTE**
+> - **S3:** outbox móvil→servidor (push/ACK/retry/conflictos) — **✅ IMPLEMENTADO**
 > - Alembic head: `m7_desafio_auth`
 > - Backend tests: 255 passed + 7 skipped (257 funciones)
 > - Mobile tests: 147 passing
@@ -860,7 +860,7 @@ Fixture: 1 negocio, 1 admin, varios cobradores, R1–R4 + R5/R6 dinámicas; cré
 > **S3 (no S4) es el bloque actual.** No renombrar arbitrariamente S3 → S4.
 >
 > Orden seguro aprobado (dictamen 2026-08-06, actualizado 2026-08-11):
-> **1)** ✅ Bloque 6 — activación backend (PASS) → **2)** ✅ Bloque 7 — auth productivo + device binding (PASS a c0a3a9c) → **3)** ✅ S0-S2 — sync offline pull + session (PASS) → **4)** ⏳ S3 — outbox push/ACK/retry (PENDIENTE) → **5)** ⏳ apps/web productiva (PENDIENTE) → **6)** ⏳ M4-M6.
+> **1)** ✅ Bloque 6 — activación backend (PASS) → **2)** ✅ Bloque 7 — auth productivo + device binding (PASS a c0a3a9c) → **3)** ✅ S0-S2 — sync offline pull + session (PASS) → **4)** ✅ S3 — outbox push/ACK/retry (IMPLEMENTADO) → **5)** ⏳ apps/web productiva (PENDIENTE) → **6)** ⏳ M4-M6.
 
 > **[RESTABLECIDO — NO SUPERSEDED:** la restricción de no confiar en `route_id` enviado libremente por el móvil sigue VIGENTE.] Hasta que S3 esté implementado, el móvil no debe enviar `negocio_id`/`cobrador_id`/`ruta_id` como autoridad en push. El scope se deriva del JWT + dispositivo activo en el servidor. **NO** crear/modificar: migraciones de activación, `CodigoActivacion`, `IntentoActivacion`, `public_key`, challenge-response, JWT/OAuth/PKCE, Keystore, bootstrap, dependencias Flutter, módulo productivo de activación web, o el outbox S3, sin instrucción explícita. Solo lectura y documentación.
 
@@ -871,7 +871,7 @@ Fixture: 1 negocio, 1 admin, varios cobradores, R1–R4 + R5/R6 dinámicas; cré
 | Componente | Estado |
 |---|---|
 | Backend | Productivo en desarrollo, Bloques 1–6 PASS + Bloque 7 PASS (hardenig c0a3a9c) |
-| Móvil | Implementado y probado; auth productivo (JWT ES256 + AndroidKeyStore + challenge-response) + S0-S2 sync PASS; S3 outbox PENDIENTE |
+| Móvil | Implementado y probado; auth productivo (JWT ES256 + AndroidKeyStore + challenge-response) + S0-S3 sync PASS; S3 outbox IMPLEMENTADO |
 | Web productiva (`apps/web`) | **PENDIENTE** (carpeta vacía) |
 | Prototipo web HTML/CSS | MOCK visual |
 | Blueprint web (`WEB-UI-BLUEPRINT.md`) | IMPLEMENTADO (documento) |

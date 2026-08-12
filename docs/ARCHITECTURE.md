@@ -48,7 +48,7 @@ apps/mobile/
 │   │   ├── jcs.dart                  # RFC 8785 canonicalization (Dart)
 │   │   ├── auth_token_store.dart     # Secure token persistence
 │   │   └── models.dart               # DesafioAuth, CanjearAuth, BootstrapIdentity, etc.
-│   ├── sync/                  # Offline sync (S0-S2 implemented; S3 pending)
+│   ├── sync/                  # Offline sync (S0-S3 implemented)
 │   │   ├── sync_client.dart      # GET /api/mobile/sync, session renewal (S0-S1)
 │   │   ├── sync_models.dart       # SyncDataset/Cliente/Credito/Cuota/Pago/Movimiento/Jornada
 │   │   └── sync_repository.dart   # UPSERT por PK (ON CONFLICT), protección pendientes
@@ -84,7 +84,7 @@ DeviceIdentity (AndroidKeyStore) → DeviceAuthClient (challenge/response JCS)
         ↓
     MovimientoService / PagoService / JornadaService (local SQLite)
         ↓
-    sync_queue (outbox) ← S3 pendiente (push → server → ACK → retry)
+    sync_queue (outbox) ← S3 IMPLEMENTADO (PushOrchestrator: push → server → ACK → retry)
 ```
 
 ### Backend FastAPI
@@ -160,7 +160,7 @@ Ver [`OFFLINE-SYNC.md`](OFFLINE-SYNC.md) para el contrato completo.
 | S0 | Session maintenance (renew before expiry) | ✅ Implementado |
 | S1 | Route isolation (server-side scope) | ✅ Implementado |
 | S2 | Pull dataset + SQLite persistence (UPSERT PK) | ✅ Implementado |
-| S3 | Outbox push → ACK → retry → conflict resolution | ⏳ PENDIENTE |
+| S3 | Outbox push → ACK → retry → conflict resolution | ✅ Implementado |
 
 ---
 

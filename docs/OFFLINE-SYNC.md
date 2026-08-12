@@ -17,7 +17,7 @@
 | **S0** | Session maintenance | Móvil → Backend | ✅ Implementado |
 | **S1** | Route isolation (server-derived scope) | Backend | ✅ Implementado |
 | **S2** | Pull dataset + local persistence | Backend → Móvil | ✅ Implementado |
-| **S3** | Outbox: push → ACK → retry → conflictos | Móvil → Backend | ⏳ PENDIENTE |
+| **S3** | Outbox: push → ACK → retry → conflictos | Móvil → Backend | ✅ Implementado |
 
 ---
 
@@ -91,28 +91,60 @@ El pull preserva `reversal_of_payment_id` en `Pago` y bloquea un doble reverso l
 
 ---
 
-## S3 — Outbox móvil→servidor ⏳ PENDIENTE
+## S3 — Outbox móvil→servidor ✅ PASS / IMPLEMENTADO
 
 **Objetivo:** cuando el móvil está offline, los eventos financieros (pagos, movimientos, cierres) se encolan localmente y se empujan al servidor al recuperar conectividad. El servidor responde con ACK/NACK; el móvil hace retry reintentable y resuelve conflictos.
 
 ### Estado actual
-- **`sync_queue_service.dart`** existe (push local de la cola de eventos pendientes). Los endpoints individuales de push **YA EXISTEN** en el backend: POST /api/pagos, POST /api/pagos/{id}/reversar, POST /api/movimientos, POST /api/jornadas/{id}/cerrar, POST /api/jornadas/{id}/sincronizar.
-- **Lo que falta (S3):** el envelope de outbox móvil (envelope atómico de push, ACK/NACK, idempotency key persistence, retry reintentable, resolución de conflictos, reasignación segura). Si se demuestra necesaria una fachada batch/mobile para S3, será una decisión de S3 — **no** una ausencia general de endpoints.
-- **No documentar como implementado.** No asumir.
 
-### Flujo objetivo (no implementado)
+- **`sync_queue`** — tabla evolucionada con migration v5. No es una segunda outbox; reutiliza la tabla existente con nuevos estados y columnas.
+- **`migration_v5.dart`** — añade: `datos` (JSON payload completo), `idempotency_key`, `ruta_id_origen`, `cobrador_id_origen`, `jornada_id_origen`, `intento`, `ultimo_error`, `ultima_transicion`.
+- **`push_orchestrator.dart`** — PushOrchestrator que lee sync_queue pendiente, envía por tipo al endpoint correcto, maneja ACK/NACK/conflicto/retry.
+- **`sync_queue_service.dart`** — estados: `PENDIENTE_DE_SINCRONIZAR`, `ENVIANDO`, `SINCRONIZADO`, `ERROR_REINTENTABLE`, `CONFLICTO`.
+- **`idempotency_key`** — persistida en sync_queue, enviada en headers de cada push.
+- **Provenance** — `ruta_id_origen`, `cobrador_id_origen`, `jornada_id_origen` persistidos en la fila; R1→R2 protection (fila de R1 no se envía bajo R2).
+- **`server_entity_id`** — durable: se guarda en sync_queue al recibir ACK del servidor (201/200), permite pull→reconciliación posterior.
 
-```
-Hoja Viva → PagoService/MovimientoService/JornadaService (local, append-only)
-      ↓  (offline: encola en sync_queue)
-sync_queue (outbox local)
-      ↓  (online: S3 push loop)
-POST /api/pagos / /api/movimientos / /api/jornadas/{id}/cerrar / sincronizar
-      ↓
-Server responde 201 (ACK) / 409 (conflict) / 401 (reauth) / 5xx (retry)
-      ↓
-S3: ACK → marcar done; 409 → resolver conflicto; 401 → reauth; 5xx → retry
-```
+### Tipos productivos
+
+| Tipo | Endpoint | Método |
+|---|---|---|
+| PAYMENT | POST `/api/pagos` | `push_orchestrator.dart` |
+| REVERSAL | POST `/api/pagos/{server_payment_id}/reversar` | `push_orchestrator.dart` |
+| MOVIMIENTO | POST `/api/movimientos` | `push_orchestrator.dart` |
+| JORNADA_CIERRE | POST `/api/jornadas/{id}/cerrar` → POST `/api/jornadas/{id}/sincronizar` | `push_orchestrator.dart` |
+
+### Semántica de estados
+
+| Estado | Significado |
+|---|---|
+| `PENDIENTE_DE_SINCRONIZAR` | Fila nueva, lista para push |
+| `ENVIANDO` | Push en progreso (protege contra doble push) |
+| `SINCRONIZADO` | ACK del servidor recibido (200/201), `server_entity_id` guardado |
+| `ERROR_REINTENTABLE` | Error transitorio (401, 5xx), se reintentará |
+| `CONFLICTO` | Error no reintentable (409 mismatch, 400, 403, 404, 422) |
+
+### Comportamientos documentados
+
+- **PAYMENT/REVERSAL** — usan mapping local↔server: REVERSAL requiere `server_payment_id` (no local ID) para construir URL del reverso.
+- **Retry** — conserva misma `idempotency_key`, mismo payload, misma provenance.
+- **Lost response** — si servidor commitó pero móvil no recibió ACK, retry idempotente devuelve 200 (idempotente) → converge a SINCRONIZADO.
+- **401** — preserva fila en outbox (ERROR_REINTENTABLE), no borra.
+- **409 mismatch** — idempotency key existe pero payload distinto → CONFLICTO (no reintentable).
+- **409 "ya cerrada"** — jornada_cierre: re-intenta con `/sincronizar` directo.
+- **ENVIANDO abandonado** — recupera LA MISMA fila (no INSERT nueva), retransmite.
+- **R1→R2** — fila con `ruta_id_origen=R1` no se transmite bajo R2 → CONFLICTO. 0 requests HTTP.
+- **Jornada dependencies** — JORNADA_CIERRE espera PAYMENT/REVERSAL de misma jornada ACKeados.
+- **CLOSED_LOCAL_PENDING_SYNC → CLOSED_SYNCED** — solo tras ACK válido de `/sincronizar`.
+- **Pull posterior** — reconcilia server_entity_id, evita duplicados.
+
+### No afirmar
+
+- Que todos los 409 son conflicto.
+- Que todos los 409 son ACK.
+- Que existe endpoint batch.
+- Que existe PowerSync.
+- Que PG pasó si no se ejecutó.
 
 ---
 
@@ -144,4 +176,4 @@ OPEN → CLOSING → CLOSED_LOCAL_PENDING_SYNC → CLOSED_SYNCED
 
 - On mismatch: **409** (JornadaSyncException / MovimientoIdempotencyError / PaymentIdempotencyError)
 - On match: return existing (idempotent)
-- En S3, el push reutilizará estas idempotency keys existentes.
+- En S3, el push reutiliza estas idempotency keys existentes. 409 mismatch → CONFLICTO (no reintentable). 409 match → 200 idempotente → SINCRONIZADO.
