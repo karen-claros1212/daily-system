@@ -21,7 +21,10 @@
 > - **Autenticación por sesión: NO EXISTEN** en el hardening. La auth productiva es JWT ES256 + AndroidKeyStore + challenge-response.
 > - **master (486d08b) NO contiene el hardening B1-B7.** Todo el trabajo de auth/sync productivo vive en `hardening/b1-b7-audit`.
 >
-> **Estado oficial (2026-08-11 verificado sobre `c0a3a9c`):**
+> **Estado oficial al 2026-08-12:**
+> - S0-S2 baseline de código: `c0a3a9c`
+> - S3 cerrado en `hardening/b1-b7-audit` (HEAD remoto: `git rev-parse HEAD`)
+> - Git es autoridad para el HEAD actual
 > - Backend financiero: **PASS / implementado**
 > - Hoja Viva: **implementada y preservada**
 > - B1-B7 hardening: **PASS**
@@ -245,6 +248,13 @@
 ---
 
 ## Próximos pasos
+
+1. **S4** — Reasignación de ruta/dispositivo
+2. **S5** — Conflictos y resolución server-authoritative
+3. **Web administrativa productiva**
+4. **Bot administrativo futuro**
+
+### Históricos M4-M6 (no inmediatos)
 
 1. **M4** — Importación OCR: `ocr_service.py` no existe aún (pendiente).
 2. **M5** — Score, chatbot, inteligencia: pendiente.
