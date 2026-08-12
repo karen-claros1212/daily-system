@@ -169,7 +169,6 @@ class PagoCreate(BaseModel):
 class PagoReversalCreate(BaseModel):
     motivo: str = Field(..., min_length=1)
     clave_idempotencia: str = Field(..., min_length=1, max_length=200)
-    clave_idempotencia: str = Field(..., min_length=1, max_length=200)
 
 
 class PagoResponse(BaseModel):
