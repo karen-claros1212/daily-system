@@ -255,10 +255,11 @@ class PushOrchestrator {
       'nota': datos['nota'],
     };
 
-    await http.postJson('/api/pagos', body: body, token: token);
+    final response = await http.postJson('/api/pagos', body: body, token: token);
 
-    // ACK: ENVIANDO → SINCRONIZADO
-    await SyncQueueService.marcarSincronizado(filaId);
+    // ACK: ENVIANDO → SINCRONIZADO + mapping durable
+    final serverId = response['id'] as String?;
+    await SyncQueueService.marcarSincronizado(filaId, serverEntityId: serverId);
     return PushResult(
       filaId: filaId,
       tipo: 'PAYMENT',
@@ -276,9 +277,11 @@ class PushOrchestrator {
       'clave_idempotencia': idempotencyKey,
     };
 
-    await http.postJson('/api/pagos/$pagoOriginalId/reversar', body: body, token: token);
+    final response = await http.postJson('/api/pagos/$pagoOriginalId/reversar', body: body, token: token);
 
-    await SyncQueueService.marcarSincronizado(filaId);
+    // ACK: ENVIANDO → SINCRONIZADO + mapping durable
+    final serverId = response['id'] as String?;
+    await SyncQueueService.marcarSincronizado(filaId, serverEntityId: serverId);
     return PushResult(
       filaId: filaId,
       tipo: 'REVERSAL',
@@ -298,9 +301,11 @@ class PushOrchestrator {
       'clave_idempotencia': idempotencyKey,
     };
 
-    await http.postJson('/api/movimientos', body: body, token: token);
+    final response = await http.postJson('/api/movimientos', body: body, token: token);
 
-    await SyncQueueService.marcarSincronizado(filaId);
+    // ACK: ENVIANDO → SINCRONIZADO + mapping durable
+    final serverId = response['id'] as String?;
+    await SyncQueueService.marcarSincronizado(filaId, serverEntityId: serverId);
     return PushResult(
       filaId: filaId,
       tipo: 'MOVIMIENTO',
@@ -322,8 +327,11 @@ class PushOrchestrator {
       'motivo': datos['diferencia_motivo'] ?? '',
     };
 
+    String? serverJornadaId;
+
     try {
-      await http.postJson('/api/jornadas/$jornadaId/cerrar', body: cierreBody, token: token);
+      final cerrarResp = await http.postJson('/api/jornadas/$jornadaId/cerrar', body: cierreBody, token: token);
+      serverJornadaId = cerrarResp['id'] as String? ?? cerrarResp['jornada_id'] as String?;
     } on AuthApiException catch (e) {
       // 409 "ya cerrada" → probar /sincronizar directo
       if (e.statusCode == 409 && e.detail.contains('cerrada')) {
@@ -331,7 +339,7 @@ class PushOrchestrator {
         final snapshotBody = _construirSnapshot(datos, jornadaId);
         final snapshotHash = _canonicalJsonHash(snapshotBody);
 
-        await http.postJson('/api/jornadas/$jornadaId/sincronizar',
+        final syncResp = await http.postJson('/api/jornadas/$jornadaId/sincronizar',
           body: {
             'snapshot': snapshotBody,
             'snapshot_hash': snapshotHash,
@@ -339,7 +347,8 @@ class PushOrchestrator {
           token: token,
         );
 
-        await SyncQueueService.marcarSincronizado(filaId);
+        serverJornadaId = syncResp['jornada_id'] as String?;
+        await SyncQueueService.marcarSincronizado(filaId, serverEntityId: serverJornadaId);
         return PushResult(
           filaId: filaId,
           tipo: 'JORNADA_CIERRE',
@@ -364,7 +373,7 @@ class PushOrchestrator {
     final snapshotBody = _construirSnapshot(datos, jornadaId);
     final snapshotHash = _canonicalJsonHash(snapshotBody);
 
-    await http.postJson('/api/jornadas/$jornadaId/sincronizar',
+    final syncResp = await http.postJson('/api/jornadas/$jornadaId/sincronizar',
       body: {
         'snapshot': snapshotBody,
         'snapshot_hash': snapshotHash,
@@ -372,7 +381,8 @@ class PushOrchestrator {
       token: token,
     );
 
-    await SyncQueueService.marcarSincronizado(filaId);
+    serverJornadaId = serverJornadaId ?? syncResp['jornada_id'] as String?;
+    await SyncQueueService.marcarSincronizado(filaId, serverEntityId: serverJornadaId);
     return PushResult(
       filaId: filaId,
       tipo: 'JORNADA_CIERRE',

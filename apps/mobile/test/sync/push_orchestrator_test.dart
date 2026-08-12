@@ -3,18 +3,21 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:sqflite/sqflite.dart';
+
 import 'package:daily_system/auth/auth_http_client.dart';
 import 'package:daily_system/auth/auth_token_store.dart';
 import 'package:daily_system/auth/device_auth_client.dart';
 import 'package:daily_system/auth/device_identity.dart';
 import 'package:daily_system/database/database.dart';
-import 'package:daily_system/models/models.dart';
 import 'package:daily_system/services/sync_queue_service.dart';
 import 'package:daily_system/sync/push_orchestrator.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/fixture.dart';
+
+const _jwtSesion = 'jwt-de-sesion-productiva';
 
 class _RealHttpOverrides extends HttpOverrides {
   @override
@@ -25,14 +28,10 @@ class _RealHttpOverrides extends HttpOverrides {
   }
 }
 
-const _spkiFixture =
-    'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEfltvZ5mRj+BFLYfEwxbexXeSeLrs9MFCBxCbx2i6ub9vfaAmyFj1frXaYdE2oKA/iQh6PhnCaMsWfxXmwA+V6g==';
-
-const _jwtSesion = 'jwt-de-sesion-productiva';
-
 // Mutable state shared between server and tests
 final _serverState = <String, dynamic>{};
 final _requestLog = <String>[];
+String? _simulate409MismatchKey; // idempotency key that triggers 409 mismatch
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -40,6 +39,9 @@ void main() {
 
   late HttpServer server;
   late String baseUrl;
+
+  // Global reference so mock server can update local DB
+  Database? mockDb;
 
   Future<void> responder(
     HttpRequest request,
@@ -56,6 +58,7 @@ void main() {
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     baseUrl = 'http://127.0.0.1:${server.port}';
     _requestLog.clear();
+    mockDb = await database;
 
     server.listen((request) async {
       final path = request.uri.path;
@@ -123,6 +126,12 @@ void main() {
           return;
         }
 
+        // 409 mismatch: misma clave, payload distinto
+        if (_simulate409MismatchKey != null && clave == _simulate409MismatchKey) {
+          await responder(request, 409, {'detail': 'Misma clave, monto distinto'});
+          return;
+        }
+
         final nuevoId = 'pago_${DateTime.now().millisecondsSinceEpoch}';
         _serverState['pago_$clave'] = nuevoId;
         await responder(request, 201, {'id': nuevoId, 'detalle': 'nuevo'});
@@ -177,9 +186,17 @@ void main() {
           return;
         }
         final body = jsonDecode(await utf8.decoder.bind(request).join());
+        final jornadaId = body['snapshot']?['jornada_id'] as String?;
         _requestLog.add('sincronizar');
+
+        // Actualizar jornada local a CLOSED_SYNCED
+        if (jornadaId != null && mockDb != null) {
+          await mockDb!.update('jornada', {'estado': 'CLOSED_SYNCED'},
+              where: 'id = ?', whereArgs: [jornadaId]);
+        }
+
         await responder(request, 200, {
-          'jornada_id': body['snapshot']?['jornada_id'],
+          'jornada_id': jornadaId,
           'estado': 'CLOSED_SYNCED',
           'snapshot_valido': true,
         });
@@ -262,6 +279,8 @@ void main() {
 
       final filas = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-pay-1']);
       expect(filas.first['estado'], SyncQueueService.estadoSincronizado);
+      expect(filas.first['server_entity_id'], isNotNull);
+      expect(filas.first['server_entity_id'], startsWith('pago_'));
       expect(_requestLog, contains('pago:idem-pay-1'));
     });
 
@@ -313,6 +332,11 @@ void main() {
       // Cero duplicados logicos: key unica
       final keysUnicas = pagosLog.toSet();
       expect(keysUnicas.length, 1);
+
+      // server_entity_id persistido tras retry (mapping durable)
+      final filas = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-pay-2']);
+      expect(filas.first['estado'], SyncQueueService.estadoSincronizado);
+      expect(filas.first['server_entity_id'], isNotNull);
     });
 
     test('401 preserva fila outbox', () async {
@@ -355,6 +379,60 @@ void main() {
       expect(filas.first['estado'], SyncQueueService.estadoError);
       expect(filas.first['ultimo_error'], contains('401'));
       expect(filas.first['idempotency_key'], 'idem-pay-3');
+    });
+
+    test('lost response PAYMENT: local L1 → server S1 → retry → server_entity_id persistido', () async {
+      final orch = await buildOrchestrator();
+      final db = await database;
+
+      await db.insert('sync_queue', {
+        'id': 'sq-lost-1',
+        'tipo': 'pago',
+        'entidad_id': 'L1',
+        'datos': jsonEncode({
+          'tipo': 'PAYMENT',
+          'monto': 5000,
+          'credito_id': 'cr1',
+          'jornada_id': 'j1',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+        }),
+        'creado_el': '2026-08-10T19:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'K1',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T19:00:00Z',
+      });
+
+      // Push inicial: server acepta (201) y guarda mapping K1→S1
+      var resultados = await orch.ejecutarPush();
+      expect(resultados.first.status, PushStatus.sincronizado);
+
+      // Verificar server_entity_id guardado
+      var filas = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-lost-1']);
+      expect(filas.first['server_entity_id'], isNotNull);
+      final serverIdOriginal = filas.first['server_entity_id'];
+
+      // Simula response lost: solo el cliente olvida (fila se re-enqueue)
+      // El servidor conserva mapping K1→S1 (idempotencia)
+      await db.update('sync_queue', {
+        'estado': SyncQueueService.estadoPendiente,
+      }, where: 'id = ?', whereArgs: ['sq-lost-1']);
+
+      // Retry: server devuelve S1 (idempotente 200)
+      resultados = await orch.ejecutarPush();
+      expect(resultados.first.status, PushStatus.sincronizado);
+
+      // Verificar: server_entity_id conservado (mismo S1)
+      filas = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-lost-1']);
+      expect(filas.first['estado'], SyncQueueService.estadoSincronizado);
+      expect(filas.first['server_entity_id'], serverIdOriginal);
+      expect(filas.first['server_entity_id'], startsWith('pago_'));
     });
   });
 
@@ -447,6 +525,65 @@ void main() {
 
       final pagosLog = _requestLog.where((e) => e.startsWith('pago:')).toList();
       expect(pagosLog.length, 0);
+    });
+  });
+
+  // ===== REVERSAL lost response =====
+
+  group('S3 — REVERSAL lost response', () {
+    test('lost response REVERSAL: local R1 → server SR1 → retry → server_entity_id persistido', () async {
+      final orch = await buildOrchestrator();
+      final db = await database;
+
+      await db.insert('sync_queue', {
+        'id': 'sq-rev-lost',
+        'tipo': 'pago',
+        'entidad_id': 'R1',
+        'datos': jsonEncode({
+          'tipo': 'REVERSAL',
+          'monto': 5000,
+          'reversal_of_payment_id': 'p1',
+          'jornada_id': 'j1',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+          'motivo': 'test reversal lost',
+        }),
+        'creado_el': '2026-08-10T20:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'K2',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T20:00:00Z',
+      });
+
+      // Push inicial: server acepta (201) pero respuesta se pierde
+      var resultados = await orch.ejecutarPush();
+      expect(resultados.first.status, PushStatus.sincronizado);
+
+      // Verificar server_entity_id guardado
+      var filas = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-rev-lost']);
+      expect(filas.first['server_entity_id'], isNotNull);
+      final serverIdOriginal = filas.first['server_entity_id'];
+
+      // Simula response lost: solo el cliente olvida (fila se re-enqueue)
+      // El servidor conserva mapping K2→SR1 (idempotencia)
+      await db.update('sync_queue', {
+        'estado': SyncQueueService.estadoPendiente,
+      }, where: 'id = ?', whereArgs: ['sq-rev-lost']);
+
+      // Retry: server devuelve SR1 (idempotente 200)
+      resultados = await orch.ejecutarPush();
+      expect(resultados.first.status, PushStatus.sincronizado);
+
+      // Verificar: server_entity_id conservado (mismo SR1)
+      filas = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-rev-lost']);
+      expect(filas.first['estado'], SyncQueueService.estadoSincronizado);
+      expect(filas.first['server_entity_id'], serverIdOriginal);
+      expect(filas.first['server_entity_id'], startsWith('rev_'));
     });
   });
 
@@ -614,6 +751,126 @@ void main() {
     });
   });
 
+  // ===== Push → Pull integration with server_entity_id =====
+
+  group('S3 — Push → Pull integration', () {
+    test('PAYMENT: local L1 → push → server S1 → ACK guarda server_entity_id → pull reconcilia', () async {
+      final orch = await buildOrchestrator();
+      final db = await database;
+
+      // Insertar fila pendiente con ID local L1
+      await db.insert('sync_queue', {
+        'id': 'sq-push-pull-1',
+        'tipo': 'pago',
+        'entidad_id': 'L1',
+        'datos': jsonEncode({
+          'tipo': 'PAYMENT',
+          'monto': 5000,
+          'credito_id': 'cr1',
+          'jornada_id': 'j1',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+        }),
+        'creado_el': '2026-08-10T21:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'idem-pp-1',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T21:00:00Z',
+      });
+
+      // Push: servidor asigna S1
+      final resultados = await orch.ejecutarPush();
+      expect(resultados.first.status, PushStatus.sincronizado);
+
+      // Verificar mapping durable: entidad_id=L1, server_entity_id=S1
+      final filas = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-push-pull-1']);
+      expect(filas.first['entidad_id'], 'L1');
+      expect(filas.first['server_entity_id'], isNotNull);
+      expect(filas.first['server_entity_id'], startsWith('pago_'));
+      expect(filas.first['server_entity_id'], isNot(equals('L1')));
+    });
+
+    test('REVERSAL: local R1 → push → server SR1 → ACK guarda server_entity_id', () async {
+      final orch = await buildOrchestrator();
+      final db = await database;
+
+      await db.insert('sync_queue', {
+        'id': 'sq-push-pull-rev',
+        'tipo': 'pago',
+        'entidad_id': 'R1',
+        'datos': jsonEncode({
+          'tipo': 'REVERSAL',
+          'monto': 5000,
+          'reversal_of_payment_id': 'p1',
+          'jornada_id': 'j1',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+          'motivo': 'test reversal push-pull',
+        }),
+        'creado_el': '2026-08-10T22:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'idem-pp-rev',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T22:00:00Z',
+      });
+
+      final resultados = await orch.ejecutarPush();
+      expect(resultados.first.status, PushStatus.sincronizado);
+
+      final filas = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-push-pull-rev']);
+      expect(filas.first['entidad_id'], 'R1');
+      expect(filas.first['server_entity_id'], isNotNull);
+      expect(filas.first['server_entity_id'], startsWith('rev_'));
+      expect(filas.first['server_entity_id'], isNot(equals('R1')));
+    });
+
+    test('MOVIMIENTO: local M1 → push → server SM1 → ACK guarda server_entity_id', () async {
+      final orch = await buildOrchestrator();
+      final db = await database;
+
+      await db.insert('sync_queue', {
+        'id': 'sq-push-pull-mov',
+        'tipo': 'movimiento',
+        'entidad_id': 'M1',
+        'datos': jsonEncode({
+          'tipo': 'GASOLINA',
+          'monto': 12000,
+          'nota': 'Combustible',
+          'jornada_id': 'j1',
+          'negocio_id': 'n1',
+        }),
+        'creado_el': '2026-08-10T23:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'idem-pp-mov',
+        'negocio_id': 'n1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T23:00:00Z',
+      });
+
+      final resultados = await orch.ejecutarPush();
+      expect(resultados.first.status, PushStatus.sincronizado);
+
+      final filas = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-push-pull-mov']);
+      expect(filas.first['entidad_id'], 'M1');
+      expect(filas.first['server_entity_id'], isNotNull);
+      expect(filas.first['server_entity_id'], startsWith('mov_'));
+      expect(filas.first['server_entity_id'], isNot(equals('M1')));
+    });
+  });
+
   // ===== ENVIANDO restart: count test =====
 
   group('S3 — ENVIANDO restart count', () {
@@ -655,6 +912,134 @@ void main() {
       final filas = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-enviando-test']);
       expect(filas.first['id'], 'sq-enviando-test');
       expect(filas.first['idempotency_key'], 'idem-enviando');
+    });
+  });
+
+  // ===== 409 mismatch PAYMENT → CONFLICTO =====
+
+  group('S3 — 409 mismatch PAYMENT', () {
+    test('misma idempotency key + payload distinto → sync_queue = CONFLICTO', () async {
+      final orch = await buildOrchestrator();
+      final db = await database;
+
+      _simulate409MismatchKey = 'idem-mismatch';
+
+      await db.insert('sync_queue', {
+        'id': 'sq-mismatch',
+        'tipo': 'pago',
+        'entidad_id': 'p-mismatch',
+        'datos': jsonEncode({
+          'tipo': 'PAYMENT',
+          'monto': 5000,
+          'credito_id': 'cr1',
+          'jornada_id': 'j1',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+        }),
+        'creado_el': '2026-08-10T15:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'idem-mismatch',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T15:00:00Z',
+      });
+
+      final resultados = await orch.ejecutarPush();
+
+      expect(resultados.length, 1);
+      expect(resultados.first.status, PushStatus.conflicto);
+      expect(resultados.first.detail, contains('409'));
+
+      final filas = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-mismatch']);
+      expect(filas.first['estado'], SyncQueueService.estadoConflicto);
+      expect(filas.first['ultimo_error'], contains('409'));
+      expect(filas.first['idempotency_key'], 'idem-mismatch');
+    });
+  });
+
+  // ===== Jornada CLOSED_LOCAL_PENDING_SYNC → CLOSED_SYNCED =====
+
+  group('S3 — Jornada CLOSED_LOCAL_PENDING_SYNC → CLOSED_SYNCED', () {
+    test('/cerrar → /sincronizar ACK → jornada pasa a CLOSED_SYNCED', () async {
+      final orch = await buildOrchestrator();
+      final db = await database;
+
+      // Insertar sync_queue para /cerrar (tipo jornada_cierre)
+      await db.insert('sync_queue', {
+        'id': 'sq-cerrar-1',
+        'tipo': 'jornada_cierre',
+        'entidad_id': 'j1',
+        'datos': jsonEncode({
+          'jornada_id': 'j1',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+          'total_esperado': 0,
+        }),
+        'creado_el': '2026-08-10T16:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'idem-cerrar-1',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T16:00:00Z',
+      });
+
+      // Insertar sync_queue para /sincronizar (snapshot, tipo jornada_cierre)
+      await db.insert('sync_queue', {
+        'id': 'sq-sync-1',
+        'tipo': 'jornada_cierre',
+        'entidad_id': 'j1',
+        'datos': jsonEncode({
+          'jornada_id': 'j1',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+          'snapshot': {
+            'jornada_id': 'j1',
+            'pagos': [],
+            'movimientos': [],
+            'reversiones': [],
+          },
+        }),
+        'creado_el': '2026-08-10T16:01:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'idem-sync-1',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T16:01:00Z',
+      });
+
+      // Insertar jornada en estado CLOSED_LOCAL_PENDING_SYNC
+      await db.insert('jornada', {
+        'id': 'j1',
+        'negocio_id': 'n1',
+        'ruta_id': 'r1',
+        'cobrador_id': 'c1',
+        'estado': 'CLOSED_LOCAL_PENDING_SYNC',
+        'fecha': '2026-08-10',
+        'esperado': 0,
+      });
+
+      final resultados = await orch.ejecutarPush();
+
+      // Deben haberse procesado 2 operaciones: cerrar + sincronizar
+      final sincronizados = resultados.where((r) => r.status == PushStatus.sincronizado).toList();
+      expect(sincronizados.length, 2, reason: 'cerrar + sincronizar debenACKear');
+
+      // La jornada debe haber pasado a CLOSED_SYNCED
+      final jornadas = await db.query('jornada', where: 'id = ?', whereArgs: ['j1']);
+      expect(jornadas.first['estado'], 'CLOSED_SYNCED',
+          reason: 'jornada debe estar CLOSED_SYNCED tras ACK de /sincronizar');
     });
   });
 }

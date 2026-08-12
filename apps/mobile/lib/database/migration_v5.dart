@@ -73,6 +73,15 @@ class MigrationV5 {
       await db.execute('ALTER TABLE sync_queue ADD COLUMN ultima_transicion TEXT');
     }
 
+    // server_entity_id — mapeo durable local→server para reconciliación pull
+    // sync_queue.entidad_id = ID LOCAL del dispositivo
+    // sync_queue.server_entity_id = ID SERVIDOR devuelto en ACK
+    // Esto permite que SyncRepository.importar() mapee server rows a identidad local
+    // sin UNIQUE conflict ni duplicados lógicos.
+    if (!columnNames.contains('server_entity_id')) {
+      await db.execute('ALTER TABLE sync_queue ADD COLUMN server_entity_id TEXT');
+    }
+
     // 3. Migrar datos legacy:
     //    - Intentar extraer tipo del campo datos si es Map.toString()
     //    - Extraer campos relevantes según el tipo detectado

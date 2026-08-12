@@ -108,11 +108,16 @@ class SyncQueueService {
   }
 
   /// Transición a SINCRONIZADO — ACK correcto del servidor.
-  static Future<void> marcarSincronizado(String id) async {
+  /// serverEntityId: ID que el servidor asignó a la entidad (mapping durable).
+  /// Si no se proporciona, se conserva el comportamiento legacy.
+  static Future<void> marcarSincronizado(String id, {String? serverEntityId}) async {
     final db = await database;
     await db.update('sync_queue', {
       'estado': estadoSincronizado,
       'ultima_transicion': DateTime.now().toIso8601String(),
+    }, where: 'id = ?', whereArgs: [id]);
+    await db.update('sync_queue', {
+      'server_entity_id': serverEntityId,
     }, where: 'id = ?', whereArgs: [id]);
   }
 
