@@ -176,6 +176,7 @@ class SyncQueueItem {
   final int? intento;
   final String? ultimoError;
   final String? ultimaTransicion;
+  final String? serverEntityId;
 
   SyncQueueItem({
     required this.id,
@@ -192,6 +193,7 @@ class SyncQueueItem {
     this.intento,
     this.ultimoError,
     this.ultimaTransicion,
+    this.serverEntityId,
   });
 
   Map<String, dynamic> toMap() => {
@@ -227,6 +229,7 @@ class SyncQueueItem {
         intento: m['intento'] as int?,
         ultimoError: m['ultimo_error'] as String?,
         ultimaTransicion: m['ultima_transicion'] as String?,
+        serverEntityId: m['server_entity_id'] as String?,
       );
 
   static Map<String, dynamic> _parseDatos(String? datosStr) {

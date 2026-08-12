@@ -162,7 +162,13 @@ class SyncQueueService {
 
   static Future<int> limpiarSincronizados() async {
     final db = await database;
-    return await db.delete('sync_queue', where: 'estado = ?', whereArgs: [estadoSincronizado]);
+    // S5: no eliminar filas con server_entity_id — el Pull necesita el mapping
+    // server_entity_id → entidad_id para reconciliar el dataset del servidor
+    return await db.delete(
+      'sync_queue',
+      where: 'estado = ? AND (server_entity_id IS NULL OR server_entity_id = \'\')',
+      whereArgs: [estadoSincronizado],
+    );
   }
 
   /// Obtener fila completa por id — para el push orchestrator.

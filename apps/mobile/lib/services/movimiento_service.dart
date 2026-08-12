@@ -52,6 +52,16 @@ class MovimientoService {
       });
 
       // Insertar sync_queue dentro de la transacción (S3: payload completo)
+      // S3: buscar ruta_id_origen desde la tabla jornada
+      final rutaResultados = await txn.query(
+        'jornada',
+        columns: ['ruta_id'],
+        where: 'id = ?',
+        whereArgs: [jornadaId],
+        limit: 1,
+      );
+      final rutaIdOrigen = rutaResultados.isNotEmpty ? (rutaResultados.first['ruta_id'] as String?) : null;
+
       await txn.insert('sync_queue', {
         'id': uid(),
         'tipo': 'movimiento',
@@ -63,6 +73,7 @@ class MovimientoService {
         'negocio_id': negocioIdFromJornada,
         'cobrador_id_origen': cobradorId,
         'jornada_id_origen': jornadaId,
+        'ruta_id_origen': rutaIdOrigen,
         'intento': 0,
         'ultimo_error': null,
         'ultima_transicion': now,

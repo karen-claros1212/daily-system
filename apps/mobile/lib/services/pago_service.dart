@@ -83,6 +83,7 @@ class PagoService {
 
       // Insertar sync_queue dentro de la transacción (S3: payload completo)
       final idempotencyKey = clienteIdempotenciaClave;
+      final rutaIdOrigen = await _obtenerRutaIdJornada(txn, jornadaId);
       await _insertSyncQueue(txn, 'pago', pago.id, {
         'tipo': 'PAYMENT',
         'monto': monto,
@@ -90,10 +91,12 @@ class PagoService {
         'jornada_id': jornadaId,
         'cobrador_id': cobradorId,
         'negocio_id': negocioId,
+        'entidad_id': pago.id,
       }, idempotencyKey: idempotencyKey,
          negocioId: negocioId,
          cobradorIdOrigen: cobradorId,
-         jornadaIdOrigen: jornadaId);
+         jornadaIdOrigen: jornadaId,
+         rutaIdOrigen: rutaIdOrigen);
 
       return pago;
     });
@@ -139,6 +142,18 @@ class PagoService {
         throw PagoYaReversadoException(pagoId);
       }
 
+      // S2: buscar server_entity_id del pago original para referenciarlo en el servidor
+      final pagoInfo = await txn.query('pago',
+          columns: ['server_entity_id'],
+          where: 'id = ?',
+          whereArgs: [pagoId],
+          limit: 1);
+      final serverPaymentId = pagoInfo.isNotEmpty
+          ? (pagoInfo.first['server_entity_id'] as String?)
+          : null;
+      // Si no hay server_entity_id, usar el ID local (pago no sincronizado aún)
+      final paymentIdParaSync = serverPaymentId ?? pagoId;
+
       final clave = _uuid.v4();
       final reversal = Pago(
         id: uid(),
@@ -173,11 +188,13 @@ class PagoService {
       }
 
       // Insertar sync_queue dentro de la transacción (S3: payload completo)
+      // S2: usar serverPaymentId para que el servidor reconozca el pago original
       final reversalIdempotencyKey = clave;
+      final rutaIdOrigen = await _obtenerRutaIdJornada(txn, jornadaId);
       await _insertSyncQueue(txn, 'pago', reversal.id, {
         'tipo': 'REVERSAL',
         'monto': pagoOriginal.monto,
-        'reversal_of_payment_id': pagoId,
+        'reversal_of_payment_id': paymentIdParaSync,
         'jornada_id': jornadaId,
         'cobrador_id': cobradorId,
         'negocio_id': negocioId,
@@ -185,7 +202,8 @@ class PagoService {
       }, idempotencyKey: reversalIdempotencyKey,
          negocioId: negocioId,
          cobradorIdOrigen: cobradorId,
-         jornadaIdOrigen: jornadaId);
+         jornadaIdOrigen: jornadaId,
+         rutaIdOrigen: rutaIdOrigen);
 
       return reversal;
     });
@@ -195,7 +213,7 @@ class PagoService {
   /// Evita depender de SyncQueueService.enqueue() que usa database global.
   /// S3: acepta campos adicionales de procedencia.
   static Future<void> _insertSyncQueue(DatabaseExecutor txn, String tipo, String entidadId, Map<String, dynamic> datos,
-      {String idempotencyKey = '', String? negocioId, String? cobradorIdOrigen, String? jornadaIdOrigen}) async {
+      {String idempotencyKey = '', String? negocioId, String? cobradorIdOrigen, String? jornadaIdOrigen, String? rutaIdOrigen}) async {
     final now = DateTime.now().toIso8601String();
     await txn.insert('sync_queue', {
       'id': uid(),
@@ -208,10 +226,23 @@ class PagoService {
       'negocio_id': negocioId,
       'cobrador_id_origen': cobradorIdOrigen,
       'jornada_id_origen': jornadaIdOrigen,
+      'ruta_id_origen': rutaIdOrigen,
       'intento': 0,
       'ultimo_error': null,
       'ultima_transicion': now,
     });
+  }
+
+  /// Busca la ruta_id asociada a una jornada dentro de la transacción.
+  static Future<String?> _obtenerRutaIdJornada(DatabaseExecutor txn, String jornadaId) async {
+    final resultados = await txn.query(
+      'jornada',
+      columns: ['ruta_id'],
+      where: 'id = ?',
+      whereArgs: [jornadaId],
+      limit: 1,
+    );
+    return resultados.isNotEmpty ? (resultados.first['ruta_id'] as String?) : null;
   }
 
   static Future<List<Pago>> getPagosJornada(String jornadaId) async {

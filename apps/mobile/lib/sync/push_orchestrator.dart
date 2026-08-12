@@ -71,12 +71,12 @@ class PushOrchestrator {
     // 2. Obtener y ordenar pendientes
     final pendientes = await _ordenarPendientes();
 
-    // 3. Obtener error reintentables
+    // 3. Obtener error reintentables e intercalar con dependencia
     final reintentables = await SyncQueueService.getErrorReintentables();
-    pendientes.addAll(reintentables);
+    final interleaved = _intercalarReintentables(pendientes, reintentables);
 
     // 4. Enviar en orden
-    for (final fila in pendientes) {
+    for (final fila in interleaved) {
       final resultado = await _enviarFila(fila);
       resultados.add(resultado);
     }
@@ -158,6 +158,53 @@ class PushOrchestrator {
     }
   }
 
+  /// Intercala ERROR_REINTENTABLE con PENDIENTE respetando dependencias.
+  /// Un REVERSAL ERROR_REINTENTABLE se inserta después de cualquier PAYMENT
+  /// en la misma jornada (tanto PENDIENTE como ERROR_REINTENTABLE).
+  List<SyncQueueItem> _intercalarReintentables(
+    List<SyncQueueItem> pendientes,
+    List<SyncQueueItem> reintentables,
+  ) {
+    if (reintentables.isEmpty) return pendientes;
+
+    // Separar reintentables por tipo
+    final revReintentables = reintentables.where((i) => i.tipo == 'pago' && i.datos['tipo'] == 'REVERSAL').toList();
+    final otrosReintentables = reintentables.where((i) => !(i.tipo == 'pago' && i.datos['tipo'] == 'REVERSAL')).toList();
+
+    // Para cada jornada, encontrar el índice del último PAYMENT (pendiente o reintentable)
+    final resultado = List<SyncQueueItem>.from(pendientes);
+
+    for (final rev in revReintentables) {
+      final jornadaId = rev.datos['jornada_id'] as String?;
+      if (jornadaId == null) {
+        resultado.add(rev);
+        continue;
+      }
+
+      // Buscar el último PAYMENT de esta jornada en resultado
+      int ultimoPagoIdx = -1;
+      for (int i = 0; i < resultado.length; i++) {
+        final item = resultado[i];
+        if (item.tipo == 'pago' && item.datos['tipo'] == 'PAYMENT' && item.datos['jornada_id'] == jornadaId) {
+          ultimoPagoIdx = i;
+        }
+      }
+
+      if (ultimoPagoIdx >= 0) {
+        // Insertar después del último PAYMENT
+        resultado.insert(ultimoPagoIdx + 1, rev);
+      } else {
+        // Sin pagos en la jornada, añadir al final
+        resultado.add(rev);
+      }
+    }
+
+    // Añadir otros reintentables (no REVERSAL) al final
+    resultado.addAll(otrosReintentables);
+
+    return resultado;
+  }
+
   /// Envía una fila individual al servidor.
   Future<PushResult> _enviarFila(SyncQueueItem fila) async {
     final filaId = fila.id;
@@ -209,7 +256,7 @@ class PushOrchestrator {
           if (datosTipo == 'REVERSAL') {
             return await _enviarReversal(filaId, datos, token, idempotencyKey ?? '');
           }
-          return await _enviarPago(filaId, datos, token, idempotencyKey ?? '');
+          return await _enviarPago(filaId, datos, token, idempotencyKey ?? '', fila.entidadId);
         case 'movimiento':
           return await _enviarMovimiento(filaId, datos, token, idempotencyKey ?? '');
         case 'jornada_cierre':
@@ -246,7 +293,7 @@ class PushOrchestrator {
 
   /// Enviar PAYMENT a POST /api/pagos.
   /// 200 = ACK (idempotente o nuevo). 409 = mismatch → CONFLICTO.
-  Future<PushResult> _enviarPago(String filaId, Map<String, dynamic> datos, String token, String idempotencyKey) async {
+  Future<PushResult> _enviarPago(String filaId, Map<String, dynamic> datos, String token, String idempotencyKey, String? entidadId) async {
     final body = {
       'credito_id': datos['credito_id'],
       'jornada_id': datos['jornada_id'],
@@ -260,6 +307,16 @@ class PushOrchestrator {
     // ACK: ENVIANDO → SINCRONIZADO + mapping durable
     final serverId = response['id'] as String?;
     await SyncQueueService.marcarSincronizado(filaId, serverEntityId: serverId);
+
+    // S2: guardar server ID en pago para que REVERSAL lo referencie
+    if (entidadId != null && serverId != null) {
+      final db = await database;
+      await db.update('pago', {
+        'server_entity_id': serverId,
+        'recibido_el_servidor': DateTime.now().toIso8601String(),
+      }, where: 'id = ?', whereArgs: [entidadId]);
+    }
+
     return PushResult(
       filaId: filaId,
       tipo: 'PAYMENT',
@@ -270,6 +327,10 @@ class PushOrchestrator {
 
   /// Enviar REVERSAL a POST /api/pagos/{pago_id}/reversar.
   /// 200 = ACK (idempotente o nuevo). 409 = mismatch → CONFLICTO.
+  ///
+  /// S2: datos['reversal_of_payment_id'] puede ser:
+  ///   - server UUID (si el PAYMENT ya fue sincronizado y pago.server_entity_id se guardó)
+  ///   - local UUID (si el PAYMENT aún no se sincronizó)
   Future<PushResult> _enviarReversal(String filaId, Map<String, dynamic> datos, String token, String idempotencyKey) async {
     final pagoOriginalId = datos['reversal_of_payment_id'];
     final body = {
@@ -348,7 +409,7 @@ class PushOrchestrator {
         );
 
         serverJornadaId = syncResp['jornada_id'] as String?;
-        await SyncQueueService.marcarSincronizado(filaId, serverEntityId: serverJornadaId);
+        await _marcarJornadaSincronizada(filaId, serverJornadaId, jornadaId);
         return PushResult(
           filaId: filaId,
           tipo: 'JORNADA_CIERRE',
@@ -382,13 +443,33 @@ class PushOrchestrator {
     );
 
     serverJornadaId = serverJornadaId ?? syncResp['jornada_id'] as String?;
-    await SyncQueueService.marcarSincronizado(filaId, serverEntityId: serverJornadaId);
+    await _marcarJornadaSincronizada(filaId, serverJornadaId, jornadaId);
     return PushResult(
       filaId: filaId,
       tipo: 'JORNADA_CIERRE',
       status: PushStatus.sincronizado,
       detail: 'jornada sincronizada',
     );
+  }
+
+  /// Actualiza jornada local → CLOSED_SYNCED + sync_queue → SINCRONIZADO
+  /// en una sola transacción SQLite.
+  Future<void> _marcarJornadaSincronizada(String filaId, String? serverJornadaId, String jornadaId) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      // Actualizar jornada local
+      await txn.update('jornada', {
+        'estado': 'CLOSED_SYNCED',
+        'sincronizada_el': DateTime.now().toIso8601String(),
+      }, where: 'id = ?', whereArgs: [jornadaId]);
+
+      // Actualizar sync_queue
+      await txn.update('sync_queue', {
+        'estado': SyncQueueService.estadoSincronizado,
+        'server_entity_id': serverJornadaId,
+        'ultima_transicion': DateTime.now().toIso8601String(),
+      }, where: 'id = ?', whereArgs: [filaId]);
+    });
   }
 
   Map<String, dynamic> _construirSnapshot(Map<String, dynamic> datos, String jornadaId) {

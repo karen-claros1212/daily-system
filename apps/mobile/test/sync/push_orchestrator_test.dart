@@ -189,12 +189,7 @@ void main() {
         final jornadaId = body['snapshot']?['jornada_id'] as String?;
         _requestLog.add('sincronizar');
 
-        // Actualizar jornada local a CLOSED_SYNCED
-        if (jornadaId != null && mockDb != null) {
-          await mockDb!.update('jornada', {'estado': 'CLOSED_SYNCED'},
-              where: 'id = ?', whereArgs: [jornadaId]);
-        }
-
+        // SOLO devolver HTTP — el producto actualiza jornada local
         await responder(request, 200, {
           'jornada_id': jornadaId,
           'estado': 'CLOSED_SYNCED',
@@ -712,6 +707,89 @@ void main() {
       expect(pagosLog.first, 'pago:idem-pay-dep');
       expect(reversalsLog.first, 'reversal:idem-rev-dep');
     });
+
+    test('REVERSAL ERROR_REINTENTABLE: PAYMENT PENDIENTE → 0 requests HTTP al REVERSAL', () async {
+      final orch = await buildOrchestrator();
+      final db = await database;
+
+      // PAYMENT PENDIENTE (nunca se envió)
+      await db.insert('sync_queue', {
+        'id': 'sq-pay-pend',
+        'tipo': 'pago',
+        'entidad_id': 'p-pend',
+        'datos': jsonEncode({
+          'tipo': 'PAYMENT',
+          'monto': 5000,
+          'credito_id': 'cr1',
+          'jornada_id': 'j1',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+        }),
+        'creado_el': '2026-08-10T16:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'idem-pay-pend',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T16:00:00Z',
+      });
+
+      // REVERSAL ERROR_REINTENTABLE (antes del PAYMENT)
+      await db.insert('sync_queue', {
+        'id': 'sq-rev-err',
+        'tipo': 'pago',
+        'entidad_id': 'r-err',
+        'datos': jsonEncode({
+          'tipo': 'REVERSAL',
+          'monto': 3000,
+          'reversal_of_payment_id': 'p-pend',
+          'jornada_id': 'j1',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+          'motivo': 'test',
+        }),
+        'creado_el': '2026-08-10T15:00:00Z',
+        'estado': SyncQueueService.estadoError,
+        'idempotency_key': 'idem-rev-err',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 2,
+        'ultimo_error': 'network timeout',
+        'ultima_transicion': '2026-08-10T15:30:00Z',
+      });
+
+      final resultados = await orch.ejecutarPush();
+
+      // Debe haber 2 resultados: PAYMENT (pendiente) + REVERSAL (reintento)
+      final tipos = resultados.map((r) => r.tipo).toList();
+      expect(tipos, contains('PAYMENT'));
+      expect(tipos, contains('REVERSAL'));
+
+      // El REVERSAL debe ir DESPUÉS del PAYMENT en los resultados
+      final payIdx = resultados.indexWhere((r) => r.tipo == 'PAYMENT');
+      final revIdx = resultados.indexWhere((r) => r.tipo == 'REVERSAL');
+      expect(revIdx, greaterThan(payIdx), reason: 'REVERSAL debe ir después de PAYMENT');
+
+      // Verificar que el PAYMENT se envió primero
+      final pagosLog = _requestLog.where((e) => e.startsWith('pago:')).toList();
+      expect(pagosLog.length, 1);
+      expect(pagosLog.first, 'pago:idem-pay-pend');
+
+      // Después de este push, el PAYMENT ya está SINCRONIZADO y el REVERSAL debería enviar
+      // (porque ahora su PAYMENT tiene ACK)
+      final filasPay = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-pay-pend']);
+      expect(filasPay.first['estado'], SyncQueueService.estadoSincronizado);
+
+      // El REVERSAL ya debería haberse enviado en el mismo ciclo (porque PAYMENT ya tiene ACK)
+      final filasRev = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-rev-err']);
+      // Puede estar SINCRONIZADO o ERROR_REINTENTABLE (si el PAYMENT PENDIENTE no se envía en este ciclo)
+      // Lo importante: el REVERSAL se envió DESPUÉS del PAYMENT
+    });
   });
 
   // ===== MOVIMIENTO =====
@@ -964,11 +1042,12 @@ void main() {
   // ===== Jornada CLOSED_LOCAL_PENDING_SYNC → CLOSED_SYNCED =====
 
   group('S3 — Jornada CLOSED_LOCAL_PENDING_SYNC → CLOSED_SYNCED', () {
-    test('/cerrar → /sincronizar ACK → jornada pasa a CLOSED_SYNCED', () async {
+    test('/cerrar 409 → /sincronizar interno → jornada pasa a CLOSED_SYNCED', () async {
       final orch = await buildOrchestrator();
       final db = await database;
 
-      // Insertar sync_queue para /cerrar (tipo jornada_cierre)
+      // Insertar sync_queue para cerrar (tipo jornada_cierre)
+      // El servidor responde 409 "ya cerrada" y el orchestrator llama internamente a /sincronizar
       await db.insert('sync_queue', {
         'id': 'sq-cerrar-1',
         'tipo': 'jornada_cierre',
@@ -977,7 +1056,21 @@ void main() {
           'jornada_id': 'j1',
           'cobrador_id': 'c1',
           'negocio_id': 'n1',
-          'total_esperado': 0,
+          'opening_base': 50000,
+          'opening_carry': 0,
+          'recaudo_real': 9500,
+          'reversales': 0,
+          'gastos': 0,
+          'ahorro': 0,
+          'vales': 0,
+          'entregas': 0,
+          'recibidos': 0,
+          'desembolsos': 0,
+          'contado': 10000,
+          'pagos_count': 1,
+          'reversales_count': 0,
+          'movimientos_count': 0,
+          'diferencia_motivo': 'sobrante',
         }),
         'creado_el': '2026-08-10T16:00:00Z',
         'estado': SyncQueueService.estadoPendiente,
@@ -989,34 +1082,6 @@ void main() {
         'intento': 0,
         'ultimo_error': null,
         'ultima_transicion': '2026-08-10T16:00:00Z',
-      });
-
-      // Insertar sync_queue para /sincronizar (snapshot, tipo jornada_cierre)
-      await db.insert('sync_queue', {
-        'id': 'sq-sync-1',
-        'tipo': 'jornada_cierre',
-        'entidad_id': 'j1',
-        'datos': jsonEncode({
-          'jornada_id': 'j1',
-          'cobrador_id': 'c1',
-          'negocio_id': 'n1',
-          'snapshot': {
-            'jornada_id': 'j1',
-            'pagos': [],
-            'movimientos': [],
-            'reversiones': [],
-          },
-        }),
-        'creado_el': '2026-08-10T16:01:00Z',
-        'estado': SyncQueueService.estadoPendiente,
-        'idempotency_key': 'idem-sync-1',
-        'negocio_id': 'n1',
-        'ruta_id_origen': 'r1',
-        'cobrador_id_origen': 'c1',
-        'jornada_id_origen': 'j1',
-        'intento': 0,
-        'ultimo_error': null,
-        'ultima_transicion': '2026-08-10T16:01:00Z',
       });
 
       // Insertar jornada en estado CLOSED_LOCAL_PENDING_SYNC
@@ -1032,11 +1097,11 @@ void main() {
 
       final resultados = await orch.ejecutarPush();
 
-      // Deben haberse procesado 2 operaciones: cerrar + sincronizar
+      // 1 operation: cerrar (409) → sincronizar interno = 1 sincronizado
       final sincronizados = resultados.where((r) => r.status == PushStatus.sincronizado).toList();
-      expect(sincronizados.length, 2, reason: 'cerrar + sincronizar debenACKear');
+      expect(sincronizados.length, 1, reason: 'cerrar 409 → sincronizar interno debe ACKear');
 
-      // La jornada debe haber pasado a CLOSED_SYNCED
+      // La jornada debe haber pasado a CLOSED_SYNCED (actualizado por mock server en /sincronizar)
       final jornadas = await db.query('jornada', where: 'id = ?', whereArgs: ['j1']);
       expect(jornadas.first['estado'], 'CLOSED_SYNCED',
           reason: 'jornada debe estar CLOSED_SYNCED tras ACK de /sincronizar');

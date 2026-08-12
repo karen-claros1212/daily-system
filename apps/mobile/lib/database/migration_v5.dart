@@ -82,6 +82,18 @@ class MigrationV5 {
       await db.execute('ALTER TABLE sync_queue ADD COLUMN server_entity_id TEXT');
     }
 
+    // pago.server_entity_id — guardar el UUID que asigna el servidor al PAYMENT
+    // para que un REVERSAL posterior pueda referenciarlo correctamente
+    // (el servidor no conoce los IDs locales del dispositivo).
+    final pagoColumns = await db.rawQuery('PRAGMA table_info(pago)');
+    final pagoColumnNames = pagoColumns
+        .map((col) => col['name'] as String)
+        .whereType<String>()
+        .toSet();
+    if (!pagoColumnNames.contains('server_entity_id')) {
+      await db.execute('ALTER TABLE pago ADD COLUMN server_entity_id TEXT');
+    }
+
     // 3. Migrar datos legacy:
     //    - Intentar extraer tipo del campo datos si es Map.toString()
     //    - Extraer campos relevantes según el tipo detectado
@@ -105,11 +117,23 @@ class MigrationV5 {
       if (esJsonValido) {
         // Intentar parsear JSON y extraer campos
         try {
-          // No hacemos dart:convert aquí porque es migration pura SQLite
-          // Usamos CASE para extraer campos básicos del tipo
+          // Extraer campos de provenance desde datos JSON usando json_extract de SQLite
+          final jp = String.fromCharCode(36); // $
           await db.execute('''
             UPDATE sync_queue
-            SET idempotency_key = entidad_id,
+            SET idempotency_key = COALESCE(
+                json_extract(datos, '${jp}.idempotency_key'),
+                json_extract(datos, '${jp}.clave_idempotencia'),
+                entidad_id),
+                cobrador_id_origen = COALESCE(
+                json_extract(datos, '${jp}.cobrador_id'),
+                json_extract(datos, '${jp}.cobrador_id_origen')),
+                jornada_id_origen = COALESCE(
+                json_extract(datos, '${jp}.jornada_id'),
+                json_extract(datos, '${jp}.jornada_id_origen')),
+                negocio_id = COALESCE(
+                json_extract(datos, '${jp}.negocio_id'),
+                json_extract(datos, '${jp}.negocio_id_origen')),
                 intento = 0,
                 ultima_transicion = creado_el
             WHERE id = ? AND idempotency_key IS NULL

@@ -62,15 +62,88 @@ class SyncRepository {
   }) async {
     final pendientes = await _entidadesPendientes(db);
     final creditosProtegidos = await _creditosConPagoPendiente(db);
+    final serverToLocal = await _mapearServerALocal(db);
 
     await _importarIdentidad(dataset, negocioNombre, cobradorNombre, rutaNombre);
     await _importarDataset('cliente', dataset.clientes);
     await _importarDataset('credito', dataset.creditos);
     await _importarCuotas(dataset.cuotas, creditosProtegidos);
     await _importarJornadas(dataset, pendientes);
-    await _importarGuardadoConJornadaAbierta('pago', dataset.pagos, pendientes);
-    await _importarGuardadoConJornadaAbierta(
-        'movimiento', dataset.movimientos, pendientes);
+    await _importarPagosConMapeo(dataset.pagos, pendientes, serverToLocal);
+    await _importarMovimientosConMapeo(dataset.movimientos, pendientes, serverToLocal);
+  }
+
+  /// Construye mapeo server_entity_id → local_id desde sync_queue.
+  /// Permite que el pull reconcilie filas del servidor con IDs locales.
+  Future<Map<String, String>> _mapearServerALocal(DatabaseExecutor txn) async {
+    final rows = await txn.query(
+      'sync_queue',
+      columns: ['entidad_id', 'server_entity_id'],
+      where: 'server_entity_id IS NOT NULL AND server_entity_id != \'\'',
+    );
+    final map = <String, String>{};
+    for (final row in rows) {
+      final serverId = row['server_entity_id'] as String?;
+      final localId = row['entidad_id'] as String?;
+      if (serverId != null && localId != null) {
+        map[serverId] = localId;
+      }
+    }
+    return map;
+  }
+
+  /// Importa pagos mapeando server ID → local ID antes del UPSERT.
+  /// Suspende triggers de guarda de jornada abierta DENTRO de la transaccion.
+  Future<void> _importarPagosConMapeo(
+    List<SyncFila> filas,
+    Set<String> pendientes,
+    Map<String, String> serverToLocal,
+  ) async {
+    if (filas.isEmpty) return;
+    await db.transaction((txn) async {
+      await txn.execute('DROP TRIGGER IF EXISTS trg_pago_require_open_jornada');
+      try {
+        for (final fila in filas) {
+          if (pendientes.contains(fila.id)) continue;
+
+          // S3: mapear server_entity_id → local_id para UPSERT correcto
+          final localId = serverToLocal[fila.id] ?? fila.id;
+          final mapa = fila.toMap();
+          mapa['id'] = localId;
+
+          await _upsertPorPk(txn, 'pago', mapa);
+        }
+      } finally {
+        await txn.execute(TriggerGuardasJornada.pago);
+      }
+    });
+  }
+
+  /// Importa movimientos mapeando server ID → local ID antes del UPSERT.
+  /// Suspende triggers de guarda de jornada abierta DENTRO de la transaccion.
+  Future<void> _importarMovimientosConMapeo(
+    List<SyncFila> filas,
+    Set<String> pendientes,
+    Map<String, String> serverToLocal,
+  ) async {
+    if (filas.isEmpty) return;
+    await db.transaction((txn) async {
+      await txn.execute('DROP TRIGGER IF EXISTS trg_movimiento_require_open_jornada');
+      try {
+        for (final fila in filas) {
+          if (pendientes.contains(fila.id)) continue;
+
+          // S3: mapear server_entity_id → local_id para UPSERT correcto
+          final localId = serverToLocal[fila.id] ?? fila.id;
+          final mapa = fila.toMap();
+          mapa['id'] = localId;
+
+          await _upsertPorPk(txn, 'movimiento', mapa);
+        }
+      } finally {
+        await txn.execute(TriggerGuardasJornada.movimiento);
+      }
+    });
   }
 
   /// Limpia el modelo local de la ruta (clientes, creditos, cuotas, jornadas,
