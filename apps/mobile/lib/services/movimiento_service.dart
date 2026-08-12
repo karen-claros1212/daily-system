@@ -51,14 +51,21 @@ class MovimientoService {
         'creado_el': now,
       });
 
-      // Insertar sync_queue dentro de la transacción
+      // Insertar sync_queue dentro de la transacción (S3: payload completo)
       await txn.insert('sync_queue', {
         'id': uid(),
         'tipo': 'movimiento',
         'entidad_id': id,
-        'datos': jsonEncode({'tipo': tipo, 'monto': monto, 'nota': nota}),
+        'datos': jsonEncode({'tipo': tipo, 'monto': monto, 'nota': nota, 'jornada_id': jornadaId, 'negocio_id': negocioIdFromJornada}),
         'creado_el': now,
         'estado': 'PENDIENTE_DE_SINCRONIZAR',
+        'idempotency_key': id,
+        'negocio_id': negocioIdFromJornada,
+        'cobrador_id_origen': cobradorId,
+        'jornada_id_origen': jornadaId,
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': now,
       });
 
       return id;

@@ -5,6 +5,7 @@ import '../database/seed.dart';
 import '../database/migration_v2.dart';
 import '../database/migration_v3.dart';
 import '../database/migration_v4.dart';
+import '../database/migration_v5.dart';
 
 Database? _database;
 
@@ -20,7 +21,7 @@ Future<Database> initDatabase() async {
 
   return await openDatabase(
     path,
-    version: 4,
+    version: 5,
     onCreate: _onCreate,
     onUpgrade: _onUpgrade,
     onOpen: (_) {},
@@ -35,9 +36,11 @@ Future<void> _onCreate(Database db, int version) async {
   await MigrationV2.migrate(db);
   await MigrationV3.migrate(db);
   await MigrationV4.migrate(db);
+  await MigrationV5.migrate(db);
   await assertSchemaV2(db);
   await assertSchemaV3(db);
   await assertSchemaV4(db);
+  await assertSchemaV5(db);
 }
 
 Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -50,9 +53,13 @@ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
   if (oldVersion < 4) {
     await MigrationV4.migrate(db);
   }
+  if (oldVersion < 5) {
+    await MigrationV5.migrate(db);
+  }
   await assertSchemaV2(db);
   await assertSchemaV3(db);
   await assertSchemaV4(db);
+  await assertSchemaV5(db);
 }
 
 Future<void> assertSchemaV2(DatabaseExecutor db) async {
@@ -150,6 +157,41 @@ Future<void> assertSchemaV4(DatabaseExecutor db) async {
   if (missing.isNotEmpty) {
     throw StateError(
       'Migración V4 incompleta. Columnas ausentes en jornada_documento: '
+      '${missing.join(', ')}. Encontradas: ${columnNames.join(', ')}',
+    );
+  }
+}
+
+Future<void> assertSchemaV5(DatabaseExecutor db) async {
+  // Verificar que sync_queue tiene las columnas nuevas de S3
+  final columns = await db.rawQuery('PRAGMA table_info(sync_queue)');
+  final columnNames = columns
+      .map((col) => col['name'] as String)
+      .whereType<String>()
+      .toSet();
+
+  const requiredColumns = {
+    'id',
+    'tipo',
+    'entidad_id',
+    'datos',
+    'creado_el',
+    'estado',
+    'idempotency_key',
+    'negocio_id',
+    'ruta_id_origen',
+    'cobrador_id_origen',
+    'jornada_id_origen',
+    'intento',
+    'ultimo_error',
+    'ultima_transicion',
+  };
+
+  final missing = requiredColumns.difference(columnNames);
+
+  if (missing.isNotEmpty) {
+    throw StateError(
+      'Migración V5 incompleta. Columnas ausentes en sync_queue: '
       '${missing.join(', ')}. Encontradas: ${columnNames.join(', ')}',
     );
   }

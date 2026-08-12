@@ -81,12 +81,19 @@ class PagoService {
             whereArgs: [cuotas.first['id']]);
       }
 
-      // Insertar sync_queue dentro de la transacción
+      // Insertar sync_queue dentro de la transacción (S3: payload completo)
+      final idempotencyKey = clienteIdempotenciaClave;
       await _insertSyncQueue(txn, 'pago', pago.id, {
         'tipo': 'PAYMENT',
         'monto': monto,
         'credito_id': creditoId,
-      });
+        'jornada_id': jornadaId,
+        'cobrador_id': cobradorId,
+        'negocio_id': negocioId,
+      }, idempotencyKey: idempotencyKey,
+         negocioId: negocioId,
+         cobradorIdOrigen: cobradorId,
+         jornadaIdOrigen: jornadaId);
 
       return pago;
     });
@@ -165,12 +172,20 @@ class PagoService {
         }
       }
 
-      // Insertar sync_queue dentro de la transacción
+      // Insertar sync_queue dentro de la transacción (S3: payload completo)
+      final reversalIdempotencyKey = clave;
       await _insertSyncQueue(txn, 'pago', reversal.id, {
         'tipo': 'REVERSAL',
         'monto': pagoOriginal.monto,
         'reversal_of_payment_id': pagoId,
-      });
+        'jornada_id': jornadaId,
+        'cobrador_id': cobradorId,
+        'negocio_id': negocioId,
+        'motivo': motivo,
+      }, idempotencyKey: reversalIdempotencyKey,
+         negocioId: negocioId,
+         cobradorIdOrigen: cobradorId,
+         jornadaIdOrigen: jornadaId);
 
       return reversal;
     });
@@ -178,14 +193,24 @@ class PagoService {
 
   /// Helper para insertar sync_queue dentro de transacciones.
   /// Evita depender de SyncQueueService.enqueue() que usa database global.
-  static Future<void> _insertSyncQueue(DatabaseExecutor txn, String tipo, String entidadId, Map<String, dynamic> datos) async {
+  /// S3: acepta campos adicionales de procedencia.
+  static Future<void> _insertSyncQueue(DatabaseExecutor txn, String tipo, String entidadId, Map<String, dynamic> datos,
+      {String idempotencyKey = '', String? negocioId, String? cobradorIdOrigen, String? jornadaIdOrigen}) async {
+    final now = DateTime.now().toIso8601String();
     await txn.insert('sync_queue', {
       'id': uid(),
       'tipo': tipo,
       'entidad_id': entidadId,
       'datos': jsonEncode(datos),
-      'creado_el': DateTime.now().toIso8601String(),
+      'creado_el': now,
       'estado': 'PENDIENTE_DE_SINCRONIZAR',
+      'idempotency_key': idempotencyKey,
+      'negocio_id': negocioId,
+      'cobrador_id_origen': cobradorIdOrigen,
+      'jornada_id_origen': jornadaIdOrigen,
+      'intento': 0,
+      'ultimo_error': null,
+      'ultima_transicion': now,
     });
   }
 

@@ -1,6 +1,7 @@
 export '../domain/domain_exceptions.dart' show JornadaCerradaException;
 export 'jornada_snapshot.dart' show JornadaSnapshot;
 
+import 'dart:convert';
 import 'package:uuid/uuid.dart';
 
 final _uuid = Uuid();
@@ -167,8 +168,80 @@ class SyncQueueItem {
   final Map<String, dynamic> datos;
   final DateTime creadoEl;
   final String estado;
-  SyncQueueItem({required this.id, required this.tipo, required this.entidadId, required this.datos, required this.creadoEl, this.estado = 'PENDIENTE_DE_SINCRONIZAR'});
-  Map<String, dynamic> toMap() => {'id': id, 'tipo': tipo, 'entidad_id': entidadId, 'datos': datos.toString(), 'creado_el': creadoEl.toIso8601String(), 'estado': estado};
+  final String? idempotencyKey;
+  final String? negocioId;
+  final String? rutaIdOrigen;
+  final String? cobradorIdOrigen;
+  final String? jornadaIdOrigen;
+  final int? intento;
+  final String? ultimoError;
+  final String? ultimaTransicion;
+
+  SyncQueueItem({
+    required this.id,
+    required this.tipo,
+    required this.entidadId,
+    required this.datos,
+    required this.creadoEl,
+    this.estado = 'PENDIENTE_DE_SINCRONIZAR',
+    this.idempotencyKey,
+    this.negocioId,
+    this.rutaIdOrigen,
+    this.cobradorIdOrigen,
+    this.jornadaIdOrigen,
+    this.intento,
+    this.ultimoError,
+    this.ultimaTransicion,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'tipo': tipo,
+    'entidad_id': entidadId,
+    'datos': datos.toString(),
+    'creado_el': creadoEl.toIso8601String(),
+    'estado': estado,
+    'idempotency_key': idempotencyKey,
+    'negocio_id': negocioId,
+    'ruta_id_origen': rutaIdOrigen,
+    'cobrador_id_origen': cobradorIdOrigen,
+    'jornada_id_origen': jornadaIdOrigen,
+    'intento': intento,
+    'ultimo_error': ultimoError,
+    'ultima_transicion': ultimaTransicion,
+  };
+
   static SyncQueueItem fromMap(Map<String, dynamic> m) =>
-      SyncQueueItem(id: m['id'] as String, tipo: m['tipo'] as String, entidadId: m['entidad_id'] as String, datos: {}, creadoEl: DateTime.parse(m['creado_el'] as String), estado: m['estado'] as String? ?? 'PENDIENTE_DE_SINCRONIZAR');
+      SyncQueueItem(
+        id: m['id'] as String,
+        tipo: m['tipo'] as String,
+        entidadId: m['entidad_id'] as String,
+        datos: _parseDatos(m['datos'] as String?),
+        creadoEl: DateTime.parse(m['creado_el'] as String),
+        estado: m['estado'] as String? ?? 'PENDIENTE_DE_SINCRONIZAR',
+        idempotencyKey: m['idempotency_key'] as String?,
+        negocioId: m['negocio_id'] as String?,
+        rutaIdOrigen: m['ruta_id_origen'] as String?,
+        cobradorIdOrigen: m['cobrador_id_origen'] as String?,
+        jornadaIdOrigen: m['jornada_id_origen'] as String?,
+        intento: m['intento'] as int?,
+        ultimoError: m['ultimo_error'] as String?,
+        ultimaTransicion: m['ultima_transicion'] as String?,
+      );
+
+  static Map<String, dynamic> _parseDatos(String? datosStr) {
+    if (datosStr == null || datosStr.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(datosStr);
+      if (decoded is Map<String, dynamic>) return decoded;
+    } on FormatException {
+      // Map.toString() legacy: intentar extraer tipo
+      if (datosStr.contains('tipo=')) {
+        final tipoMatch = RegExp(r'tipo=([^\s,}]+)').firstMatch(datosStr);
+        final tipo = tipoMatch?.group(1) ?? 'unknown';
+        return {'tipo': tipo, '_legacy': true, '_raw': datosStr};
+      }
+    }
+    return {'_legacy': true, '_raw': datosStr};
+  }
 }

@@ -100,14 +100,41 @@ class JornadaService {
         'cerrada_local_el': now,
       }, where: 'id = ?', whereArgs: [jornadaId]);
 
-      // Insertar sync_queue de cierre dentro de la transacción
+      // Insertar sync_queue de cierre dentro de la transacción (S3: payload completo)
+      final idempotencyKey = _snapshotId(jornadaId);
       await txn.insert('sync_queue', {
         'id': uid(),
         'tipo': 'jornada_cierre',
         'entidad_id': jornadaId,
-        'datos': jsonEncode({'contado': contado, 'esperado': caja.efectivoEsperado, 'diferencia': diferencia}),
+        'datos': jsonEncode({
+          'contado': contado,
+          'esperado': caja.efectivoEsperado,
+          'diferencia': diferencia,
+          'opening_base': caja.openingBase,
+          'opening_carry': caja.openingCarry,
+          'recaudo_real': caja.recaudoReal,
+          'reversales': caja.reversales,
+          'gastos': caja.gastos,
+          'ahorro': caja.ahorro,
+          'vales': caja.vales,
+          'entregas': caja.entregas,
+          'recibidos': caja.recibidos,
+          'desembolsos': caja.desembolsos,
+          'efectivo_esperado': caja.efectivoEsperado,
+          'pagos_count': caja.pagosCount,
+          'reversales_count': caja.reversalesCount,
+          'movimientos_count': caja.movimientosCount,
+        }),
         'creado_el': now,
         'estado': 'PENDIENTE_DE_SINCRONIZAR',
+        'idempotency_key': idempotencyKey,
+        'negocio_id': jornadaMap['negocio_id'] as String?,
+        'ruta_id_origen': jornadaMap['ruta_id'] as String?,
+        'cobrador_id_origen': jornadaMap['cobrador_id'] as String?,
+        'jornada_id_origen': jornadaId,
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': now,
       });
 
       // Construir resultado

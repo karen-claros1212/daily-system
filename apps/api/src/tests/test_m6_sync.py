@@ -492,7 +492,6 @@ class TestMobileSync:
             periodicidad="DIARIO",
             fecha_inicio=date(2026, 8, 1),
             estado="ACTIVO",
-            version=1,
         )
         db_session.add(credito)
         db_session.flush()
@@ -554,3 +553,477 @@ class TestMobileSync:
         assert pagos[str(reversal.id)]["tipo"] == "REVERSAL"
         assert pagos[str(reversal.id)]["nota"] == "Reversal de prueba"
         assert pagos[str(pago.id)]["reversal_of_payment_id"] is None
+
+
+# === S3 Phase 5: Local ID ↔ Server ID proof ===
+
+
+class TestLocalServerCorrelation:
+    """Phase 5: Prove local entity ↔ server entity correlation via clave_idempotencia.
+
+    The backend generates its own UUID for each entity (id=uuid4()).
+    The client's local ID differs from the server ID.
+    Correlation happens via `clave_idempotencia` — a unique key the client
+    generates and stores in both local sync_queue.idempotency_key and the
+    server's Pago.clave_idempotencia column.
+
+    The sync endpoint returns `clave_idempotencia` in the pago payload,
+    allowing the client to match its local outbox row with the server entity.
+    """
+
+    def _register_payment(self, client, token, data):
+        return client.post("/api/pagos", json=data, headers=_auth_header(token))
+
+    def _sync(self, client, token):
+        return client.get("/api/mobile/sync", headers=_auth_header(token))
+
+    def test_sync_expone_clave_idempotencia_en_pago(
+        self, client, escenario, dispositivo_activo, db_session
+    ):
+        """El sync devuelve clave_idempotencia en cada pago — correlacion local↔server."""
+        # Crear cliente + credito + jornada para el pago
+        cliente_id = uuid4()
+        db_session.add(Cliente(id=cliente_id, negocio_id=escenario["negocio_id"], primer_apellido="Test", nombres="Cliente", tipo_documento="CC"))
+        db_session.flush()
+
+        credito = Credito(
+            id=uuid4(),
+            cliente_id=cliente_id,
+            negocio_id=escenario["negocio_id"],
+            ruta_id=escenario["ruta_id"],
+            origination_type="NEW",
+            cuota=10000,
+            n_cuotas=5,
+            monto=50000,
+            total=50000,
+            periodicidad="DIARIO",
+            fecha_inicio=date.today(),
+            estado="ACTIVO",
+        )
+        db_session.add(credito)
+        db_session.flush()
+
+        jornada = Jornada(
+            id=uuid4(),
+            negocio_id=escenario["negocio_id"],
+            ruta_id=escenario["ruta_id"],
+            cobrador_id=escenario["cobrador_id"],
+            estado="OPEN",
+            fecha=date.today(),
+            esperado=0,
+        )
+        db_session.add(jornada)
+        db_session.flush()
+
+        # Registrar pago con clave_idempotencia conocida
+        clave = "local-id-correlation-test-key-001"
+        token = _token(escenario, dispositivo_activo)
+        r = self._register_payment(client, token, {
+            "credito_id": str(credito.id),
+            "jornada_id": str(jornada.id),
+            "monto": 10000,
+            "clave_idempotencia": clave,
+            "nota": "correlacion prueba",
+        })
+        assert r.status_code == 201, r.text
+
+        server_pago_id = r.json()["id"]
+
+        # Pull sync — el pago debe aparecer con clave_idempotencia
+        r = self._sync(client, token)
+        assert r.status_code == 200, r.text
+        data = r.json()
+
+        pagos = {p["id"]: p for p in data["pagos"]}
+        assert server_pago_id in pagos
+
+        # La clave_idempotencia coincide — el cliente puede correlacionar
+        assert pagos[server_pago_id]["clave_idempotencia"] == clave
+        assert pagos[server_pago_id]["monto"] == 10000
+        assert pagos[server_pago_id]["nota"] == "correlacion prueba"
+
+        # Verificar que el server genero un ID diferente al cliente
+        # (el cliente usaria un UUID v4 local, el server genera otro)
+        assert pagos[server_pago_id]["id"] != clave
+
+    def test_idempotencia_reutiliza_misma_clave(
+        self, client, escenario, dispositivo_activo, db_session
+    ):
+        """Doble push con misma clave -> 200 con mismo server ID (idempotente)."""
+        cliente_id = uuid4()
+        db_session.add(Cliente(id=cliente_id, negocio_id=escenario["negocio_id"], primer_apellido="Test", nombres="Cliente", tipo_documento="CC"))
+        db_session.flush()
+
+        credito = Credito(
+            id=uuid4(),
+            cliente_id=cliente_id,
+            negocio_id=escenario["negocio_id"],
+            ruta_id=escenario["ruta_id"],
+            origination_type="NEW",
+            cuota=10000,
+            n_cuotas=5,
+            monto=50000,
+            total=50000,
+            periodicidad="DIARIO",
+            fecha_inicio=date.today(),
+            estado="ACTIVO",
+        )
+        db_session.add(credito)
+        db_session.flush()
+
+        jornada = Jornada(
+            id=uuid4(),
+            negocio_id=escenario["negocio_id"],
+            ruta_id=escenario["ruta_id"],
+            cobrador_id=escenario["cobrador_id"],
+            estado="OPEN",
+            fecha=date.today(),
+            esperado=0,
+        )
+        db_session.add(jornada)
+        db_session.flush()
+
+        clave = "idem-reuse-test-key"
+        token = _token(escenario, dispositivo_activo)
+
+        # Primer push
+        r1 = self._register_payment(client, token, {
+            "credito_id": str(credito.id),
+            "jornada_id": str(jornada.id),
+            "monto": 10000,
+            "clave_idempotencia": clave,
+        })
+        assert r1.status_code == 201
+        primer_id = r1.json()["id"]
+
+        # Segundo push con misma clave -> debe devolver mismo ID (idempotente)
+        r2 = self._register_payment(client, token, {
+            "credito_id": str(credito.id),
+            "jornada_id": str(jornada.id),
+            "monto": 10000,
+            "clave_idempotencia": clave,
+        })
+        assert r2.status_code == 201
+        assert r2.json()["id"] == primer_id
+
+    def test_409_misma_clave_payload_distinto(
+        self, client, escenario, dispositivo_activo, db_session
+    ):
+        """Misma clave, monto distinto -> 409 mismatch."""
+        cliente_id = uuid4()
+        db_session.add(Cliente(id=cliente_id, negocio_id=escenario["negocio_id"], primer_apellido="Test", nombres="Cliente", tipo_documento="CC"))
+        db_session.flush()
+
+        credito = Credito(
+            id=uuid4(),
+            cliente_id=cliente_id,
+            negocio_id=escenario["negocio_id"],
+            ruta_id=escenario["ruta_id"],
+            origination_type="NEW",
+            cuota=10000,
+            n_cuotas=5,
+            monto=50000,
+            total=50000,
+            periodicidad="DIARIO",
+            fecha_inicio=date.today(),
+            estado="ACTIVO",
+        )
+        db_session.add(credito)
+        db_session.flush()
+
+        jornada = Jornada(
+            id=uuid4(),
+            negocio_id=escenario["negocio_id"],
+            ruta_id=escenario["ruta_id"],
+            cobrador_id=escenario["cobrador_id"],
+            estado="OPEN",
+            fecha=date.today(),
+            esperado=0,
+        )
+        db_session.add(jornada)
+        db_session.flush()
+
+        clave = "mismatch-test-key"
+        token = _token(escenario, dispositivo_activo)
+
+        r1 = self._register_payment(client, token, {
+            "credito_id": str(credito.id),
+            "jornada_id": str(jornada.id),
+            "monto": 10000,
+            "clave_idempotencia": clave,
+        })
+        assert r1.status_code == 201
+
+        r2 = self._register_payment(client, token, {
+            "credito_id": str(credito.id),
+            "jornada_id": str(jornada.id),
+            "monto": 20000,  # monto diferente
+            "clave_idempotencia": clave,
+        })
+        assert r2.status_code == 409
+        assert "Misma clave" in r2.json()["detail"]
+
+
+# === S3 Phase 6: Push → Pull integration ===
+
+
+class TestPushPullIntegration:
+    """Phase 6: Integration test for push→pull cycle.
+
+    Proves that a payment pushed via POST /api/pagos appears in
+    GET /api/mobile/sync response, completing the full S3 push→pull cycle.
+    """
+
+    def _register_payment(self, client, token, data):
+        return client.post("/api/pagos", json=data, headers=_auth_header(token))
+
+    def _register_movimiento(self, client, token, data):
+        return client.post("/api/movimientos", json=data, headers=_auth_header(token))
+
+    def _sync(self, client, token):
+        return client.get("/api/mobile/sync", headers=_auth_header(token))
+
+    def test_push_pago_aparece_en_sync(
+        self, client, escenario, dispositivo_activo, db_session
+    ):
+        """Push pago via POST /api/pagos → pull via /sync lo incluye en pagos."""
+        cliente_id = uuid4()
+        db_session.add(Cliente(id=cliente_id, negocio_id=escenario["negocio_id"], primer_apellido="Test", nombres="Cliente", tipo_documento="CC"))
+        db_session.flush()
+
+        credito = Credito(
+            id=uuid4(),
+            cliente_id=cliente_id,
+            negocio_id=escenario["negocio_id"],
+            ruta_id=escenario["ruta_id"],
+            origination_type="NEW",
+            cuota=10000,
+            n_cuotas=5,
+            monto=50000,
+            total=50000,
+            periodicidad="DIARIO",
+            fecha_inicio=date.today(),
+            estado="ACTIVO",
+        )
+        db_session.add(credito)
+        db_session.flush()
+
+        jornada = Jornada(
+            id=uuid4(),
+            negocio_id=escenario["negocio_id"],
+            ruta_id=escenario["ruta_id"],
+            cobrador_id=escenario["cobrador_id"],
+            estado="OPEN",
+            fecha=date.today(),
+            esperado=0,
+        )
+        db_session.add(jornada)
+        db_session.flush()
+
+        token = _token(escenario, dispositivo_activo)
+
+        # Push payment
+        r = self._register_payment(client, token, {
+            "credito_id": str(credito.id),
+            "jornada_id": str(jornada.id),
+            "monto": 15000,
+            "clave_idempotencia": "push-pull-test-001",
+            "nota": "push pull integration",
+        })
+        assert r.status_code == 201, r.text
+        server_pago_id = r.json()["id"]
+
+        # Pull sync
+        r = self._sync(client, token)
+        assert r.status_code == 200, r.text
+        data = r.json()
+
+        # Verify payment appears in sync
+        pagos = {p["id"]: p for p in data["pagos"]}
+        assert server_pago_id in pagos
+        assert pagos[server_pago_id]["monto"] == 15000
+        assert pagos[server_pago_id]["clave_idempotencia"] == "push-pull-test-001"
+        assert pagos[server_pago_id]["nota"] == "push pull integration"
+
+    def test_push_movimiento_aparece_en_sync(
+        self, client, escenario, dispositivo_activo, db_session
+    ):
+        """Push movimiento via POST /api/movimientos → pull via /sync lo incluye."""
+        jornada = Jornada(
+            id=uuid4(),
+            negocio_id=escenario["negocio_id"],
+            ruta_id=escenario["ruta_id"],
+            cobrador_id=escenario["cobrador_id"],
+            estado="OPEN",
+            fecha=date.today(),
+            esperado=0,
+        )
+        db_session.add(jornada)
+        db_session.flush()
+
+        token = _token(escenario, dispositivo_activo)
+
+        # Push movimiento
+        r = self._register_movimiento(client, token, {
+            "jornada_id": str(jornada.id),
+            "tipo": "GASOLINA",
+            "naturaleza": "GASTO",
+            "monto": 5000,
+            "nota": "gasolina",
+            "clave_idempotencia": "mov-push-pull-001",
+        })
+        assert r.status_code == 201, r.text
+        server_mov_id = r.json()["id"]
+
+        # Pull sync
+        r = self._sync(client, token)
+        assert r.status_code == 200, r.text
+        data = r.json()
+
+        movimientos = {m["id"]: m for m in data["movimientos"]}
+        assert server_mov_id in movimientos
+        assert movimientos[server_mov_id]["tipo"] == "GASOLINA"
+        assert movimientos[server_mov_id]["monto"] == 5000
+
+    def test_push_reversal_aparece_en_sync(
+        self, client, escenario, dispositivo_activo, db_session
+    ):
+        """Push reversal via POST /api/pagos/{id}/reversar → pull lo incluye."""
+        cliente_id = uuid4()
+        db_session.add(Cliente(id=cliente_id, negocio_id=escenario["negocio_id"], primer_apellido="Test", nombres="Cliente", tipo_documento="CC"))
+        db_session.flush()
+
+        credito = Credito(
+            id=uuid4(),
+            cliente_id=cliente_id,
+            negocio_id=escenario["negocio_id"],
+            ruta_id=escenario["ruta_id"],
+            origination_type="NEW",
+            cuota=10000,
+            n_cuotas=5,
+            monto=50000,
+            total=50000,
+            periodicidad="DIARIO",
+            fecha_inicio=date.today(),
+            estado="ACTIVO",
+        )
+        db_session.add(credito)
+        db_session.flush()
+
+        jornada = Jornada(
+            id=uuid4(),
+            negocio_id=escenario["negocio_id"],
+            ruta_id=escenario["ruta_id"],
+            cobrador_id=escenario["cobrador_id"],
+            estado="OPEN",
+            fecha=date.today(),
+            esperado=0,
+        )
+        db_session.add(jornada)
+        db_session.flush()
+
+        token = _token(escenario, dispositivo_activo)
+
+        # Primero crear el pago original
+        r1 = client.post("/api/pagos", json={
+            "credito_id": str(credito.id),
+            "jornada_id": str(jornada.id),
+            "monto": 10000,
+            "clave_idempotencia": "reversal-original-001",
+        }, headers=_auth_header(token))
+        assert r1.status_code == 201
+        pago_id = r1.json()["id"]
+
+        # Push reversal
+        r2 = client.post(f"/api/pagos/{pago_id}/reversar", json={
+            "motivo": "pago duplicado",
+            "clave_idempotencia": "reversal-push-pull-001",
+        }, headers=_auth_header(token))
+        assert r2.status_code == 201, r2.text
+        reversal_id = r2.json()["id"]
+
+        # Pull sync
+        r3 = self._sync(client, token)
+        assert r3.status_code == 200, r3.text
+        data = r3.json()
+
+        pagos = {p["id"]: p for p in data["pagos"]}
+        assert reversal_id in pagos
+        assert pagos[reversal_id]["tipo"] == "REVERSAL"
+        assert pagos[reversal_id]["reversal_of_payment_id"] == pago_id
+        assert pagos[reversal_id]["nota"] == "pago duplicado"
+
+    def test_push_multiple_aparecen_en_sync(
+        self, client, escenario, dispositivo_activo, db_session
+    ):
+        """Push 3 pagos + 1 movimiento → pull incluye todos."""
+        cliente_id = uuid4()
+        db_session.add(Cliente(id=cliente_id, negocio_id=escenario["negocio_id"], primer_apellido="Test", nombres="Cliente", tipo_documento="CC"))
+        db_session.flush()
+
+        credito = Credito(
+            id=uuid4(),
+            cliente_id=cliente_id,
+            negocio_id=escenario["negocio_id"],
+            ruta_id=escenario["ruta_id"],
+            origination_type="NEW",
+            cuota=10000,
+            n_cuotas=5,
+            monto=50000,
+            total=50000,
+            periodicidad="DIARIO",
+            fecha_inicio=date.today(),
+            estado="ACTIVO",
+        )
+        db_session.add(credito)
+        db_session.flush()
+
+        jornada = Jornada(
+            id=uuid4(),
+            negocio_id=escenario["negocio_id"],
+            ruta_id=escenario["ruta_id"],
+            cobrador_id=escenario["cobrador_id"],
+            estado="OPEN",
+            fecha=date.today(),
+            esperado=0,
+        )
+        db_session.add(jornada)
+        db_session.flush()
+
+        token = _token(escenario, dispositivo_activo)
+
+        # Push 3 pagos
+        pago_ids = []
+        for i in range(3):
+            r = self._register_payment(client, token, {
+                "credito_id": str(credito.id),
+                "jornada_id": str(jornada.id),
+                "monto": 10000 * (i + 1),
+                "clave_idempotencia": f"multi-pago-{i}",
+            })
+            assert r.status_code == 201
+            pago_ids.append(r.json()["id"])
+
+        # Push 1 movimiento
+        r = self._register_movimiento(client, token, {
+            "jornada_id": str(jornada.id),
+            "tipo": "AHORRO",
+            "naturaleza": "GASTO",
+            "monto": 5000,
+            "nota": "ahorro semanal",
+            "clave_idempotencia": "multi-mov-001",
+        })
+        assert r.status_code == 201
+
+        # Pull sync
+        r = self._sync(client, token)
+        assert r.status_code == 200, r.text
+        data = r.json()
+
+        pagos = {p["id"]: p for p in data["pagos"]}
+        movimientos = {m["id"]: m for m in data["movimientos"]}
+
+        for pid in pago_ids:
+            assert pid in pagos, f"Pago {pid} no encontrado en sync"
+
+        assert len(movimientos) >= 1
