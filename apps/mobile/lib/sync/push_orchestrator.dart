@@ -48,12 +48,14 @@ class PushOrchestrator {
   final AuthTokenStore tokenStore;
   final DeviceAuthClient auth;
   final String? currentRutaId; // ruta operativa actual (del bootstrap)
+  final String? currentCobradorId; // cobrador actual para S4 reasignación
 
   PushOrchestrator({
     required this.http,
     required this.tokenStore,
     required this.auth,
     this.currentRutaId,
+    this.currentCobradorId,
   });
 
   /// Ejecuta el ciclo completo de push: recupera ENVIANDO abandonados,
@@ -224,19 +226,32 @@ class PushOrchestrator {
     final idempotencyKey = fila.idempotencyKey;
     final rutaOrigen = fila.rutaIdOrigen;
 
-    // 1. Verificar R1→R2 con provenance PERSISTIDA en la fila
+    // 1. Verificar R1→R2 con provenance PERSISTIDA en la fila.
+    // S4: si el cobrador_id_origen coincide, el item pertenece al cobrador
+    // actual aunque la ruta haya cambiado (reasignación).
     if (currentRutaId != null && rutaOrigen != null) {
       if (rutaOrigen != currentRutaId) {
-        await SyncQueueService.marcarConflicto(
-          filaId,
-          'R1->R2 mismatch: ruta_origen=$rutaOrigen != actual=$currentRutaId',
-        );
-        return PushResult(
-          filaId: filaId,
-          tipo: tipo,
-          status: PushStatus.skipRuta,
-          detail: 'ruta origen $rutaOrigen != actual $currentRutaId',
-        );
+        // Verificar si es reasignación de ruta (mismo cobrador, distinta ruta)
+        final cobradorOrigen = fila.cobradorIdOrigen;
+        final cobradorActual = currentCobradorId;
+        if (cobradorOrigen != null &&
+            cobradorActual != null &&
+            cobradorOrigen == cobradorActual) {
+          // Reasignación S4: mismo cobrador, ruta cambiada → permitir push.
+          // El servidor acepta el item porque el cobrador_id del JWT coincide.
+        } else {
+          // Diferente cobrador → CONFLICTO (item de ruta ajena)
+          await SyncQueueService.marcarConflicto(
+            filaId,
+            'R1->R2 mismatch: ruta_origen=$rutaOrigen != actual=$currentRutaId',
+          );
+          return PushResult(
+            filaId: filaId,
+            tipo: tipo,
+            status: PushStatus.skipRuta,
+            detail: 'ruta origen $rutaOrigen != actual $currentRutaId',
+          );
+        }
       }
     }
 

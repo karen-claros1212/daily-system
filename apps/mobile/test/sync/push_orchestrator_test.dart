@@ -206,7 +206,7 @@ void main() {
     });
   }
 
-  Future<PushOrchestrator> buildOrchestrator({String? rutaId}) async {
+  Future<PushOrchestrator> buildOrchestrator({String? rutaId, String? cobradorId}) async {
     final storage = FlutterSecureStorage();
     await storage.write(key: AuthTokenStore.kSessionKey, value: jsonEncode({
       'token': _jwtSesion,
@@ -223,6 +223,7 @@ void main() {
         tokenStore: AuthTokenStore(),
       ),
       currentRutaId: rutaId ?? 'r1',
+      currentCobradorId: cobradorId ?? 'c1',
     );
   }
 
@@ -503,8 +504,8 @@ void main() {
   // ===== R1 → R2 =====
 
   group('S3 — R1→R2', () {
-    test('fila R1 no enviada como R2 → CONFLICTO', () async {
-      final orch = await buildOrchestrator(rutaId: 'r2');
+    test('fila R1 no enviada como R2 → CONFLICTO (cobrador diferente)', () async {
+      final orch = await buildOrchestrator(rutaId: 'r2', cobradorId: 'c2');
       final db = await database;
 
       await db.insert('sync_queue', {
@@ -540,6 +541,52 @@ void main() {
 
       final pagosLog = _requestLog.where((e) => e.startsWith('pago:')).toList();
       expect(pagosLog.length, 0);
+    });
+
+    // ===== S4 — Reasignación de ruta =====
+
+    test('S4 — fila R1 pusha bajo R2 cuando cobrador coincide (reasignación)', () async {
+      final orch = await buildOrchestrator(rutaId: 'r2', cobradorId: 'c1');
+      final db = await database;
+
+      // Fila creada bajo R1, cobrador c1
+      await db.insert('sync_queue', {
+        'id': 'sq-r1-reassign',
+        'tipo': 'pago',
+        'entidad_id': 'p-reassign',
+        'datos': jsonEncode({
+          'tipo': 'PAYMENT',
+          'monto': 5000,
+          'credito_id': 'cr1',
+          'jornada_id': 'j1',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+        }),
+        'creado_el': '2026-08-10T14:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'idem-reassign',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T14:00:00Z',
+      });
+
+      final resultados = await orch.ejecutarPush();
+
+      // Debe pasar: mismo cobrador, ruta cambiada → permite push
+      expect(resultados.first.status, PushStatus.sincronizado);
+
+      // 1 request HTTP al server
+      final pagosLog = _requestLog.where((e) => e.startsWith('pago:')).toList();
+      expect(pagosLog.length, 1);
+      expect(pagosLog.first, 'pago:idem-reassign');
+
+      // Fila marcada como SINCRONIZADO
+      final filas = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-r1-reassign']);
+      expect(filas.first['estado'], SyncQueueService.estadoSincronizado);
     });
   });
 
