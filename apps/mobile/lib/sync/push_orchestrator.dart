@@ -202,6 +202,20 @@ class PushOrchestrator {
     return resultados.isNotEmpty;
   }
 
+  /// Verifica si hay filas financieras (pago/movimiento) de la jornada
+  /// en estado CONFLICTO (no se reintentarán).
+  Future<bool> _tieneDependenciaConflicto(String jornadaId) async {
+    final db = await database;
+    final resultados = await db.query(
+      'sync_queue',
+      columns: ['id'],
+      where: "jornada_id_origen = ? AND tipo IN ('pago', 'movimiento') AND estado = ?",
+      whereArgs: [jornadaId, SyncQueueService.estadoConflicto],
+      limit: 1,
+    );
+    return resultados.isNotEmpty;
+  }
+
   /// Envía una fila individual al servidor.
   Future<PushResult> _enviarFila(SyncQueueItem fila) async {
     final filaId = fila.id;
@@ -515,8 +529,22 @@ class PushOrchestrator {
     final jornadaId = datos['jornada_id'] ?? datos['entidad_id'];
 
     // Guardia de dependencias: no cerrar mientras haya filas financieras
-    // de la misma jornada pendientes o en retry.
+    // de la misma jornada pendientes, en retry o en conflicto.
+    if (await _tieneDependenciaConflicto(jornadaId)) {
+      // Dependencia CONFLICTO: no se reintenta, jornada queda CONFLICTO.
+      await SyncQueueService.marcarConflicto(
+        filaId,
+        'dependencia financiera en conflicto: $jornadaId',
+      );
+      return PushResult(
+        filaId: filaId,
+        tipo: 'JORNADA_CIERRE',
+        status: PushStatus.conflicto,
+        detail: 'dependencia financiera en conflicto: $jornadaId',
+      );
+    }
     if (await _tieneDependenciasPendientes(jornadaId)) {
+      // Dependencia PENDIENTE/ENVIANDO/ERROR_REINTENTABLE: se reintenta.
       await SyncQueueService.marcarError(
         filaId,
         'jornada espera dependencias: $jornadaId',

@@ -1672,7 +1672,123 @@ void main() {
           whereArgs: ['sq-v7-null']);
       expect(filas, hasLength(1));
       expect(filas.first['idempotency_key'], isNull,
-          reason: 'V7 setea NULL cuando key inventada no está en JSON');
+           reason: 'V7 setea NULL cuando key inventada no está en JSON');
+    });
+  });
+
+  // ===== Jornada CIERRE dependency guard — CONFLICTO =====
+
+  group('S3 — JORNADA_CIERRE dependencias CONFLICTO', () {
+    test('PAYMENT J1 = CONFLICTO → JORNADA_CIERRE J1 = CONFLICTO (0 HTTP)', () async {
+      final orch = await buildOrchestrator();
+      final db = await database;
+
+      // PAYMENT de J1 en CONFLICTO
+      await db.insert('sync_queue', {
+        'id': 'sq-pay-conf',
+        'tipo': 'pago',
+        'entidad_id': 'p-conf',
+        'datos': jsonEncode({
+          'tipo': 'PAYMENT',
+          'monto': 5000,
+          'credito_id': 'cr1',
+          'jornada_id': 'j1',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+        }),
+        'creado_el': '2026-08-10T16:00:00Z',
+        'estado': SyncQueueService.estadoConflicto,
+        'idempotency_key': 'idem-pay-conf',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 1,
+        'ultimo_error': '409 mismatch',
+        'ultima_transicion': '2026-08-10T16:30:00Z',
+      });
+
+      // JORNADA_CIERRE de J1 pendiente
+      await db.insert('sync_queue', {
+        'id': 'sq-jc-conf',
+        'tipo': 'jornada_cierre',
+        'entidad_id': 'j1',
+        'datos': jsonEncode({
+          'jornada_id': 'j1',
+          'contado': 10000,
+          'opening_base': 0,
+          'opening_carry': 0,
+          'negocio_id': 'n1',
+          'ruta_id': 'r1',
+          'cobrador_id': 'c1',
+          'diferencia_motivo': '',
+          'recaudo_real': 0,
+          'reversales': 0,
+          'gastos': 0,
+          'ahorro': 0,
+          'vales': 0,
+          'entregas': 0,
+          'recibidos': 0,
+          'desembolsos': 0,
+          'efectivo_esperado': 5000,
+          'pagos_count': 1,
+          'reversales_count': 0,
+          'movimientos_count': 0,
+        }),
+        'creado_el': '2026-08-10T17:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'idem-jc-conf',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T17:00:00Z',
+      });
+
+      // Insertar jornada local CLOSED_LOCAL_PENDING_SYNC
+      await db.insert('jornada', {
+        'id': 'j1',
+        'negocio_id': 'n1',
+        'ruta_id': 'r1',
+        'cobrador_id': 'c1',
+        'fecha': '2026-08-10',
+        'estado': 'CLOSED_LOCAL_PENDING_SYNC',
+        'opening_base': 0,
+        'opening_carry': 0,
+        'esperado': 5000,
+        'contado': 10000,
+        'diferencia': 5000,
+        'diferencia_motivo': '',
+        'sobrante_manana': 10000,
+      });
+
+      final resultados = await orch.ejecutarPush();
+
+      // 0 requests HTTP al server
+      final pagosLog = _requestLog.where((e) => e.startsWith('pago:')).toList();
+      final cerrarLog = _requestLog.where((e) => e.startsWith('cerrar:')).toList();
+      final syncLog = _requestLog.where((e) => e.startsWith('sincronizar')).toList();
+      expect(pagosLog.length, 0);
+      expect(cerrarLog.length, 0);
+      expect(syncLog.length, 0);
+
+      // JORNADA_CIERRE queda CONFLICTO
+      expect(resultados.first.status, PushStatus.conflicto);
+      expect(resultados.first.detail, contains('dependencia financiera en conflicto'));
+
+      // Fila marcada como CONFLICTO (no ENVIANDO)
+      final filas = await db.query('sync_queue',
+          where: 'id = ?',
+          whereArgs: ['sq-jc-conf']);
+      expect(filas.first['estado'], SyncQueueService.estadoConflicto);
+
+      // Jornada local sigue CLOSED_LOCAL_PENDING_SYNC (no se actualizó)
+      final jornadas = await db.query('jornada',
+          where: 'id = ?',
+          whereArgs: ['j1']);
+      expect(jornadas.first['estado'], 'CLOSED_LOCAL_PENDING_SYNC');
     });
   });
 }
