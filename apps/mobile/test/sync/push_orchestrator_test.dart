@@ -3,8 +3,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:sqflite/sqflite.dart';
-
 import 'package:daily_system/auth/auth_http_client.dart';
 import 'package:daily_system/auth/auth_token_store.dart';
 import 'package:daily_system/auth/device_auth_client.dart';
@@ -44,9 +42,6 @@ void main() {
   late HttpServer server;
   late String baseUrl;
 
-  // Global reference so mock server can update local DB
-  Database? mockDb;
-
   Future<void> responder(
     HttpRequest request,
     int status,
@@ -62,7 +57,6 @@ void main() {
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     baseUrl = 'http://127.0.0.1:${server.port}';
     _requestLog.clear();
-    mockDb = await database;
 
     server.listen((request) async {
       final path = request.uri.path;
@@ -828,7 +822,6 @@ void main() {
       expect(filasPay.first['estado'], SyncQueueService.estadoSincronizado);
 
       // El REVERSAL ya debería haberse enviado en el mismo ciclo (porque PAYMENT ya tiene ACK)
-      final filasRev = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-rev-err']);
       // Puede estar SINCRONIZADO o ERROR_REINTENTABLE (si el PAYMENT PENDIENTE no se envía en este ciclo)
       // Lo importante: el REVERSAL se envió DESPUÉS del PAYMENT
     });
@@ -1072,7 +1065,7 @@ void main() {
       // Ejecutar migration v5
       await MigrationV5.migrate(db);
 
-      // Verificar que json_extract() extrajo los campos
+      // V5 remota extrae idempotency_key + provenance desde JSON
       final filas = await db.query('sync_queue',
           where: 'id = ?',
           whereArgs: ['sq-v5-legacy']);
@@ -1517,7 +1510,7 @@ void main() {
       final resultados = await orch.ejecutarPush();
 
       expect(resultados.first.status, PushStatus.conflicto);
-      expect(resultados.first.detail, contains('PAYMENT original sin ACK'));
+      expect(resultados.first.detail, contains('PAYMENT original no encontrado'));
 
       // 0 requests HTTP al server
       final pagosLog = _requestLog.where((e) => e.startsWith('pago:')).toList();
@@ -1604,10 +1597,11 @@ void main() {
   // ===== V5→V7 real upgrade =====
 
   group('S3 — V5→V7 real upgrade', () {
-    test('DB V5 con key inventada (==entidad_id) → V7 la corrige a NULL', () async {
+    test('V7 re-extract clave inventada (==entidad_id) desde JSON', () async {
       final db = await database;
 
-      // Simular datos V5 con key inventada
+      // Fila con idempotency_key == entidad_id (inventada por V5 bug)
+      // pero datos.json contiene la clave real
       await db.insert('sync_queue', {
         'id': 'sq-v7-fix',
         'tipo': 'pago',
@@ -1615,13 +1609,14 @@ void main() {
         'datos': jsonEncode({
           'tipo': 'PAYMENT',
           'monto': 5000,
+          'idempotency_key': 'idem-real-v7',
           'cobrador_id': 'c1',
           'jornada_id': 'j1',
           'negocio_id': 'n1',
         }),
         'creado_el': '2026-08-10T10:00:00Z',
         'estado': SyncQueueService.estadoPendiente,
-        'idempotency_key': 'p-v7', // inventada por V5 bug (= entidad_id)
+        'idempotency_key': 'p-v7', // inventada (= entidad_id)
         'negocio_id': 'n1',
         'ruta_id_origen': 'r1',
         'cobrador_id_origen': 'c1',
@@ -1632,36 +1627,34 @@ void main() {
         'server_entity_id': null,
       });
 
-      // Ejecutar migration v7
       await MigrationV7.migrate(db);
 
-      // La key inventada debe ser NULL
       final filas = await db.query('sync_queue',
           where: 'id = ?',
           whereArgs: ['sq-v7-fix']);
       expect(filas, hasLength(1));
-      expect(filas.first['idempotency_key'], isNull,
-          reason: 'V7 debe corregir key inventada (= entidad_id) a NULL');
+      expect(filas.first['idempotency_key'], 'idem-real-v7',
+          reason: 'V7 re-extract clave real desde JSON cuando key == entidad_id');
     });
 
-    test('DB V5 con key inventada pero clave en JSON → V7 re-extract', () async {
+    test('V7 setea NULL cuando key inventada no está en JSON', () async {
       final db = await database;
 
+      // Fila con idempotency_key == entidad_id y sin clave en JSON
       await db.insert('sync_queue', {
-        'id': 'sq-v7-fix2',
+        'id': 'sq-v7-null',
         'tipo': 'pago',
-        'entidad_id': 'p-v7b',
+        'entidad_id': 'p-v7n',
         'datos': jsonEncode({
           'tipo': 'PAYMENT',
           'monto': 5000,
-          'idempotency_key': 'idem-real-123',
           'cobrador_id': 'c1',
           'jornada_id': 'j1',
           'negocio_id': 'n1',
         }),
         'creado_el': '2026-08-10T10:00:00Z',
         'estado': SyncQueueService.estadoPendiente,
-        'idempotency_key': 'p-v7b', // inventada por V5 bug (= entidad_id)
+        'idempotency_key': 'p-v7n', // inventada (= entidad_id)
         'negocio_id': 'n1',
         'ruta_id_origen': 'r1',
         'cobrador_id_origen': 'c1',
@@ -1676,10 +1669,10 @@ void main() {
 
       final filas = await db.query('sync_queue',
           where: 'id = ?',
-          whereArgs: ['sq-v7-fix2']);
+          whereArgs: ['sq-v7-null']);
       expect(filas, hasLength(1));
-      expect(filas.first['idempotency_key'], 'idem-real-123',
-          reason: 'V7 debe re-extract clave real desde JSON');
+      expect(filas.first['idempotency_key'], isNull,
+          reason: 'V7 setea NULL cuando key inventada no está en JSON');
     });
   });
 }

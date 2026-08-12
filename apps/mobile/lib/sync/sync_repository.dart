@@ -328,35 +328,6 @@ class SyncRepository {
     });
   }
 
-  /// Importa pagos o movimientos suspendiendo los triggers de guarda de
-  /// jornada abierta DENTRO de la transaccion: el servidor envia jornadas
-  /// cerradas y la guarda rechazaria el insert. DDL es transaccional en
-  /// SQLite, asi que un fallo revierte tambien el DROP y deja las guardas
-  /// intactas.
-  ///
-  /// Entidades con trabajo pendiente en sync_queue no se sobrescriben.
-  Future<void> _importarGuardadoConJornadaAbierta(
-    String tabla,
-    List<SyncFila> filas,
-    Set<String> pendientes,
-  ) async {
-    if (filas.isEmpty) return;
-    await db.transaction((txn) async {
-      await txn.execute('DROP TRIGGER IF EXISTS trg_pago_require_open_jornada');
-      await txn.execute(
-          'DROP TRIGGER IF EXISTS trg_movimiento_require_open_jornada');
-      try {
-        for (final fila in filas) {
-          if (pendientes.contains(fila.id)) continue;
-          await _upsertPorPk(txn, tabla, fila.toMap());
-        }
-      } finally {
-        await txn.execute(TriggerGuardasJornada.pago);
-        await txn.execute(TriggerGuardasJornada.movimiento);
-      }
-    });
-  }
-
   /// Upsert por PK explicito. Solo se actualizan las columnas presentes en la
   /// fila (nunca el id). Un conflicto UNIQUE distinto del PK (p.ej.
   /// clave_idempotencia) propaga la excepcion de la base: fallo controlado,

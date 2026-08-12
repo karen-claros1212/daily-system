@@ -329,49 +329,69 @@ class PushOrchestrator {
   /// 200 = ACK (idempotente o nuevo). 409 = mismatch → CONFLICTO.
   ///
   /// S2: antes de enviar, resolver server_entity_id del PAYMENT original.
-  /// Si el PAYMENT aún no tiene ACK, bloquear el REVERSAL (0 HTTP) hasta que
-  /// el PAYMENT se sincronicé.
+  /// Wait state: si PAYMENT está PENDIENTE/ENVIANDO/ERROR → skip (0 HTTP,
+  /// recoverable). Solo CONFLICTO → bloquear permanentemente.
   Future<PushResult> _enviarReversal(String filaId, Map<String, dynamic> datos, String token, String idempotencyKey) async {
     final localPagoId = datos['reversal_of_payment_id'];
 
-    // Resolver server ID del PAYMENT original:
-    // 1. Si ya tiene server_entity_id en sync_queue, usar ese
-    // 2. Si no existe fila en sync_queue, bloquear (PAYMENT nunca sync)
+    // Resolver server ID del PAYMENT original consultando sync_queue
     String serverPagoId = localPagoId;
     final db = await database;
     final queueRow = await db.query('sync_queue',
-        columns: ['server_entity_id'],
+        columns: ['server_entity_id', 'estado'],
         where: 'entidad_id = ? AND tipo = ?',
         whereArgs: [localPagoId, 'pago'],
         limit: 1);
     if (queueRow.isEmpty) {
-      // PAYMENT nunca sincronizado: bloquear REVERSAL
+      // PAYMENT nunca en outbox → CONFLICTO permanente
       await SyncQueueService.marcarConflicto(
         filaId,
-        'PAYMENT original sin ACK: $localPagoId',
+        'PAYMENT original no encontrado: $localPagoId',
       );
       return PushResult(
         filaId: filaId,
         tipo: 'REVERSAL',
         status: PushStatus.conflicto,
-        detail: 'PAYMENT original sin ACK',
+        detail: 'PAYMENT original no encontrado',
       );
     }
+
     final svrId = queueRow.first['server_entity_id'] as String?;
+    final paymentEstado = queueRow.first['estado'] as String?;
+
     if (svrId != null && svrId.isNotEmpty) {
+      // PAYMENT SINCRONIZADO → usar server ID
       serverPagoId = svrId;
     } else {
-      // PAYMENT en sync_queue pero sin server_entity_id aún: bloquear
-      await SyncQueueService.marcarConflicto(
-        filaId,
-        'PAYMENT original sin ACK: $localPagoId',
-      );
-      return PushResult(
-        filaId: filaId,
-        tipo: 'REVERSAL',
-        status: PushStatus.conflicto,
-        detail: 'PAYMENT original sin ACK',
-      );
+      // PAYMENT no sincronizado aún: verificar estado
+      switch (paymentEstado) {
+        case 'PENDIENTE_DE_SINCRONIZAR':
+        case 'ENVIANDO':
+        case 'ERROR_REINTENTABLE':
+          // Wait state: 0 HTTP, recoverable en próximo ciclo
+          return PushResult(
+            filaId: filaId,
+            tipo: 'REVERSAL',
+            status: PushStatus.reintentable,
+            detail: 'PAYMENT pendiente: $localPagoId (esperando ACK)',
+          );
+        case 'CONFLICTO':
+          // PAYMENT CONFLICTO → bloquear REVERSAL permanentemente
+          await SyncQueueService.marcarConflicto(
+            filaId,
+            'PAYMENT original CONFLICTO: $localPagoId',
+          );
+          return PushResult(
+            filaId: filaId,
+            tipo: 'REVERSAL',
+            status: PushStatus.conflicto,
+            detail: 'PAYMENT original CONFLICTO',
+          );
+        default:
+          // SINCRONIZADO sin server_entity_id (raro pero posible)
+          // Usar local ID como fallback
+          serverPagoId = localPagoId;
+      }
     }
 
     final body = {
@@ -450,7 +470,15 @@ class PushOrchestrator {
         );
 
         serverJornadaId = syncResp['jornada_id'] as String?;
-        await _marcarJornadaSincronizada(filaId, serverJornadaId, jornadaId, syncResp: syncResp);
+        final synced = await _marcarJornadaSincronizada(filaId, serverJornadaId, jornadaId, syncResp: syncResp);
+        if (!synced) {
+          return PushResult(
+            filaId: filaId,
+            tipo: 'JORNADA_CIERRE',
+            status: PushStatus.conflicto,
+            detail: 'jornada sincronizada pero respuesta inválida',
+          );
+        }
         return PushResult(
           filaId: filaId,
           tipo: 'JORNADA_CIERRE',
@@ -484,7 +512,15 @@ class PushOrchestrator {
     );
 
     serverJornadaId = serverJornadaId ?? syncResp['jornada_id'] as String?;
-    await _marcarJornadaSincronizada(filaId, serverJornadaId, jornadaId, syncResp: syncResp);
+    final synced = await _marcarJornadaSincronizada(filaId, serverJornadaId, jornadaId, syncResp: syncResp);
+    if (!synced) {
+      return PushResult(
+        filaId: filaId,
+        tipo: 'JORNADA_CIERRE',
+        status: PushStatus.conflicto,
+        detail: 'jornada sincronizada pero respuesta inválida',
+      );
+    }
     return PushResult(
       filaId: filaId,
       tipo: 'JORNADA_CIERRE',
@@ -496,12 +532,15 @@ class PushOrchestrator {
   /// Actualiza jornada local → CLOSED_SYNCED + sync_queue → SINCRONIZADO
   /// en una sola transacción SQLite.
   /// Valida snapshot_valido == true y jornada_id coincide antes de actualizar.
-  Future<void> _marcarJornadaSincronizada(
+  /// Returns true si éxito, false si respuesta inválida (sync_queue queda ENVIANDO).
+  Future<bool> _marcarJornadaSincronizada(
     String filaId,
     String? serverJornadaId,
     String jornadaId, {
     Map<String, dynamic>? syncResp,
   }) async {
+    String? invalidReason;
+
     // S3: validar respuesta del servidor antes de marcar como synced
     if (syncResp != null) {
       final snapshotValido = syncResp['snapshot_valido'] as Object?;
@@ -510,20 +549,30 @@ class PushOrchestrator {
 
       // snapshot_valido debe ser true
       if (snapshotValido != true) {
-        return; // no actualizar jornada si snapshot no es válido
+        invalidReason = 'snapshot_no_valido';
       }
-
       // jornada_id debe coincidir
-      if (jornadaIdDevuelto != null && jornadaIdDevuelto != jornadaId) {
-        return; // no actualizar si jornada_id no coincide
+      else if (jornadaIdDevuelto != null && jornadaIdDevuelto != jornadaId) {
+        invalidReason = 'jornada_id_mismatch';
       }
-
       // estado devuelto debe ser CLOSED_SYNCED o compatible
-      if (estadoDevuelto != null &&
+      else if (estadoDevuelto != null &&
           estadoDevuelto != 'CLOSED_SYNCED' &&
           estadoDevuelto != 'CLOSED') {
-        return; // no actualizar si estado no es compatible
+        invalidReason = 'estado_no_compatible';
       }
+    }
+
+    if (invalidReason != null) {
+      // No actualizar jornada (queda CLOSED_LOCAL_PENDING_SYNC)
+      // Marcar sync_queue como CONFLICTO (no ENVIANDO)
+      final db = await database;
+      await db.update('sync_queue', {
+        'estado': SyncQueueService.estadoConflicto,
+        'ultimo_error': invalidReason,
+        'ultima_transicion': DateTime.now().toIso8601String(),
+      }, where: 'id = ?', whereArgs: [filaId]);
+      return false;
     }
 
     final db = await database;
@@ -541,6 +590,7 @@ class PushOrchestrator {
         'ultima_transicion': DateTime.now().toIso8601String(),
       }, where: 'id = ?', whereArgs: [filaId]);
     });
+    return true;
   }
 
   Map<String, dynamic> _construirSnapshot(Map<String, dynamic> datos, String jornadaId) {

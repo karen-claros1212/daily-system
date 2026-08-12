@@ -142,17 +142,9 @@ class PagoService {
         throw PagoYaReversadoException(pagoId);
       }
 
-      // S2: buscar server_entity_id del pago original para referenciarlo en el servidor
-      final pagoInfo = await txn.query('pago',
-          columns: ['server_entity_id'],
-          where: 'id = ?',
-          whereArgs: [pagoId],
-          limit: 1);
-      final serverPaymentId = pagoInfo.isNotEmpty
-          ? (pagoInfo.first['server_entity_id'] as String?)
-          : null;
-      // Si no hay server_entity_id, usar el ID local (pago no sincronizado aún)
-      final paymentIdParaSync = serverPaymentId ?? pagoId;
+      // S2: siempre guardar ID LOCAL del pago original en el payload
+      // _enviarReversal() resuelve local→server justo antes del HTTP
+      final pagoIdParaSync = pagoId;
 
       final clave = _uuid.v4();
       final reversal = Pago(
@@ -188,13 +180,13 @@ class PagoService {
       }
 
       // Insertar sync_queue dentro de la transacción (S3: payload completo)
-      // S2: usar serverPaymentId para que el servidor reconozca el pago original
+      // S2: usar pagoId local (siempre) — _enviarReversal resuelve local→server
       final reversalIdempotencyKey = clave;
       final rutaIdOrigen = await _obtenerRutaIdJornada(txn, jornadaId);
       await _insertSyncQueue(txn, 'pago', reversal.id, {
         'tipo': 'REVERSAL',
         'monto': pagoOriginal.monto,
-        'reversal_of_payment_id': paymentIdParaSync,
+        'reversal_of_payment_id': pagoIdParaSync,
         'jornada_id': jornadaId,
         'cobrador_id': cobradorId,
         'negocio_id': negocioId,
