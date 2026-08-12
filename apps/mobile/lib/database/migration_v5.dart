@@ -123,8 +123,7 @@ class MigrationV5 {
             UPDATE sync_queue
             SET idempotency_key = COALESCE(
                 json_extract(datos, '${jp}.idempotency_key'),
-                json_extract(datos, '${jp}.clave_idempotencia'),
-                entidad_id),
+                json_extract(datos, '${jp}.clave_idempotencia')),
                 cobrador_id_origen = COALESCE(
                 json_extract(datos, '${jp}.cobrador_id'),
                 json_extract(datos, '${jp}.cobrador_id_origen')),

@@ -7,6 +7,7 @@ import '../database/migration_v3.dart';
 import '../database/migration_v4.dart';
 import '../database/migration_v5.dart';
 import '../database/migration_v6.dart';
+import '../database/migration_v7.dart';
 
 Database? _database;
 
@@ -22,7 +23,7 @@ Future<Database> initDatabase() async {
 
   return await openDatabase(
     path,
-    version: 6,
+    version: 7,
     onCreate: _onCreate,
     onUpgrade: _onUpgrade,
     onOpen: (_) {},
@@ -39,11 +40,13 @@ Future<void> _onCreate(Database db, int version) async {
   await MigrationV4.migrate(db);
   await MigrationV5.migrate(db);
   await MigrationV6.migrate(db);
+  await MigrationV7.migrate(db);
   await assertSchemaV2(db);
   await assertSchemaV3(db);
   await assertSchemaV4(db);
   await assertSchemaV5(db);
   await assertSchemaV6(db);
+  await assertSchemaV7(db);
 }
 
 Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -62,11 +65,15 @@ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
   if (oldVersion < 6) {
     await MigrationV6.migrate(db);
   }
+  if (oldVersion < 7) {
+    await MigrationV7.migrate(db);
+  }
   await assertSchemaV2(db);
   await assertSchemaV3(db);
   await assertSchemaV4(db);
   await assertSchemaV5(db);
   await assertSchemaV6(db);
+  await assertSchemaV7(db);
 }
 
 Future<void> assertSchemaV2(DatabaseExecutor db) async {
@@ -235,6 +242,17 @@ Future<void> assertSchemaV6(DatabaseExecutor db) async {
       'Migración V6 incompleta. Columnas ausentes en pago: '
       '${missing.join(', ')}. Encontradas: ${columnNames.join(', ')}',
     );
+  }
+}
+
+Future<void> assertSchemaV7(DatabaseExecutor db) async {
+  // V7 no cambia esquema — solo repara datos.
+  // Verificar que la tabla sync_queue existe (garantiza que V5+ se ejecutaron)
+  final tables = await db.rawQuery(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='sync_queue'",
+  );
+  if (tables.isEmpty) {
+    throw StateError('sync_queue no existe — migraciones V5+ no ejecutadas');
   }
 }
 

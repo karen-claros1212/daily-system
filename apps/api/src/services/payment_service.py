@@ -308,7 +308,7 @@ def reverse_payment(
         return already
 
     # Generate idempotency key from client or internal
-    idem_key = data.get("clave_idempotencia", f"rev-{pago_id!s}")
+    idem_key = data.get("clave_idempotencia") or f"rev-{pago_id!s}"
 
     # Check reversal idempotency: la fila existente debe ser EL REVERSAL de
     # este pago (no un PAYMENT ni un REVERSAL de otro pago cuya clave

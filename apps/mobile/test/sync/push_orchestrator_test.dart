@@ -12,6 +12,7 @@ import 'package:daily_system/auth/device_identity.dart';
 import 'package:daily_system/database/database.dart';
 import 'package:daily_system/database/migration_v5.dart';
 import 'package:daily_system/database/migration_v6.dart';
+import 'package:daily_system/database/migration_v7.dart';
 import 'package:daily_system/services/sync_queue_service.dart';
 import 'package:daily_system/sync/push_orchestrator.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -34,6 +35,7 @@ class _RealHttpOverrides extends HttpOverrides {
 final _serverState = <String, dynamic>{};
 final _requestLog = <String>[];
 String? _simulate409MismatchKey; // idempotency key that triggers 409 mismatch
+Map<String, dynamic>? _customSyncResponse; // custom response for /sincronizar
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -192,11 +194,17 @@ void main() {
         _requestLog.add('sincronizar');
 
         // SOLO devolver HTTP — el producto actualiza jornada local
-        await responder(request, 200, {
-          'jornada_id': jornadaId,
-          'estado': 'CLOSED_SYNCED',
-          'snapshot_valido': true,
-        });
+        // Si hay respuesta custom, usarla
+        if (_customSyncResponse != null) {
+          await responder(request, 200, _customSyncResponse!);
+          _customSyncResponse = null; // reset after use
+        } else {
+          await responder(request, 200, {
+            'jornada_id': jornadaId,
+            'estado': 'CLOSED_SYNCED',
+            'snapshot_valido': true,
+          });
+        }
         return;
       }
 
@@ -440,6 +448,22 @@ void main() {
       final orch = await buildOrchestrator();
       final db = await database;
 
+      // Original PAYMENT con server_entity_id (para que REVERSAL lo encuentre)
+      await db.insert('sync_queue', {
+        'id': 'sq-pay-p1',
+        'tipo': 'pago',
+        'entidad_id': 'p1',
+        'datos': jsonEncode({'tipo': 'PAYMENT', 'monto': 5000}),
+        'creado_el': '2026-08-10T12:00:00Z',
+        'estado': SyncQueueService.estadoSincronizado,
+        'idempotency_key': 'idem-p1',
+        'negocio_id': 'n1',
+        'server_entity_id': 'pago_p1_server',
+        'intento': 1,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T12:00:00Z',
+      });
+
       await db.insert('sync_queue', {
         'id': 'sq-rev-1',
         'tipo': 'pago',
@@ -531,6 +555,22 @@ void main() {
     test('lost response REVERSAL: local R1 → server SR1 → retry → server_entity_id persistido', () async {
       final orch = await buildOrchestrator();
       final db = await database;
+
+      // Original PAYMENT con server_entity_id
+      await db.insert('sync_queue', {
+        'id': 'sq-pay-p1-lost',
+        'tipo': 'pago',
+        'entidad_id': 'p1',
+        'datos': jsonEncode({'tipo': 'PAYMENT', 'monto': 5000}),
+        'creado_el': '2026-08-10T19:00:00Z',
+        'estado': SyncQueueService.estadoSincronizado,
+        'idempotency_key': 'idem-p1-lost',
+        'negocio_id': 'n1',
+        'server_entity_id': 'pago_p1_server_lost',
+        'intento': 1,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T19:00:00Z',
+      });
 
       await db.insert('sync_queue', {
         'id': 'sq-rev-lost',
@@ -1129,6 +1169,22 @@ void main() {
       final orch = await buildOrchestrator();
       final db = await database;
 
+      // Original PAYMENT con server_entity_id
+      await db.insert('sync_queue', {
+        'id': 'sq-pay-pp-rev',
+        'tipo': 'pago',
+        'entidad_id': 'p1',
+        'datos': jsonEncode({'tipo': 'PAYMENT', 'monto': 5000}),
+        'creado_el': '2026-08-10T21:00:00Z',
+        'estado': SyncQueueService.estadoSincronizado,
+        'idempotency_key': 'idem-pp-pay',
+        'negocio_id': 'n1',
+        'server_entity_id': 'pago_pp_server',
+        'intento': 1,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T21:00:00Z',
+      });
+
       await db.insert('sync_queue', {
         'id': 'sq-push-pull-rev',
         'tipo': 'pago',
@@ -1357,6 +1413,273 @@ void main() {
       final jornadas = await db.query('jornada', where: 'id = ?', whereArgs: ['j1']);
       expect(jornadas.first['estado'], 'CLOSED_SYNCED',
           reason: 'jornada debe estar CLOSED_SYNCED tras ACK de /sincronizar');
+    });
+
+    test('jornada no avanza a CLOSED_SYNCED si snapshot_valido = false', () async {
+      final orch = await buildOrchestrator();
+      final db = await database;
+
+      await db.insert('sync_queue', {
+        'id': 'sq-cerrar-nv',
+        'tipo': 'jornada_cierre',
+        'entidad_id': 'j-nv',
+        'datos': jsonEncode({
+          'jornada_id': 'j-nv',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+          'opening_base': 50000,
+          'opening_carry': 0,
+          'recaudo_real': 9500,
+          'reversales': 0,
+          'gastos': 0,
+          'ahorro': 0,
+          'vales': 0,
+          'entregas': 0,
+          'recibidos': 0,
+          'desembolsos': 0,
+          'contado': 10000,
+          'pagos_count': 1,
+          'reversales_count': 0,
+          'movimientos_count': 0,
+          'diferencia_motivo': 'sobrante',
+        }),
+        'creado_el': '2026-08-10T16:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'idem-nv',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j-nv',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T16:00:00Z',
+      });
+
+      await db.insert('jornada', {
+        'id': 'j-nv',
+        'negocio_id': 'n1',
+        'ruta_id': 'r1',
+        'cobrador_id': 'c1',
+        'estado': 'CLOSED_LOCAL_PENDING_SYNC',
+        'fecha': '2026-08-10',
+        'esperado': 0,
+      });
+
+      // Mock server responde con snapshot_valido = false
+      _customSyncResponse = {
+        'jornada_id': 'j-nv',
+        'estado': 'CLOSED_SYNCED',
+        'snapshot_valido': false,
+      };
+
+      await orch.ejecutarPush();
+
+      // La jornada NO debe cambiar (snapshot_valido = false)
+      final jornadas = await db.query('jornada', where: 'id = ?', whereArgs: ['j-nv']);
+      expect(jornadas.first['estado'], 'CLOSED_LOCAL_PENDING_SYNC',
+          reason: 'jornada no debe avanzar a CLOSED_SYNCED con snapshot_valido = false');
+    });
+  });
+
+  // ===== REVERSAL pre-ACK server ID resolution =====
+
+  group('S3 — REVERSAL pre-ACK server ID', () {
+    test('REVERSAL sin PAYMENT ACK → CONFLICTO (0 HTTP al server)', () async {
+      final orch = await buildOrchestrator();
+      final db = await database;
+
+      // REVERSAL cuyo PAYMENT original nunca fue sync (no hay fila en sync_queue)
+      await db.insert('sync_queue', {
+        'id': 'sq-rev-noack',
+        'tipo': 'pago',
+        'entidad_id': 'r-noack',
+        'datos': jsonEncode({
+          'tipo': 'REVERSAL',
+          'monto': 5000,
+          'reversal_of_payment_id': 'p-ghost',
+          'jornada_id': 'j1',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+          'motivo': 'test',
+        }),
+        'creado_el': '2026-08-10T16:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'idem-rev-noack',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T16:00:00Z',
+      });
+
+      final resultados = await orch.ejecutarPush();
+
+      expect(resultados.first.status, PushStatus.conflicto);
+      expect(resultados.first.detail, contains('PAYMENT original sin ACK'));
+
+      // 0 requests HTTP al server
+      final pagosLog = _requestLog.where((e) => e.startsWith('pago:')).toList();
+      expect(pagosLog.length, 0);
+
+      // Fila marcada como CONFLICTO
+      final filas = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-rev-noack']);
+      expect(filas.first['estado'], SyncQueueService.estadoConflicto);
+    });
+
+    test('REVERSAL con PAYMENT ACK → usa server ID en URL', () async {
+      final orch = await buildOrchestrator();
+      final db = await database;
+
+      // PAYMENT sincronizado primero (tiene server_entity_id)
+      await db.insert('sync_queue', {
+        'id': 'sq-pay-ack',
+        'tipo': 'pago',
+        'entidad_id': 'p-ack',
+        'datos': jsonEncode({
+          'tipo': 'PAYMENT',
+          'monto': 5000,
+          'credito_id': 'cr1',
+          'jornada_id': 'j1',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+        }),
+        'creado_el': '2026-08-10T16:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'idem-pay-ack',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T16:00:00Z',
+      });
+
+      // REVERSAL que referencia al PAYMENT local
+      await db.insert('sync_queue', {
+        'id': 'sq-rev-ack',
+        'tipo': 'pago',
+        'entidad_id': 'r-ack',
+        'datos': jsonEncode({
+          'tipo': 'REVERSAL',
+          'monto': 5000,
+          'reversal_of_payment_id': 'p-ack',
+          'jornada_id': 'j1',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+          'motivo': 'test',
+        }),
+        'creado_el': '2026-08-10T16:01:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'idem-rev-ack',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T16:01:00Z',
+      });
+
+      final resultados = await orch.ejecutarPush();
+
+      // PAYMENT sincronizado
+      expect(resultados[0].status, PushStatus.sincronizado);
+      // REVERSAL sincronizado (usó server ID del PAYMENT)
+      expect(resultados[1].status, PushStatus.sincronizado);
+
+      // Verificar que el REVERSAL usó el server ID en la URL
+      final pagosLog = _requestLog.where((e) => e.startsWith('pago:')).toList();
+      final revLog = _requestLog.where((e) => e.startsWith('reversal:')).toList();
+      expect(pagosLog.length, 1);
+      expect(revLog.length, 1);
+      // El server ID del PAYMENT es 'pago_*', el REVERSAL debe usarlo en la URL
+      expect(pagosLog.first, 'pago:idem-pay-ack');
+      expect(revLog.first, 'reversal:idem-rev-ack');
+    });
+  });
+
+  // ===== V5→V7 real upgrade =====
+
+  group('S3 — V5→V7 real upgrade', () {
+    test('DB V5 con key inventada (==entidad_id) → V7 la corrige a NULL', () async {
+      final db = await database;
+
+      // Simular datos V5 con key inventada
+      await db.insert('sync_queue', {
+        'id': 'sq-v7-fix',
+        'tipo': 'pago',
+        'entidad_id': 'p-v7',
+        'datos': jsonEncode({
+          'tipo': 'PAYMENT',
+          'monto': 5000,
+          'cobrador_id': 'c1',
+          'jornada_id': 'j1',
+          'negocio_id': 'n1',
+        }),
+        'creado_el': '2026-08-10T10:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'p-v7', // inventada por V5 bug (= entidad_id)
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T10:00:00Z',
+        'server_entity_id': null,
+      });
+
+      // Ejecutar migration v7
+      await MigrationV7.migrate(db);
+
+      // La key inventada debe ser NULL
+      final filas = await db.query('sync_queue',
+          where: 'id = ?',
+          whereArgs: ['sq-v7-fix']);
+      expect(filas, hasLength(1));
+      expect(filas.first['idempotency_key'], isNull,
+          reason: 'V7 debe corregir key inventada (= entidad_id) a NULL');
+    });
+
+    test('DB V5 con key inventada pero clave en JSON → V7 re-extract', () async {
+      final db = await database;
+
+      await db.insert('sync_queue', {
+        'id': 'sq-v7-fix2',
+        'tipo': 'pago',
+        'entidad_id': 'p-v7b',
+        'datos': jsonEncode({
+          'tipo': 'PAYMENT',
+          'monto': 5000,
+          'idempotency_key': 'idem-real-123',
+          'cobrador_id': 'c1',
+          'jornada_id': 'j1',
+          'negocio_id': 'n1',
+        }),
+        'creado_el': '2026-08-10T10:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'p-v7b', // inventada por V5 bug (= entidad_id)
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j1',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T10:00:00Z',
+        'server_entity_id': null,
+      });
+
+      await MigrationV7.migrate(db);
+
+      final filas = await db.query('sync_queue',
+          where: 'id = ?',
+          whereArgs: ['sq-v7-fix2']);
+      expect(filas, hasLength(1));
+      expect(filas.first['idempotency_key'], 'idem-real-123',
+          reason: 'V7 debe re-extract clave real desde JSON');
     });
   });
 }

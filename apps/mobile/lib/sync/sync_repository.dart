@@ -94,6 +94,7 @@ class SyncRepository {
 
   /// Importa pagos mapeando server ID → local ID antes del UPSERT.
   /// Suspende triggers de guarda de jornada abierta DENTRO de la transaccion.
+  /// S3: también traduce reversal_of_payment_id server→local.
   Future<void> _importarPagosConMapeo(
     List<SyncFila> filas,
     Set<String> pendientes,
@@ -110,6 +111,16 @@ class SyncRepository {
           final localId = serverToLocal[fila.id] ?? fila.id;
           final mapa = fila.toMap();
           mapa['id'] = localId;
+
+          // S3-H2: traducir reversal_of_payment_id de server→local
+          // si el valor es un server_entity_id, reemplazar con el local correspondiente
+          final revId = mapa['reversal_of_payment_id'] as String?;
+          if (revId != null && revId.isNotEmpty) {
+            final localRevId = serverToLocal[revId];
+            if (localRevId != null) {
+              mapa['reversal_of_payment_id'] = localRevId;
+            }
+          }
 
           await _upsertPorPk(txn, 'pago', mapa);
         }
