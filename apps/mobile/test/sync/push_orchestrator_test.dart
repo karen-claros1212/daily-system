@@ -545,7 +545,7 @@ void main() {
 
     // ===== S4 — Reasignación de ruta =====
 
-    test('S4 — fila R1 pusha bajo R2 cuando cobrador coincide (reasignación)', () async {
+    test('S4 — fila R1 NO pusha bajo R2 aunque cobrador coincida (ruta_id_origen inmutable)', () async {
       final orch = await buildOrchestrator(rutaId: 'r2', cobradorId: 'c1');
       final db = await database;
 
@@ -576,17 +576,138 @@ void main() {
 
       final resultados = await orch.ejecutarPush();
 
-      // Debe pasar: mismo cobrador, ruta cambiada → permite push
-      expect(resultados.first.status, PushStatus.sincronizado);
+      // Mismo cobrador pero ruta diferente → R1 fila NO se envía bajo R2
+      expect(resultados.first.status, PushStatus.skipRuta);
+      expect(resultados.first.detail, contains('r1'));
 
-      // 1 request HTTP al server
+      // 0 HTTP al server
       final pagosLog = _requestLog.where((e) => e.startsWith('pago:')).toList();
-      expect(pagosLog.length, 1);
-      expect(pagosLog.first, 'pago:idem-reassign');
+      expect(pagosLog.length, 0);
 
-      // Fila marcada como SINCRONIZADO
+      // Fila marcada como CONFLICTO (no SINCRONIZADO)
       final filas = await db.query('sync_queue', where: 'id = ?', whereArgs: ['sq-r1-reassign']);
-      expect(filas.first['estado'], SyncQueueService.estadoSincronizado);
+      expect(filas.first['estado'], SyncQueueService.estadoConflicto);
+      expect(filas.first['ultimo_error'], contains('R1->R2'));
+
+      // ruta_id_origen sigue siendo R1
+      expect(filas.first['ruta_id_origen'], 'r1');
+
+      // Payload/idempotency intactos
+      expect(filas.first['idempotency_key'], 'idem-reassign');
+    });
+
+    test('S4 — ciclo completo reasignación R1→R2: outbox R1 preservado, nuevo evento R2 sincroniza', () async {
+      final db = await database;
+
+      // 1. cobrador opera en R1 — crea PAYMENT pendiente
+      await db.insert('sync_queue', {
+        'id': 'sq-s4-pay-r1',
+        'tipo': 'pago',
+        'entidad_id': 'p-s4-r1',
+        'datos': jsonEncode({
+          'tipo': 'PAYMENT',
+          'monto': 3000,
+          'credito_id': 'cr-s4',
+          'jornada_id': 'j-s4',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+        }),
+        'creado_el': '2026-08-10T10:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'idem-s4-pay-r1',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r1',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j-s4',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T10:00:00Z',
+      });
+
+      // 2. Admin realiza R1→R2: desactiva R1, activa R2 para mismo cobrador
+      await db.insert('ruta', {
+        'id': 'r1',
+        'negocio_id': 'n1',
+        'nombre': 'R1',
+        'cobrador_id': 'c1',
+        'activa': 0,
+      });
+      await db.insert('ruta', {
+        'id': 'r2',
+        'negocio_id': 'n1',
+        'nombre': 'R2',
+        'cobrador_id': 'c1',
+        'activa': 1,
+      });
+
+      // 3. Orchestrador bajo R2 (nueva sesión post-reasignación)
+      final orchR2 = await buildOrchestrator(rutaId: 'r2', cobradorId: 'c1');
+
+      // 4. Ejecutar push bajo R2
+      final resultadosR2 = await orchR2.ejecutarPush();
+
+      // 5. La fila R1 NO se envía bajo R2 (misma ruta check)
+      expect(resultadosR2.first.status, PushStatus.skipRuta);
+      expect(resultadosR2.first.detail, contains('r1'));
+
+      // 6. 0 HTTP al server para la fila R1
+      final pagosLogR2 = _requestLog.where((e) => e.startsWith('pago:')).toList();
+      expect(pagosLogR2.length, 0);
+
+      // 7. Fila R1 permanece con provenance intacta
+      final filasR2 = await db.query('sync_queue',
+          where: 'id = ?',
+          whereArgs: ['sq-s4-pay-r1']);
+      expect(filasR2.first['estado'], SyncQueueService.estadoConflicto);
+      expect(filasR2.first['ruta_id_origen'], 'r1');
+      expect(filasR2.first['idempotency_key'], 'idem-s4-pay-r1');
+      expect(filasR2.first['cobrador_id_origen'], 'c1');
+
+      // 8. Nuevo evento creado bajo R2 sincroniza normalmente
+      await db.insert('sync_queue', {
+        'id': 'sq-s4-pay-r2',
+        'tipo': 'pago',
+        'entidad_id': 'p-s4-r2',
+        'datos': jsonEncode({
+          'tipo': 'PAYMENT',
+          'monto': 5000,
+          'credito_id': 'cr-s4-r2',
+          'jornada_id': 'j-s4-r2',
+          'cobrador_id': 'c1',
+          'negocio_id': 'n1',
+        }),
+        'creado_el': '2026-08-10T12:00:00Z',
+        'estado': SyncQueueService.estadoPendiente,
+        'idempotency_key': 'idem-s4-pay-r2',
+        'negocio_id': 'n1',
+        'ruta_id_origen': 'r2',
+        'cobrador_id_origen': 'c1',
+        'jornada_id_origen': 'j-s4-r2',
+        'intento': 0,
+        'ultimo_error': null,
+        'ultima_transicion': '2026-08-10T12:00:00Z',
+      });
+
+      final resultadosR2b = await orchR2.ejecutarPush();
+
+      // La fila R2 sí se envía
+      final payR2 = resultadosR2b.firstWhere(
+        (r) => r.filaId == 'sq-s4-pay-r2',
+        orElse: () => throw Exception('fila R2 no encontrada'),
+      );
+      expect(payR2.status, PushStatus.sincronizado);
+
+      // 1 HTTP para la fila R2
+      final pagosLogR2b = _requestLog.where((e) => e.startsWith('pago:')).toList();
+      expect(pagosLogR2b.length, 1);
+      expect(pagosLogR2b.first, 'pago:idem-s4-pay-r2');
+
+      // 9. Historial R1 permanece intacto
+      final filasR1 = await db.query('sync_queue',
+          where: 'ruta_id_origen = ?',
+          whereArgs: ['r1']);
+      expect(filasR1.length, 1);
+      expect(filasR1.first['entidad_id'], 'p-s4-r1');
     });
   });
 
