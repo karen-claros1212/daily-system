@@ -157,6 +157,7 @@ jobs:
           DAILY_ENV: test
         run: |
           source /tmp/be.env
+          export PYTHONPATH=.
           python scripts/seed_web_integration.py /tmp/seed_out.json
 
       - name: Start FastAPI real on :8001 (health check antes de tests)
