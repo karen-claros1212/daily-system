@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { fetchResumen, InversionistaSummary } from '@/lib/api/client';
+import { MetricCard } from '@/components/ui/misc';
+import { LoadingState, Flash } from '@/components/ui/button';
 
 export function Reportes() {
   const [data, setData] = useState<InversionistaSummary | null>(null);
@@ -23,8 +25,8 @@ export function Reportes() {
     }
   }
 
-  if (loading) return <div className="text-text-secondary">Cargando...</div>;
-  if (error) return <div className="flash flash-error">{error}</div>;
+  if (loading) return <LoadingState />;
+  if (error) return <Flash tone="error">{error}</Flash>;
   if (!data) return null;
 
   const p = data.portfolio || {};
@@ -37,21 +39,9 @@ export function Reportes() {
       <h1 className="text-2xl font-bold">Reportes</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="metric-card">
-          <div className="metric-label">Total créditos activos</div>
-          <div className="metric-value">{p.total_creditos_activos ?? 0}</div>
-        </div>
-
-        <div className="metric-card">
-          <div className="metric-label">Cartera neta</div>
-          <div className="metric-value money">{fmt(p.cartera_neta ?? 0)}</div>
-        </div>
-
-        <div className="metric-card">
-          <div className="metric-label">Recaudo hoy</div>
-          <div className="metric-value money">{fmt(p.recaudo_hoy ?? 0)}</div>
-        </div>
-
+        <MetricCard label="Total créditos activos" value={p.total_creditos_activos ?? 0} />
+        <MetricCard label="Cartera neta" value={fmt(p.cartera_neta ?? 0)} />
+        <MetricCard label="Recaudo hoy" value={fmt(p.recaudo_hoy ?? 0)} />
         <div className="metric-card">
           <div className="metric-label">Plan</div>
           <div className="metric-value" style={{ fontSize: '18px' }}>

@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { fetchRutas, fetchRuta, fetchJornadas, Ruta, Jornada } from '@/lib/api/client';
+import { Badge } from '@/components/ui/badge';
+import { Button, LoadingState, Flash } from '@/components/ui/button';
 
 export function Routes() {
   const [routes, setRoutes] = useState<Ruta[]>([]);
@@ -47,39 +49,42 @@ export function Routes() {
     setJornada(null);
   }
 
-  if (loading) return <div className="text-text-secondary">Cargando...</div>;
-  if (error) return <div className="flash flash-error">{error}</div>;
+  if (loading) return <LoadingState />;
+  if (error) return <Flash tone="error">{error}</Flash>;
+
+  const cerrada = (j: Jornada) =>
+    ['CLOSED_SYNCED', 'CLOSED_LOCAL_PENDING_SYNC'].includes(j.estado);
 
   if (selectedRoute && routeDetail) {
     return (
       <div className="space-y-4">
-        <button onClick={goBack} className="btn btn-outline text-sm">
+        <Button variant="outline" size="sm" onClick={goBack}>
           ← Volver
-        </button>
+        </Button>
 
-        <div className="bg-white rounded-lg p-4 border border-outline">
+        <div className="card">
           <h2 className="text-lg font-semibold mb-4">{routeDetail.nombre || routeDetail.id}</h2>
 
-          <table className="w-full text-sm">
+          <table className="table">
             <tbody>
               <tr>
-                <td className="text-text-secondary py-2 w-1/3">ID</td>
+                <td className="text-textSecondary py-2 w-1/3">ID</td>
                 <td>{routeDetail.id}</td>
               </tr>
               <tr>
-                <td className="text-text-secondary py-2">Cobrador</td>
+                <td className="text-textSecondary py-2">Cobrador</td>
                 <td>{routeDetail.cobrador_id || '—'}</td>
               </tr>
               <tr>
-                <td className="text-text-secondary py-2">Estado</td>
+                <td className="text-textSecondary py-2">Estado</td>
                 <td>
-                  <span className={`badge ${routeDetail.activa ? 'badge-success' : 'badge-warning'}`}>
+                  <Badge tone={routeDetail.activa ? 'success' : 'warning'}>
                     {routeDetail.activa ? 'Activa' : 'Inactiva'}
-                  </span>
+                  </Badge>
                 </td>
               </tr>
               <tr>
-                <td className="text-text-secondary py-2">Versión</td>
+                <td className="text-textSecondary py-2">Versión</td>
                 <td>{routeDetail.version || 1}</td>
               </tr>
             </tbody>
@@ -87,34 +92,36 @@ export function Routes() {
 
           {jornada && (
             <>
-              <hr className="my-4 border-outline" />
+              <hr className="divider" />
               <h3 className="font-semibold mb-2">Jornada de hoy</h3>
-              <table className="w-full text-sm">
+              <table className="table">
                 <tbody>
                   <tr>
-                    <td className="text-text-secondary py-2">Estado</td>
+                    <td className="text-textSecondary py-2">Estado</td>
                     <td>
-                      <span className={`badge ${['CLOSED_SYNCED', 'CLOSED_LOCAL_PENDING_SYNC'].includes(jornada.estado) ? 'badge-success' : 'badge-warning'}`}>
-                        {jornada.estado}
-                      </span>
+                      <Badge tone={cerrada(jornada) ? 'success' : 'warning'}>{jornada.estado}</Badge>
                     </td>
                   </tr>
                   {jornada.esperado !== undefined && (
                     <tr>
-                      <td className="text-text-secondary py-2">Esperado</td>
+                      <td className="text-textSecondary py-2">Esperado</td>
                       <td>${jornada.esperado.toLocaleString('es-CO')}</td>
                     </tr>
                   )}
                   {jornada.contado !== undefined && (
                     <tr>
-                      <td className="text-text-secondary py-2">Contado</td>
+                      <td className="text-textSecondary py-2">Contado</td>
                       <td>${jornada.contado.toLocaleString('es-CO')}</td>
                     </tr>
                   )}
                   {jornada.diferencia !== undefined && (
                     <tr>
-                      <td className="text-text-secondary py-2">Diferencia</td>
-                      <td style={{ color: jornada.diferencia !== 0 ? 'var(--ds-warning)' : 'var(--ds-success)' }}>
+                      <td className="text-textSecondary py-2">Diferencia</td>
+                      <td
+                        className={
+                          jornada.diferencia !== 0 ? 'text-warning font-medium' : 'text-success font-medium'
+                        }
+                      >
                         ${jornada.diferencia.toLocaleString('es-CO')}
                       </td>
                     </tr>
@@ -125,7 +132,7 @@ export function Routes() {
           )}
 
           {!jornada && (
-            <p className="text-sm text-text-secondary mt-4">No hay jornada abierta para hoy.</p>
+            <p className="text-sm text-textSecondary mt-4">No hay jornada abierta para hoy.</p>
           )}
         </div>
       </div>
@@ -136,39 +143,36 @@ export function Routes() {
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Rutas</h1>
 
-      <div className="bg-white rounded-lg border border-outline overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-surfaceContainer">
+      <div className="card p-0 overflow-hidden">
+        <table className="table">
+          <thead>
             <tr>
-              <th className="text-left px-4 py-3">Ruta</th>
-              <th className="text-left px-4 py-3">Cobrador</th>
-              <th className="text-left px-4 py-3">Estado</th>
-              <th className="text-left px-4 py-3">Acción</th>
+              <th>Ruta</th>
+              <th>Cobrador</th>
+              <th>Estado</th>
+              <th>Acción</th>
             </tr>
           </thead>
           <tbody>
             {routes.map((route) => (
-              <tr key={route.id} className="border-t border-outline">
-                <td className="px-4 py-3">{route.nombre || route.id}</td>
-                <td className="px-4 py-3">{route.cobrador_id || '—'}</td>
-                <td className="px-4 py-3">
-                  <span className={`badge ${route.activa ? 'badge-success' : 'badge-warning'}`}>
+              <tr key={route.id}>
+                <td>{route.nombre || route.id}</td>
+                <td>{route.cobrador_id || '—'}</td>
+                <td>
+                  <Badge tone={route.activa ? 'success' : 'warning'}>
                     {route.activa ? 'Activa' : 'Inactiva'}
-                  </span>
+                  </Badge>
                 </td>
-                <td className="px-4 py-3">
-                  <button
-                    onClick={() => showDetail(route.id)}
-                    className="btn btn-outline text-xs"
-                  >
+                <td>
+                  <Button variant="outline" size="sm" onClick={() => showDetail(route.id)}>
                     Ver detalle
-                  </button>
+                  </Button>
                 </td>
               </tr>
             ))}
             {routes.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-text-secondary">
+                <td colSpan={4} className="px-4 py-8 text-center text-textSecondary">
                   No hay rutas registradas.
                 </td>
               </tr>

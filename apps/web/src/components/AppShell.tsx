@@ -4,12 +4,43 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { SessionUser } from '@/lib/rbac';
 import { hasCapability } from '@/lib/rbac';
+import {
+  IconDashboard,
+  IconRoute,
+  IconCaja,
+  IconReportes,
+  IconLogout,
+  IconMenu,
+  IconShield,
+} from '@/components/ui/icons';
+import { IconButton } from '@/components/ui/button';
 
 interface AppShellProps {
   children: React.ReactNode;
   /** Identidad canónica (de /api/auth/me). Define la navegación por capabilities. */
   session?: SessionUser | null;
 }
+
+interface NavItem {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+}
+
+const ICONS: Record<string, React.ReactNode> = {
+  dashboard: <IconDashboard size={18} aria-hidden="true" />,
+  routes: <IconRoute size={18} aria-hidden="true" />,
+  caja: <IconCaja size={18} aria-hidden="true" />,
+  reportes: <IconReportes size={18} aria-hidden="true" />,
+};
+
+// Títulos humanos por ruta para breadcrumbs (label se mantiene por capabilities).
+const TITLES: Record<string, string> = {
+  dashboard: 'Dashboard',
+  routes: 'Rutas',
+  caja: 'Caja',
+  reportes: 'Reportes',
+};
 
 export function AppShell({ children, session = null }: AppShellProps) {
   const router = useRouter();
@@ -38,34 +69,36 @@ export function AppShell({ children, session = null }: AppShellProps) {
   // Navegación construida a partir de capabilities reales del backend
   // (ver src/rbac.py). Default-deny: sin capability, el ítem no aparece.
   // El backend sigue siendo la autoridad: esto solo refleja la superficie.
-  const navItems = [
+  const navItems: NavItem[] = [
     ...(hasCapability(session, 'jornada:ver') || hasCapability(session, 'jornadas:ver')
-      ? [{ id: 'dashboard', label: 'Dashboard', icon: '📊' }]
+      ? [{ id: 'dashboard', label: 'Dashboard', icon: ICONS.dashboard }]
       : []),
     ...(hasCapability(session, 'ruta:ver') || hasCapability(session, 'rutas:ver')
-      ? [{ id: 'routes', label: 'Rutas', icon: '🗺️' }]
+      ? [{ id: 'routes', label: 'Rutas', icon: ICONS.routes }]
       : []),
     ...(hasCapability(session, 'jornada:ver')
-      ? [{ id: 'caja', label: 'Caja', icon: '💵' }]
+      ? [{ id: 'caja', label: 'Caja', icon: ICONS.caja }]
       : []),
     ...(hasCapability(session, 'inversionista:resumen')
-      ? [{ id: 'reportes', label: 'Reportes', icon: '📈' }]
+      ? [{ id: 'reportes', label: 'Reportes', icon: ICONS.reportes }]
       : []),
   ];
 
   const rolLabel = session?.rol ?? '…';
+  const sectionTitle = TITLES[currentPage] ?? 'Daily System';
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex bg-bg">
       {/* Sidebar */}
       <aside
         className={`bg-primary text-white flex flex-col transition-all duration-200 ${
           sidebarOpen ? 'w-60' : 'w-16'
         }`}
+        aria-label="Menú principal"
       >
         <div className="p-4 flex items-center gap-3">
-          <div className="w-9 h-9 bg-tertiary text-primary rounded-md flex items-center justify-center font-bold text-lg flex-shrink-0">
-            D
+          <div className="w-9 h-9 bg-tertiary text-primary rounded-md flex items-center justify-center flex-shrink-0">
+            <IconShield size={18} aria-hidden="true" />
           </div>
           {sidebarOpen && <span className="font-bold text-lg">Daily System</span>}
         </div>
@@ -75,15 +108,12 @@ export function AppShell({ children, session = null }: AppShellProps) {
             <button
               key={item.id}
               onClick={() => handleNav(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-md mb-1 transition-colors ${
-                currentPage === item.id
-                  ? 'bg-white/10 text-white'
-                  : 'text-white/70 hover:bg-white/10 hover:text-white'
-              }`}
+              className={`nav-link mb-1 ${sidebarOpen ? '' : 'justify-center'}`}
               title={item.label}
               aria-label={item.label}
+              aria-current={currentPage === item.id ? 'page' : undefined}
             >
-              <span className="text-lg flex-shrink-0">{item.icon}</span>
+              {item.icon}
               {sidebarOpen && <span>{item.label}</span>}
             </button>
           ))}
@@ -92,34 +122,40 @@ export function AppShell({ children, session = null }: AppShellProps) {
         <div className="p-4">
           <button
             onClick={handleLogout}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-white/70 hover:bg-white/10 hover:text-white transition-colors ${
-              sidebarOpen ? '' : 'justify-center'
-            }`}
+            className={`nav-link ${sidebarOpen ? '' : 'justify-center'}`}
             aria-label="Cerrar sesión"
           >
-            <span className="text-lg">🚪</span>
+            <IconLogout size={18} aria-hidden="true" />
             {sidebarOpen && <span>Cerrar sesión</span>}
           </button>
         </div>
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 min-w-0">
-        <div className="flex items-center justify-between p-4 border-b border-outline">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-text-secondary hover:text-text-primary transition-colors p-2 rounded-md"
-            aria-label={sidebarOpen ? 'Colapsar menú' : 'Expandir menú'}
-          >
-            ☰
-          </button>
-          <div className="text-sm text-text-secondary">
+      <main className="flex-1 min-w-0 flex flex-col">
+        <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-outline bg-surface">
+          <div className="flex items-center gap-2 min-w-0">
+            <IconButton
+              icon={<IconMenu size={18} aria-hidden="true" />}
+              label={sidebarOpen ? 'Colapsar menú' : 'Expandir menú'}
+              onClick={() => setSidebarOpen((v) => !v)}
+            />
+            {/* Breadcrumb */}
+            <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm">
+              <span className="text-textSecondary">Daily System</span>
+              {currentPage !== 'dashboard' && (
+                <>
+                  <span aria-hidden="true" className="text-textSecondary">/</span>
+                  <span className="font-medium text-textPrimary">{sectionTitle}</span>
+                </>
+              )}
+            </nav>
+          </div>
+          <div className="text-sm text-textSecondary truncate">
             {session?.usuario_nombre ?? 'Sesión'} · {rolLabel}
           </div>
-        </div>
-        <div className="p-4 lg:p-6">
-          {children}
-        </div>
+        </header>
+        <div className="p-4 lg:p-6 flex-1">{children}</div>
       </main>
     </div>
   );

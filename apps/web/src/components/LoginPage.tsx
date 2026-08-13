@@ -3,6 +3,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { loginWithCode } from '@/lib/auth/authClient';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/field';
+import { IconShield, IconKey } from '@/components/ui/icons';
 
 /**
  * Login Web con el contrato canonico del backend (sin PIN, sin HMAC):
@@ -47,42 +51,56 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface">
-      <div className="bg-white rounded-lg p-8 shadow-sm border border-outline" style={{ maxWidth: '400px', width: '100%' }}>
+    <div className="min-h-screen flex items-center justify-center bg-surface px-4">
+      <div className="card-elevated w-full" style={{ maxWidth: '400px' }}>
         <div className="text-center mb-6">
-          <div className="w-12 h-12 bg-tertiary text-primary rounded-md flex items-center justify-center font-bold text-xl mx-auto mb-4">
-            D
+          <div className="w-12 h-12 bg-tertiary text-primary rounded-md flex items-center justify-center mx-auto mb-4">
+            <IconShield size={22} aria-hidden="true" />
           </div>
-          <h2 id="loginTitle" className="text-xl font-bold">Panel Administrativo</h2>
-          <p className="text-sm text-text-secondary mt-2">
+          <h2 id="loginTitle" className="text-xl font-bold">
+            Panel Administrativo
+          </h2>
+          <p className="text-sm text-textSecondary mt-2">
             Ingrese el código de activación emitido por el administrador.
           </p>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label htmlFor="activationCode" className="block text-sm text-text-secondary mb-1">Código de activación</label>
-            <input
-              id="activationCode"
-              type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              className="input"
-              placeholder="Código de un solo uso"
-              aria-label="Código de activación"
-            />
+            <Label htmlFor="activationCode">Código de activación</Label>
+            <div className="relative">
+              <IconKey
+                size={15}
+                aria-hidden="true"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-textSecondary"
+              />
+              <Input
+                id="activationCode"
+                type="text"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="pl-9"
+                placeholder="Código de un solo uso"
+                aria-label="Código de activación"
+                autoComplete="one-time-code"
+              />
+            </div>
           </div>
 
-          <button
+          <Button
             id="loginBtn"
             onClick={handleLogin}
-            disabled={loading}
-            className="btn btn-primary w-full"
+            loading={loading}
+            className="w-full"
           >
             {loading ? 'Autenticando...' : 'Ingresar'}
-          </button>
+          </Button>
 
-          {error && <div id="loginError" className="text-sm text-error text-center">{error}</div>}
+          {error && (
+            <div id="loginError" className="text-sm text-error text-center">
+              {error}
+            </div>
+          )}
         </div>
       </div>
     </div>

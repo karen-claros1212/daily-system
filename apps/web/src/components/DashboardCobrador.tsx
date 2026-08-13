@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import type { Ruta, Jornada } from '@/lib/api/client';
 import { fetchRutas, fetchJornadas } from '@/lib/api/client';
+import { MetricCard } from '@/components/ui/misc';
+import { LoadingState, Flash } from '@/components/ui/button';
 
 /**
  * Superficie de campo del COBRADOR: jornada y ruta.
@@ -36,8 +38,8 @@ export function DashboardCobrador() {
     };
   }, []);
 
-  if (loading) return <div className="text-text-secondary">Cargando...</div>;
-  if (error) return <div className="text-red-600">Error: {error}</div>;
+  if (loading) return <LoadingState />;
+  if (error) return <Flash tone="error">Error: {error}</Flash>;
 
   const miRuta = rutas[0]; // el backend filtra a la ruta activa única del cobrador
   const jornadaActiva = jornadas.find((j) => j.estado === 'OPEN');
@@ -47,17 +49,12 @@ export function DashboardCobrador() {
       <h1 className="text-2xl font-bold">Mi jornada</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="metric-card">
-          <div className="metric-label">Ruta asignada</div>
-          <div className="metric-value">{miRuta?.nombre ?? 'Sin ruta activa'}</div>
-        </div>
-
-        <div className="metric-card">
-          <div className="metric-label">Jornada</div>
-          <div className={`metric-value ${jornadaActiva ? 'success' : 'warning'}`}>
-            {jornadaActiva ? 'Abierta' : 'Sin jornada abierta'}
-          </div>
-        </div>
+        <MetricCard label="Ruta asignada" value={miRuta?.nombre ?? 'Sin ruta activa'} />
+        <MetricCard
+          label="Jornada"
+          value={jornadaActiva ? 'Abierta' : 'Sin jornada abierta'}
+          tone={jornadaActiva ? 'success' : 'warning'}
+        />
       </div>
     </div>
   );
