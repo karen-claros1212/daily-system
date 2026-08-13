@@ -4,7 +4,7 @@ Returns read-only aggregated data without PII.
 Investor sees only totals, no individual debtor data.
 """
 
-from datetime import date
+from datetime import date, datetime, time, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy import case as sa_case
@@ -68,10 +68,15 @@ def get_inversionista_summary(
 
  # Portfolio = sum(credito.monto) - sum(net_payments for active credits)
     # net_payments per credito = sum(PAYMENT) - sum(REVERSAL)
+    # NOTA: la resta directa con un LEFT JOIN y SIN GROUP BY era invalida en Postgres
+    # (columna de subquery anon_2.net_amount sin agregar). Se agrega dentro de
+    # sum() para que el mismo SQL valga en SQLite y Postgres.
     result = db.execute(
         select(
-            func.sum(Credito.monto)
-            - func.coalesce(net_payment_subq.c.net_amount, 0)
+            func.sum(
+                Credito.monto
+                - func.coalesce(net_payment_subq.c.net_amount, 0)
+            )
         )
         .select_from(Credito)
         .join(
@@ -88,13 +93,20 @@ def get_inversionista_summary(
     cartera_neta = cartera_neta_raw if cartera_neta_raw is not None else 0
 
 # Today's collection = sum(PAYMENT) - sum(REVERSAL) for today
+    # SQLite-compatible range filter (strftime('%Y-%m-%d') no existe en Postgres):
+    # [inicio, inicio + 1d). SQLAlchemy pasa ambos como literales en el
+    # dialecto activo, asi el mismo servicio corre sobre SQLite (tests) y
+    # Postgres (produccion).
+    inicio = datetime.combine(today, time.min, tzinfo=timezone.utc)
+    fin = inicio + timedelta(days=1)
     result_payments = db.execute(
         select(func.coalesce(func.sum(Pago.monto), 0))
         .select_from(Pago)
         .filter(
             Pago.negocio_id == negocio_id,
             Pago.tipo == 'PAYMENT',
-            func.strftime('%Y-%m-%d', Pago.recibido_el_servidor) == today.isoformat(),
+            Pago.recibido_el_servidor >= inicio,
+            Pago.recibido_el_servidor < fin,
         )
     )
     total_payments = result_payments.scalar() or 0
@@ -105,7 +117,8 @@ def get_inversionista_summary(
         .filter(
             Pago.negocio_id == negocio_id,
             Pago.tipo == 'REVERSAL',
-            func.strftime('%Y-%m-%d', Pago.recibido_el_servidor) == today.isoformat(),
+            Pago.recibido_el_servidor >= inicio,
+            Pago.recibido_el_servidor < fin,
         )
     )
     total_reversals = result_reversals.scalar() or 0

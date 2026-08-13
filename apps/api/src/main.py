@@ -23,6 +23,7 @@ from src.routes.movimiento import router as movimiento_router
 from src.routes.negocio import router as negocio_router
 from src.routes.pago import router as pago_router
 from src.routes.ruta import router as ruta_router
+from src.time_utils import as_utc
 
 
 @asynccontextmanager
@@ -128,7 +129,7 @@ async def suscripcion_middleware(request: Request, call_next):
                 },
             )
 
-        if negocio.paid_through_at and negocio.paid_through_at < datetime.now(timezone.utc):
+        if as_utc(negocio.paid_through_at) and as_utc(negocio.paid_through_at) < datetime.now(timezone.utc):
             return JSONResponse(
                 status_code=403,
                 content={

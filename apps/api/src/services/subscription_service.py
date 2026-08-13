@@ -12,6 +12,7 @@ from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from src.models import Dispositivo, Negocio
+from src.time_utils import as_utc
 
 
 class SuscripcionError(Exception):
@@ -45,7 +46,7 @@ def check_negocio_suscripcion(db: Session, negocio_id: UUID) -> Negocio:
             "SUSCRIPCION_INACTIVA",
         )
 
-    if negocio.paid_through_at and negocio.paid_through_at < datetime.now(timezone.utc):
+    if as_utc(negocio.paid_through_at) and as_utc(negocio.paid_through_at) < datetime.now(timezone.utc):
         negocio.estado_suscripcion = "vencida"
         db.flush()
         raise SuscripcionError(

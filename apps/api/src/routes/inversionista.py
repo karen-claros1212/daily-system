@@ -15,6 +15,7 @@ from src.database import get_db
 from src.models import Negocio
 from src.schemas import InversionistaSummaryResponse, SuscripcionStatusResponse
 from src.services.inversionista_service import get_inversionista_summary
+from src.time_utils import as_utc
 
 router = APIRouter(prefix="/api/inversionista", tags=["inversionista"])
 
@@ -45,7 +46,7 @@ def obtener_resumen_inversionista(
             detail=f"Suscripcion: {negocio.estado_suscripcion}",
         )
 
-    if negocio.paid_through_at and negocio.paid_through_at < datetime.now(timezone.utc):
+    if as_utc(negocio.paid_through_at) and as_utc(negocio.paid_through_at) < datetime.now(timezone.utc):
         raise HTTPException(status_code=403, detail="Suscripcion vencida")
 
     summary = get_inversionista_summary(db, ctx.negocio_id, today)
@@ -83,6 +84,6 @@ def obtener_suscripcion(
         paid_through_at=negocio.paid_through_at,
         activa=negocio.estado_suscripcion == "al_dia" and (
             negocio.paid_through_at is None
-            or negocio.paid_through_at > datetime.now(timezone.utc)
+            or as_utc(negocio.paid_through_at) > datetime.now(timezone.utc)
         ),
     )
