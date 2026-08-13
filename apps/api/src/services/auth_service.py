@@ -52,6 +52,7 @@ from src.models import (
     Ruta,
     Usuario,
 )
+from src.rbac import ROLES
 from src.services.auth_jcs import (
     PURPOSE_ISSUE_ACCESS_TOKEN,
     build_signed_payload,
@@ -62,6 +63,11 @@ from src.services.jcs import format_rfc3339_seconds
 SESION_TTL_SECONDS = 3600
 # Vigencia del desafio: el dispositivo debe firmar dentro de esta ventana.
 DESAFIO_TTL_MINUTOS = 5
+
+# Roles admitidos a obtener/renovar access token (Etapa 2 — política explícita).
+# La fuente canónica de roles vive en src.rbac.ROLES; aquí se pincla como
+# autoridad de emisión, con default-deny para roles no reconocidos.
+ROLES_CON_SESION = ROLES
 
 CODIGO_CONSUMIDO = "CONSUMED"
 
@@ -408,18 +414,10 @@ def canjear_desafio(
             "USUARIO_DE_OTRO_NEGOCIO",
             401,
         )
-    if usuario.rol != "COBRADOR":
-        raise AuthError(
-            "Los access tokens solo se emiten para cobradores",
-            "ROL_NO_PERMITIDO",
-            401,
-        )
-
-    # H3: antes de emitir el access token, la asignacion actual del cobrador
-    # debe ser exactamente UNA ruta activa del mismo negocio. La ruta se deriva
-    # de la base (nunca del cliente ni del JWT); un cobrador sin ruta o con mas
-    # de una no puede renovar sesion.
-    exigir_ruta_activa_unica(db, usuario.id, usuario.negocio_id)
+    # Política explícita de elegibilidad por rol (Etapa 2). COBRADOR conserva
+    # la exigencia de ruta activa unica (H3); INVERSIONISTA/ADMINISTRADOR no
+    # requieren ruta. Rol desconocido -> 401 fail-closed (default-deny).
+    exigir_elegibilidad_sesion(db, usuario)
 
     token_nuevo = issue_token(
         negocio_id=dispositivo.negocio_id,
@@ -483,6 +481,31 @@ def exigir_ruta_activa_unica(
             401,
         )
     return rutas[0]
+
+
+def exigir_elegibilidad_sesion(db: Session, usuario: Usuario) -> None:
+    """Política explícita de elegibilidad a emisión/renovación de sesión (D7-H2).
+
+    Fail-closed: un rol no admitido no obtiene access token (ROL_NO_PERMITIDO).
+    - COBRADOR: conserva la regla H3 de exactamente UNA ruta activa del negocio.
+    - INVERSIONISTA / ADMINISTRADOR: no requieren ruta; basta con estar activos
+      en el negocio (ya revalidado por el llamador sobre la base).
+    - roles desconocidos/eliminados -> 401 (default-deny).
+
+    La ruta nunca se infiere del JWT ni del cliente: sale de la base. Esta
+    regla es independiente del bootstrap productivo del móvil, que sigue
+    exigiendo COBRADOR con ruta (ver bootstrap_productivo).
+    """
+    if usuario.rol not in ROLES_CON_SESION:
+        raise AuthError(
+            "Rol no admitido para emitir sesion",
+            "ROL_NO_PERMITIDO",
+            401,
+        )
+    if usuario.rol == "COBRADOR":
+        # COBRADOR: exactamente una ruta activa (0 y >1 -> 401 fail-closed).
+        exigir_ruta_activa_unica(db, usuario.id, usuario.negocio_id)
+    # INVERSIONISTA / ADMINISTRADOR: sin requisito de ruta.
 
 
 def derivar_ruta_activa(db: Session, usuario_id: UUID) -> Ruta | None:
