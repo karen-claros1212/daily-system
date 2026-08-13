@@ -4409,7 +4409,7 @@
           "activaciones"
         ],
         "summary": "Crear Codigo",
-        "description": "Genera codigo de activacion de un solo uso para un cobrador (ADMIN).",
+        "description": "Genera codigo de activacion de un solo uso para un usuario objetivo (admin).\n\nEl objetivo admite cualquier rol con sesion (Etapa 2): COBRADOR exige ruta\nactiva unica (H3); INVERSIONISTA/ADMINISTRADOR no. Se acepta `usuario_id`\n(canónico) o su alias legado `cobrador_id`; ver CodigoActivacionCreate.",
         "operationId": "crear_codigo_api_activaciones_codigos_post",
         "parameters": [
           {
@@ -5278,9 +5278,32 @@
             "format": "uuid",
             "title": "Negocio Id"
           },
-          "cobrador_id": {
+          "usuario_id": {
             "type": "string",
             "format": "uuid",
+            "title": "Usuario Id"
+          },
+          "rol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rol"
+          },
+          "cobrador_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Cobrador Id"
           },
           "credencial_bootstrap": {
@@ -5301,7 +5324,7 @@
         "required": [
           "dispositivo_id",
           "negocio_id",
-          "cobrador_id",
+          "usuario_id",
           "credencial_bootstrap",
           "expira_el"
         ],
@@ -5586,9 +5609,28 @@
       "CodigoActivacionCreate": {
         "properties": {
           "cobrador_id": {
-            "type": "string",
-            "format": "uuid",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Cobrador Id"
+          },
+          "usuario_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usuario Id"
           },
           "expira_minutos": {
             "type": "integer",
@@ -5599,9 +5641,6 @@
           }
         },
         "type": "object",
-        "required": [
-          "cobrador_id"
-        ],
         "title": "CodigoActivacionCreate"
       },
       "CodigoActivacionResponse": {

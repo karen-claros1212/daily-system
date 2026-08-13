@@ -453,9 +453,27 @@ class DispositivoResponse(BaseModel):
 
 # === Activacion (contrato de activacion, revision 4) ===
 
+
 class CodigoActivacionCreate(BaseModel):
-    cobrador_id: UUID
+    cobrador_id: UUID | None = None
+    usuario_id: UUID | None = None
     expira_minutos: int = Field(default=10, ge=1, le=1440)
+
+    @model_validator(mode="after")
+    def _resolver_objetivo(self) -> "CodigoActivacionCreate":
+        """Etapa 2: el código puede ligarse a cualquier rol con sesión.
+
+        `usuario_id` es el campo canónico; `cobrador_id` se mantiene como alias
+        legado para compatibilidad con consumidores que aún no migraron. Se
+        rechaza pasar ambos (ambigüedad de objetivo).
+        """
+        if self.usuario_id and self.cobrador_id and self.usuario_id != self.cobrador_id:
+            raise ValueError("No se pueden combinar usuario_id y cobrador_id distintos")
+        if not (self.usuario_id or self.cobrador_id):
+            raise ValueError("usuario_id (o su alias cobrador_id) es requerido")
+        if self.cobrador_id and not self.usuario_id:
+            self.usuario_id = self.cobrador_id
+        return self
 
 
 class CodigoActivacionResponse(BaseModel):
@@ -491,10 +509,25 @@ class CanjearRequest(BaseModel):
 class CanjearResponse(BaseModel):
     dispositivo_id: UUID
     negocio_id: UUID
-    cobrador_id: UUID
+    # Campos canónicos (Etapa 2): el usuario objetivo puede ser cualquier rol.
+    usuario_id: UUID
+    rol: str | None = None
+    # Legado: alias de usuario_id (se conserva para compatibilidad de consumidores
+    # que aún no migraron). Se rellena desde usuario_id en validación.
+    cobrador_id: UUID | None = None
     credencial_bootstrap: str
     expira_el: str
     idempotente: bool = False
+
+    @model_validator(mode="after")
+    def _compat_cobrador_id(self) -> "CanjearResponse":
+        """compat: si el servicio no envió usuario_id, use cobrador_id (legacy)."""
+        if self.usuario_id is None and self.cobrador_id is not None:
+            object.__setattr__(self, "usuario_id", self.cobrador_id)
+        # cobrador_id sigue como alias legado apuntando al mismo usuario objetivo.
+        if self.cobrador_id is None and self.usuario_id is not None:
+            object.__setattr__(self, "cobrador_id", self.usuario_id)
+        return self
 
 
 class DesafioAuthResponse(BaseModel):

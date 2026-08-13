@@ -38,6 +38,7 @@ from src.models import (
     Ruta,
     Usuario,
 )
+from src.rbac import ROLES
 from src.services.jcs import (
     PROTOCOL_VERSION,
     build_signed_payload,
@@ -48,6 +49,10 @@ DEFAULT_CODIGO_TTL_MINUTES = 10
 DEFAULT_INTENTO_TTL_MINUTES = 5
 DEFAULT_BOOTSTRAP_TTL_MINUTES = 5
 ALGORITMO_CLAVE = "EC_P256"
+
+# Roles admitidos a holder de un dispositivo/codigo de activacion (Etapa 2).
+# Fuente canónica: src.rbac.ROLES. Default-deny para el resto.
+ROLES_CON_SESION = ROLES
 
 CODIGO_CANCELADO = "CANCELLED"
 CODIGO_CONSUMIDO = "CONSUMED"
@@ -79,10 +84,19 @@ class DesafioResult:
 class CanjeResult:
     dispositivo_id: UUID
     negocio_id: UUID
+    # usuario_id: usuario objetivo (cualquier rol admitido). cobrador_id se
+    # conserva como alias legado para compatibilidad de consumidores.
+    usuario_id: UUID
     cobrador_id: UUID
+    rol: str
     credencial_bootstrap: str
     expira_el: str
     idempotente: bool = False
+
+
+def _rol_usuario(db: Session, usuario_id: UUID) -> str | None:
+    """Deriva el rol del usuario objetivo desde la base (canje/idempotencia)."""
+    return db.query(Usuario.rol).filter(Usuario.id == usuario_id).scalar()
 
 
 def _now() -> datetime:
@@ -178,6 +192,28 @@ def _validar_cobrador_con_ruta(db: Session, negocio_id: UUID, cobrador_id: UUID)
     return ruta
 
 
+def _validar_usuario_objetivo(db: Session, negocio_id: UUID, usuario_id: UUID) -> None:
+    """Valida el usuario objetivo del codigo (cualquier rol admitido a sesión).
+
+    Política (Etapa 2):
+    - existe, activo y pertenece al negocio del código.
+    - rol en ROLES_CON_SESION (default-deny: roles desconocidos/eliminados -> 409).
+    - COBRADOR conserva la exigencia de ruta activa única (H3).
+    - INVERSIONISTA/ADMINISTRADOR no requieren ruta (pueden poseer dispositivo).
+    """
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not usuario or usuario.rol not in ROLES_CON_SESION or usuario.activo != 1 \
+            or usuario.negocio_id != negocio_id:
+        raise ActivacionError(
+            "Usuario objetivo no valido para el negocio del codigo",
+            "USUARIO_OBJETIVO_INVALIDO",
+            409,
+        )
+    if usuario.rol == "COBRADOR":
+        # COBRADOR: conserva ruta activa unica (H3); revalida contra la base.
+        _validar_cobrador_con_ruta(db, negocio_id, usuario_id)
+
+
 def generar_codigo(
     db: Session,
     negocio_id: UUID,
@@ -185,11 +221,13 @@ def generar_codigo(
     creado_por: UUID,
     expira_minutos: int = DEFAULT_CODIGO_TTL_MINUTES,
 ) -> tuple[CodigoActivacion, str]:
-    """Genera token de alta entropia ligado a negocio+cobrador.
+    """Genera token de alta entropia ligado a negocio + usuario objetivo.
 
-    El token se devuelve UNA vez (QR/admin); el servidor guarda solo el digest.
+    El objetivo admite cualquier rol con sesión (Etapa 2): COBRADOR exige ruta
+    activa unica (H3); INVERSIONISTA/ADMINISTRADOR no. El token se devuelve
+    UNA vez (QR/admin); el servidor guarda solo el digest.
     """
-    _validar_cobrador_con_ruta(db, negocio_id, cobrador_id)
+    _validar_usuario_objetivo(db, negocio_id, cobrador_id)
 
     token = secrets.token_urlsafe(32)
     codigo = CodigoActivacion(
@@ -264,7 +302,9 @@ def desafio(
             409,
         )
 
-    _validar_cobrador_con_ruta(db, codigo.negocio_id, codigo.cobrador_id)
+    # Revalida elegibilidad del usuario objetivo (multi-rol, Etapa 2). COBRADOR
+    # conserva exigencia de ruta activa unica (H3); INV/ADM no requieren ruta.
+    _validar_usuario_objetivo(db, codigo.negocio_id, codigo.cobrador_id)
 
     nonce = secrets.token_urlsafe(32)
     intento = IntentoActivacion(
@@ -389,7 +429,9 @@ def canjear(
             return CanjeResult(
                 dispositivo_id=codigo.dispositivo_id_canjeado,
                 negocio_id=codigo.negocio_id,
+                usuario_id=codigo.cobrador_id,
                 cobrador_id=codigo.cobrador_id,
+                rol=_rol_usuario(db, codigo.cobrador_id) or "COBRADOR",
                 credencial_bootstrap=codigo.credencial_bootstrap,
                 expira_el=format_rfc3339_seconds(codigo.credencial_bootstrap_expira_el),
                 idempotente=True,
@@ -485,7 +527,9 @@ def canjear(
     return CanjeResult(
         dispositivo_id=dispositivo.id,
         negocio_id=codigo.negocio_id,
+        usuario_id=codigo.cobrador_id,
         cobrador_id=codigo.cobrador_id,
+        rol=_rol_usuario(db, codigo.cobrador_id) or "COBRADOR",
         credencial_bootstrap=bootstrap,
         expira_el=format_rfc3339_seconds(bootstrap_expira),
     )

@@ -73,7 +73,12 @@ def crear_codigo(
     db: WriteSession,
     ctx: RequestContext = Depends(get_request_context),
 ):
-    """Genera codigo de activacion de un solo uso para un cobrador (ADMIN)."""
+    """Genera codigo de activacion de un solo uso para un usuario objetivo (admin).
+
+    El objetivo admite cualquier rol con sesion (Etapa 2): COBRADOR exige ruta
+    activa unica (H3); INVERSIONISTA/ADMINISTRADOR no. Se acepta `usuario_id`
+    (canónico) o su alias legado `cobrador_id`; ver CodigoActivacionCreate.
+    """
     if not ctx.is_admin():
         raise HTTPException(
             status_code=403,
@@ -83,7 +88,7 @@ def crear_codigo(
         codigo, token = generar_codigo(
             db,
             negocio_id=ctx.negocio_id,
-            cobrador_id=data.cobrador_id,
+            cobrador_id=data.usuario_id,
             creado_por=ctx.user_id,
             expira_minutos=data.expira_minutos,
         )
