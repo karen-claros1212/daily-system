@@ -74,7 +74,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       dispositivo_id: (canje as { dispositivo_id?: string }).dispositivo_id ?? '',
       negocio_id: (canje as { negocio_id?: string }).negocio_id ?? '',
-      cobrador_id: (canje as { cobrador_id?: string }).cobrador_id ?? '',
+      // usuario_id es canónico (cualquier rol); cobrador_id se mantiene como
+      // alias legado para compatibilidad de consumidores.
+      usuario_id: (canje as { usuario_id?: string }).usuario_id ??
+        (canje as { cobrador_id?: string }).cobrador_id ?? '',
+      cobrador_id: (canje as { cobrador_id?: string }).cobrador_id ??
+        (canje as { usuario_id?: string }).usuario_id ?? '',
       expira_el: (canje as { expira_el?: string }).expira_el ?? '',
       challenge_id: (desafio as { challenge_id?: string }).challenge_id ?? '',
       nonce: (desafio as { nonce?: string }).nonce ?? '',

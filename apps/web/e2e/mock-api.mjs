@@ -115,6 +115,22 @@ function randomToken() {
   return crypto.randomBytes(32).toString('base64url');
 }
 
+// Emite un token con forma de JWT (header.payload.sig) cuyo payload lleva el
+// device_id (como el token real). El mock no valida firmas, pero el BFF
+// `/api/auth/web/desafio` extrae device_id decodificando el payload; usar este
+// formato mantiene el mock fiel a la autoridad del token real sin ser permisivo.
+function emitSessionToken(deviceId, device) {
+  const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+  const header = b64({ alg: 'ES256', typ: 'JWT' });
+  const payload = b64({
+    iss: 'daily-mock',
+    sub: device.usuario_id ?? 'u1',
+    negocio_id: device.negocio_id ?? 'n1',
+    device_id: deviceId,
+  });
+  return `${header}.${payload}.${randomToken()}`;
+}
+
 function uuid() {
   return crypto.randomUUID();
 }
@@ -370,10 +386,11 @@ const server = http.createServer(async (req, res) => {
     } catch { ok = false; }
     if (!ok) return json(res, 401, { detail: 'Firma invalida: el dispositivo no posee la clave privada del par registrado' });
     ch.consumido = true;
-    // Emite un token de sesión aleatorio POR DISPOSITIVO: el rol se deriva de la
-    // identidad del dispositivo (como el backend), nunca del token. Así COBRADOR
-    // / INVERSIONISTA / ADMINISTRADOR se separan por capabilities en /me.
-    const token = randomToken();
+    // Emite un token de sesión POR DISPOSITIVO con forma de JWT (payload lleva
+    // device_id como el token real). El rol se deriva de la identidad del
+    // dispositivo (como el backend), nunca del token: COBRADOR / INVERSIONISTA /
+    // ADMINISTRADOR se separan por capabilities en /me.
+    const token = emitSessionToken(ch.device_id, dev);
     SESIONES.set(token, {
       user_id: dev.usuario_id ?? 'u1',
       usuario_nombre: dev.rol === 'ADMINISTRADOR' ? 'Admin Mock' : (dev.rol === 'INVERSIONISTA' ? 'Inversor Test' : 'Cobrador Mock'),

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { SessionUser } from '@/lib/rbac';
 import { hasCapability } from '@/lib/rbac';
+import { SessionRenewer } from '@/lib/auth/useSessionRenewer';
 import {
   IconDashboard,
   IconRoute,
@@ -68,7 +69,7 @@ export function AppShell({ children, session = null }: AppShellProps) {
 
   // Navegación construida a partir de capabilities reales del backend
   // (ver src/rbac.py). Default-deny: sin capability, el ítem no aparece.
-  // El backend sigue siendo la autoridad: esto solo refleja la superficie.
+  // El backend conserva la autoridad: esto solo refleja la superficie.
   const navItems: NavItem[] = [
     ...(hasCapability(session, 'jornada:ver') || hasCapability(session, 'jornadas:ver')
       ? [{ id: 'dashboard', label: 'Dashboard', icon: ICONS.dashboard }]
@@ -89,6 +90,9 @@ export function AppShell({ children, session = null }: AppShellProps) {
 
   return (
     <div className="min-h-screen flex bg-bg">
+      {/* Renovación proactiva de sesión: logout + redirect al login si la cookie
+          caduca o el dispositivo se revoca/bump en el backend (Commit 5). */}
+      <SessionRenewer session={session} />
       {/* Sidebar */}
       <aside
         className={`bg-primary text-white flex flex-col transition-all duration-200 ${

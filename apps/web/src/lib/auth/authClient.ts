@@ -33,6 +33,7 @@ export interface DesafioActivacionResponse {
 export interface CanjeActivacionBFFResponse {
   dispositivo_id: string;
   negocio_id: string;
+  usuario_id: string;
   cobrador_id: string;
   negocio_nombre?: string;
   cobrador_nombre?: string;
