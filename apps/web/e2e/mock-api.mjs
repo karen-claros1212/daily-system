@@ -32,27 +32,45 @@ function bearerToken(req) {
 const desafiosActivacion = new Map();
 // challenge_id -> { nonce, expira, consumido, device_id }
 const desafiosSesion = new Map();
-// device_id -> { spki, public_key_hash }
+// device_id -> { spki, public_key_hash, rol, usuario_id, negocio_id, ruta_id }
 const dispositivos = new Map();
 // codigo -> device_id (bootstrap emitido)
 const bootstrap = new Map();
 
-// codigo de activacion valido para E2E (emitido por "el administrador")
+// códigos de activación por rol (contrato real: src/rbac.ROLES).
+//
+// Cada código está ligado a un usuario objetivo y su rol. El canje de activación
+// daily-v1 -> canje emite la credencial bootstrap del DISPOSITIVO del objetivo;
+// el rol se deriva del objetivo (como el backend en activacion_service.
+// _rol_usuario), NUNCA del cliente ni del token.
+//   - COBRADOR: exige ruta activa única (H3); la ruta viaja en el código.
+//   - INVERSIONISTA / ADMINISTRADOR: no requieren ruta (dispositivo propio).
+// El mock NO es permisivo: un código COBRADOR sin ruta -> 401 del canje, como
+// el backend (H3 fail-closed). Rol desconocido -> 409 (default-deny).
 const ACTIVATION_TOKENS = new Map([
-  ['test-activation-code', { cobrador_id: 'c1', negocio_id: 'n1' }],
-  // codigo que emite un desafio YA vencido, para probar el 410 del contrato
-  ['test-expired-code', { cobrador_id: 'c1', negocio_id: 'n1' }],
+  // COBRADOR con ruta única — usado por auth-contract.spec.ts y el flujo real.
+  ['test-activation-code', { rol: 'COBRADOR', usuario_id: 'c1', negocio_id: 'n1', ruta_id: 'r1', ruta_nombre: 'Ruta Centro' }],
+  // Códigos por rol (Commit 4: los 3 roles atraviesan el flujo real de dispositivo).
+  ['test-cobrador-code', { rol: 'COBRADOR', usuario_id: 'c1', negocio_id: 'n1', ruta_id: 'r1', ruta_nombre: 'Ruta Centro' }],
+  ['test-inversor-code', { rol: 'INVERSIONISTA', usuario_id: 'u_inv', negocio_id: 'n1', ruta_id: null, ruta_nombre: null }],
+  ['test-admin-code', { rol: 'ADMINISTRADOR', usuario_id: 'u_admin', negocio_id: 'n1', ruta_id: null, ruta_nombre: null }],
+  // Código que emite un intento YA vencido, para probar el 410 del contrato.
+  ['test-expired-code', { rol: 'COBRADOR', usuario_id: 'c1', negocio_id: 'n1', ruta_id: 'r1', ruta_nombre: 'Ruta Centro', vencido: true }],
 ]);
 
-// JWT de sesion "valido" emitido por este mock (para renovacion)
-const MOCK_JWT = 'mock-jwt-token';
-// Credencial que hace que el desafio de sesion nazca vencido (prueba 410).
-const MOCK_JWT_EXPIRED = 'mock-jwt-expired';
+// JWT de sesión pre-emitido para tests de conveniencia. El flujo real de
+// dispositivo emite tokens aleatorios por dispositivo (abajo); estos aliases
+// estables preservan los specs que inyectan el token directamente
+// (rbac-roles.spec.ts), siempre con rol derivado de la "DB" del mock.
+const MOCK_JWT = 'mock-jwt-token';            // alias COBRADOR estable
+const MOCK_JWT_EXPIRED = 'mock-jwt-expired';  // alias de desafío vencido
 
 // ─── RBAC (replica fiel de src/rbac.py) ─────────────────────────────────────
 // El mock NO es permisivo: deriva el rol del token y aplica las mismas reglas
-// que el backend. El flujo de dispositivo (daily-v1 / daily-auth-v1) SOLO
-// emite COBRADOR (canjear_desafio del backend), igual que el contrato real.
+// que el backend. El flujo de dispositivo (daily-v1 / daily-auth-v1) emite el
+// rol del usuario objetivo del código (como el backend): un código COBRADOR
+// produce una sesión COBRADOR (ruta requerida, H3); INVERSIONISTA/ADMIN un
+// dispositivo propio sin ruta. Rol desconocido -> 409 (default-deny).
 const ROL_CAPABILITIES = {
   COBRADOR: [
     'jornada:ver', 'jornada:abrir', 'jornada:cerrar',
@@ -73,18 +91,20 @@ function capabilities(rol) {
   return ROL_CAPABILITIES[rol] ?? [];
 }
 
-// "DB" del mock: token de sesion -> identidad (rol derivado, nunca del JWT).
+// "DB" del mock: token de sesión -> identidad (rol derivado, nunca del token).
+// Los aliases estables preservan los specs que inyectan el token directamente;
+// el flujo de dispositivo emite tokens aleatorios por dispositivo (abajo).
 const SESIONES = new Map([
-  ['test-token', { user_id: 'u_inv', usuario_nombre: 'Inversor Test', rol: 'INVERSIONISTA' }],
-  ['mock-custom', { user_id: 'u_inv', usuario_nombre: 'Inversor Test', rol: 'INVERSIONISTA' }],
-  ['mock-empty', { user_id: 'u_inv', usuario_nombre: 'Inversor Test', rol: 'INVERSIONISTA' }],
-  ['mock-error', { user_id: 'u_inv', usuario_nombre: 'Inversor Test', rol: 'INVERSIONISTA' }],
-  // Token emitido por el flujo de dispositivo: SIEMPRE COBRADOR (contrato real).
-  [MOCK_JWT, { user_id: 'u1', usuario_nombre: 'Cobrador Mock', rol: 'COBRADOR', route_id: 'r1', route_nombre: 'Ruta Centro' }],
-  // Token ADMINISTRADOR para evidenciar la separación RBAC por rol en E2E.
-  // Solo el backend emite tokens con rol; aquí se simula la identidad que el
-  // backend derivaría de la DB para un usuario administrador del negocio.
-  ['mock-admin', { user_id: 'u_admin', usuario_nombre: 'Admin Mock', rol: 'ADMINISTRADOR' }],
+  ['test-token', { user_id: 'u_inv', usuario_nombre: 'Inversor Test', rol: 'INVERSIONISTA', device_id: null, route_id: null, route_nombre: null }],
+  ['mock-custom', { user_id: 'u_inv', usuario_nombre: 'Inversor Test', rol: 'INVERSIONISTA', device_id: null, route_id: null, route_nombre: null, custom: true }],
+  ['mock-empty', { user_id: 'u_inv', usuario_nombre: 'Inversor Test', rol: 'INVERSIONISTA', device_id: null, route_id: null, route_nombre: null, empty: true }],
+  ['mock-error', { user_id: 'u_inv', usuario_nombre: 'Inversor Test', rol: 'INVERSIONISTA', device_id: null, route_id: null, route_nombre: null, error: true }],
+  // Alias COBRADOR estable (emitido por el flujo de dispositivo, rol COBRADOR).
+  [MOCK_JWT, { user_id: 'u1', usuario_nombre: 'Cobrador Mock', rol: 'COBRADOR', device_id: 'mock-device', route_id: 'r1', route_nombre: 'Ruta Centro' }],
+  // Alias para probar un desafío de sesión vencido (410).
+  [MOCK_JWT_EXPIRED, { user_id: 'u1', usuario_nombre: 'Cobrador Mock', rol: 'COBRADOR', device_id: 'mock-device', route_id: 'r1', route_nombre: 'Ruta Centro' }],
+  // ADMINISTRADOR: la identidad que derivaría la DB para un admin del negocio.
+  ['mock-admin', { user_id: 'u_admin', usuario_nombre: 'Admin Mock', rol: 'ADMINISTRADOR', device_id: null, route_id: null, route_nombre: null }],
 ]);
 
 function sesionDe(token) {
@@ -141,7 +161,7 @@ const server = http.createServer(async (req, res) => {
       },
       route_id: sesion.route_id ?? null,
       route_nombre: sesion.route_nombre ?? null,
-      device_id: sesion.rol === 'COBRADOR' ? 'mock-device' : null,
+      device_id: sesion.device_id ?? (sesion.rol === 'COBRADOR' ? 'mock-device' : null),
       version_asignacion: sesion.rol === 'COBRADOR' ? 1 : null,
       capabilities: capabilities(sesion.rol),
     });
@@ -190,14 +210,18 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, []);
   }
 
-  // ── activacion (publico, contrato real) ──────────────────────────────────
+   // ── activacion (publico, contrato real) ──────────────────────────────────
   if (req.method === 'POST' && path === '/api/activaciones/desafio') {
     const { token, clave_publica } = body;
     if (!token || !clave_publica) return json(res, 422, { detail: 'token y clave_publica son requeridos' });
-    if (!ACTIVATION_TOKENS.has(token)) return json(res, 404, { detail: 'Codigo de activacion invalido' });
+    const codigo = ACTIVATION_TOKENS.get(token);
+    if (!codigo) return json(res, 404, { detail: 'Codigo de activacion invalido' });
+    if (codigo.rol !== 'COBRADOR' && codigo.rol !== 'INVERSIONISTA' && codigo.rol !== 'ADMINISTRADOR') {
+      return json(res, 409, { detail: 'Rol del codigo no admitido' });
+    }
     try { parseSpki(clave_publica); } catch { return json(res, 400, { detail: 'clave_publica no es SPKI base64 valido' }); }
     const intento_id = uuid();
-    const expiraMs = ACTIVATION_TOKENS.has(token) && token === 'test-expired-code'
+    const expiraMs = codigo.vencido
       ? Date.now() - 1000
       : Date.now() + 5 * 60 * 1000;
     desafiosActivacion.set(intento_id, {
@@ -206,6 +230,14 @@ const server = http.createServer(async (req, res) => {
       expira: expiraMs,
       consumed: false,
       environment: 'development',
+      // El intento porta la identidad del objetivo (rol, usuario, ruta). El rol
+      // nunca se envia por el body publico: el servidor lo deriva del codigo,
+      // como el backend en activacion_service._validar_usuario_objetivo.
+      rol: codigo.rol,
+      usuario_id: codigo.usuario_id,
+      negocio_id: codigo.negocio_id,
+      ruta_id: codigo.ruta_id ?? null,
+      ruta_nombre: codigo.ruta_nombre ?? null,
     });
     const d = desafiosActivacion.get(intento_id);
     return json(res, 200, {
@@ -248,18 +280,35 @@ const server = http.createServer(async (req, res) => {
     if (!ok) return json(res, 401, { detail: 'Firma invalida: el dispositivo no posee la clave privada del par registrado' });
     d.consumed = true;
 
+    // COBRADOR exige ruta activa única (H3), como el backend. INV/ADMIN no.
+    if (d.rol === 'COBRADOR' && !d.ruta_id) {
+      return json(res, 401, { detail: 'El cobrador no tiene una ruta activa asignada' });
+    }
+
     const device_id = uuid();
     const credencial = randomToken();
     const body_respuesta = {
       dispositivo_id: device_id,
-      negocio_id: 'n1',
-      cobrador_id: 'c1',
+      negocio_id: d.negocio_id,
+      usuario_id: d.usuario_id,
+      cobrador_id: d.usuario_id,
+      rol: d.rol,
+      ruta_id: d.ruta_id ?? null,
+      ruta_nombre: d.ruta_nombre ?? null,
       credencial_bootstrap: credencial,
       expira_el: rfc3339(Date.now() + 5 * 60 * 1000),
       idempotente: false,
     };
     d.resultado = { body: body_respuesta, expira_ms: Date.now() + 5 * 60 * 1000 };
-    dispositivos.set(device_id, { spki: d.spki, public_key_hash: hash });
+    dispositivos.set(device_id, {
+      spki: d.spki,
+      public_key_hash: hash,
+      rol: d.rol,
+      usuario_id: d.usuario_id,
+      negocio_id: d.negocio_id,
+      ruta_id: d.ruta_id ?? null,
+      ruta_nombre: d.ruta_nombre ?? null,
+    });
     bootstrap.set(credencial, device_id);
     return json(res, 200, body_respuesta);
   }
@@ -268,14 +317,20 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && path === '/api/auth/device/desafio') {
     const credencial = bearerToken(req);
     if (!credencial) return json(res, 401, { detail: 'Credencial de sesion (Bearer JWT o bootstrap) requerida' });
-    // Acepta JWT mock (renovacion) o un bootstrap emitido por este mock.
+    // Resuelve el dispositivo: JWT de sesión vigente (renovación) o credencial
+    // bootstrap emitida en el canje de activación (primer JWT post-activación).
     let device_id;
-    if (credencial === MOCK_JWT || credencial === MOCK_JWT_EXPIRED) {
-      device_id = 'mock-device';
-      if (!dispositivos.has(device_id)) dispositivos.set(device_id, { spki: null, public_key_hash: 'mock'.padEnd(64, '0') });
+    const sesion = sesionDe(credencial);
+    if (sesion) {
+      device_id = sesion.device_id;
     } else {
       device_id = bootstrap.get(credencial);
-      if (!device_id) return json(res, 401, { detail: 'Credencial de sesion invalida' });
+    }
+    if (device_id === undefined || (device_id === null && !sesion)) {
+      return json(res, 401, { detail: 'Credencial de sesion invalida' });
+    }
+    if (device_id === 'mock-device' && !dispositivos.has(device_id)) {
+      dispositivos.set(device_id, { spki: null, public_key_hash: 'mock'.padEnd(64, '0'), rol: 'COBRADOR', usuario_id: 'u1', negocio_id: 'n1', ruta_id: 'r1', ruta_nombre: 'Ruta Centro' });
     }
     const challenge_id = uuid();
     const expiraMs = credencial === MOCK_JWT_EXPIRED
@@ -315,10 +370,22 @@ const server = http.createServer(async (req, res) => {
     } catch { ok = false; }
     if (!ok) return json(res, 401, { detail: 'Firma invalida: el dispositivo no posee la clave privada del par registrado' });
     ch.consumido = true;
+    // Emite un token de sesión aleatorio POR DISPOSITIVO: el rol se deriva de la
+    // identidad del dispositivo (como el backend), nunca del token. Así COBRADOR
+    // / INVERSIONISTA / ADMINISTRADOR se separan por capabilities en /me.
+    const token = randomToken();
+    SESIONES.set(token, {
+      user_id: dev.usuario_id ?? 'u1',
+      usuario_nombre: dev.rol === 'ADMINISTRADOR' ? 'Admin Mock' : (dev.rol === 'INVERSIONISTA' ? 'Inversor Test' : 'Cobrador Mock'),
+      rol: dev.rol ?? 'COBRADOR',
+      device_id: ch.device_id,
+      route_id: dev.ruta_id ?? null,
+      route_nombre: dev.ruta_nombre ?? null,
+    });
     return json(res, 200, {
-      token: MOCK_JWT,
-      negocio_id: 'n1',
-      usuario_id: 'u1',
+      token,
+      negocio_id: dev.negocio_id ?? 'n1',
+      usuario_id: dev.usuario_id ?? 'u1',
       dispositivo_id: ch.device_id,
       version_asignacion: 1,
       expira_el: rfc3339(Date.now() + 24 * 60 * 60 * 1000),
