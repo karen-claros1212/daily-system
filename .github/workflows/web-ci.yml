@@ -1,0 +1,209 @@
+name: Web CI
+
+on:
+  push:
+    branches: [master, hardening/**]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: web-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Gate E2E del web (independiente del gate Flutter de ui-gate.yml):
+#   falsable de punta a punta, sin continue-on-error ni "|| true". Cada job usa
+#   sus propios puertos (ninguno compartido) y versiones fijadas por SHA.
+
+jobs:
+  web-static:
+    name: OpenAPI drift + lint + typecheck + build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v6.5.0
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install backend deps (for OpenAPI export)
+        working-directory: apps/api
+        run: pip install -r requirements.txt
+
+      - name: OpenAPI drift check (backend -> openapi.json)
+        working-directory: apps/api
+        run: |
+          python scripts/export_openapi.py
+          git diff --exit-code -- openapi.json
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install web deps (reproducible)
+        working-directory: apps/web
+        run: npm ci
+
+      - name: OpenAPI client drift (ts client <-> openapi.json)
+        working-directory: apps/web
+        run: npm run api:check
+
+      - name: Lint
+        working-directory: apps/web
+        run: npm run lint
+
+      - name: Typecheck
+        working-directory: apps/web
+        run: npm run typecheck
+
+      - name: Production build
+        working-directory: apps/web
+        run: npm run build
+
+  web-e2e-mock:
+    name: E2E mock (RBAC por rol + contrato) en :8100
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install web deps (reproducible)
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Typecheck (pre-Gate)
+        working-directory: apps/web
+        run: npm run typecheck
+
+      # La config arranca el mock en :8100 (puerto dedicado; :8000 lo comparte
+      # un servicio del sistema) y el dev server en :3000. Sin puertos compartidos.
+      - name: E2E mock + RBAC por rol
+        working-directory: apps/web
+        run: npx playwright test
+
+  web-real-integration:
+    name: E2E real (FastAPI + Postgres) en :8001
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: daily_web_e2e_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready -U postgres
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install postgresql client (psql for deterministic test fixtures)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v6.5.0
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install backend deps
+        working-directory: apps/api
+        run: pip install -r requirements.txt
+
+      - name: Alembic upgrade head
+        working-directory: apps/api
+        env:
+          API_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/daily_web_e2e_test
+        run: |
+          alembic upgrade head
+          alembic current
+
+      - name: Generate ephemeral ES256 test keys (no secretos reales en CI)
+        run: |
+          openssl ecparam -name prime256v1 -genkey -noout -out /tmp/jwt_priv.pem
+          openssl ec -in /tmp/jwt_priv.pem -pubout -out /tmp/jwt_pub.pem
+          printf 'export API_DATABASE_URL=%s\n' "postgresql://postgres:postgres@127.0.0.1:5432/daily_web_e2e_test" > /tmp/be.env
+          printf 'export DAILY_ENV=%s\n' "test" >> /tmp/be.env
+          printf 'export AUTH_JWT_PRIVATE_KEY="%s"\n' "$(cat /tmp/jwt_priv.pem)" >> /tmp/be.env
+          printf 'export AUTH_JWT_PUBLIC_KEY="%s"\n' "$(cat /tmp/jwt_pub.pem)" >> /tmp/be.env
+
+      - name: Seed reproducible (negocio + 3 roles + ruta + codigo + JWTs reales)
+        working-directory: apps/api
+        env:
+          API_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/daily_web_e2e_test
+          DAILY_ENV: test
+        run: |
+          source /tmp/be.env
+          python scripts/seed_web_integration.py /tmp/seed_out.json
+
+      - name: Start FastAPI real on :8001 (health check antes de tests)
+        working-directory: apps/api
+        run: |
+          setsid bash -c 'source /tmp/be.env; exec uvicorn src.main:app --host 127.0.0.1 --port 8001 --log-level warning' > /tmp/backend.log 2>&1 &
+          echo $! > /tmp/backend.pid
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8001/api/health >/dev/null 2>&1; then
+              echo "backend healthy"
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8001/api/health
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install web deps (reproducible)
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      # Integración Web ↔ FastAPI real: el dev server en :3000 apunta al
+      # backend real (:8001); los specs real-*.spec.ts no usan mock-api.mjs.
+      # Cubre contrato real (real-contract), flujo completo (real-integration)
+      # y la matriz RBAC por rol (real-rbac: JWT minted por servidor para
+      # INVERSIONISTA/ADMINISTRADOR + flujo real de dispositivo del COBRADOR).
+      - name: E2E integración real (contrato + flujo completo + matriz RBAC)
+        working-directory: apps/web
+        env:
+          REAL_API_BASE: http://127.0.0.1:8001
+          REAL_DB_URL: postgresql://postgres:postgres@127.0.0.1:5432/daily_web_e2e_test
+          API_BASE: http://127.0.0.1:8001
+          DAILY_ENV: test
+        run: npx playwright test -c playwright.real.config.ts
+
+      - name: Teardown (backend real)
+        if: always()
+        run: |
+          if [ -f /tmp/backend.pid ]; then kill -9 "$(cat /tmp/backend.pid)" 2>/dev/null; fi
+          rm -f /tmp/backend.pid /tmp/backend.log /tmp/be.env /tmp/seed_out.json /tmp/jwt_priv.pem /tmp/jwt_pub.pem

@@ -1,0 +1,10 @@
+# Next.js runtime
+.next/
+
+# Playwright artifacts
+test-results/
+playwright-report/
+blob-report/
+
+# TypeScript build info
+tsconfig.tsbuildinfo

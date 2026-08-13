@@ -13,6 +13,7 @@ from src.routes.activacion import (
     mobile_router,
 )
 from src.routes.activacion import router as activacion_router
+from src.routes.auth import router as auth_router
 from src.routes.cliente import router as cliente_router
 from src.routes.credito import router as credito_router
 from src.routes.dispositivo import router as dispositivo_router
@@ -165,6 +166,7 @@ app.include_router(dispositivo_router)
 app.include_router(activacion_router)
 app.include_router(mobile_router)
 app.include_router(device_router)
+app.include_router(auth_router)
 app.include_router(inversionista_router)
 
 

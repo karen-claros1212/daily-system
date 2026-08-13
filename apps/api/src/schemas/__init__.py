@@ -533,6 +533,31 @@ class BootstrapResponse(BaseModel):
     rol: str
 
 
+# === Identity canonica — GET /api/auth/me ===
+
+class NegocioInfo(BaseModel):
+    negocio_id: UUID
+    nombre: str
+    plan: str
+    moneda: str
+    zona_horaria: str
+    estado_suscripcion: str
+    suscripcion_activa: bool
+
+
+class MeResponse(BaseModel):
+    user_id: UUID
+    usuario_nombre: str
+    rol: str
+    activo: bool
+    negocio: NegocioInfo
+    route_id: UUID | None = None
+    route_nombre: str | None = None
+    device_id: UUID | None = None
+    version_asignacion: int | None = None
+    capabilities: list[str] = Field(default_factory=list)
+
+
 # === Suscripcion ===
 
 class SuscripcionStatusResponse(BaseModel):
