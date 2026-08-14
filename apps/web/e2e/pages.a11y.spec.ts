@@ -52,6 +52,19 @@ test.describe('A11y', () => {
     expect(results.violations).toEqual([]);
   });
 
+  test('suscripcion a11y scan', async ({ page }) => {
+    await page.route('**/api/inversionista/suscripcion', async (route) => {
+      await route.fulfill({
+        status: 200,
+        json: { negocio_id: 'n1', estado_suscripcion: 'al_dia', plan: 'basic', paid_through_at: '2099-01-01T00:00:00Z', activa: true },
+      });
+    });
+    await setSessionToken(page);
+    await page.goto('/suscripcion');
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
   test('keyboard navigation on sidebar', async ({ page }) => {
     await setSessionToken(page);
     await page.goto('/dashboard');

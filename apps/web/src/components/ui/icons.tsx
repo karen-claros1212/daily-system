@@ -174,3 +174,15 @@ export function IconShield(p: IconProps) {
     </svg>
   );
 }
+
+export function IconSuscripcion(p: IconProps) {
+  return (
+    <svg {...BASE} width={p.size ?? 18} height={p.size ?? 18} className={p.className}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 9h18" />
+      <path d="M7 6.5h.01" />
+      <path d="M10 6.5h.01" />
+      <path d="M9.5 14.5l2 2 3.5-3.5" />
+    </svg>
+  );
+}

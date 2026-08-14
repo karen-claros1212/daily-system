@@ -181,6 +181,11 @@ test.describe.serial('Matriz RBAC real (contrato FastAPI :8001)', () => {
     } catch {
       // 403 real sin redirect; si es JSON, detalle explícito.
     }
+
+    const sub = await fetch(`${API}/api/inversionista/suscripcion`, {
+      headers: { Authorization: `Bearer ${jwtCobrador}` },
+    });
+    expect(sub.status, 'COBRADOR NUNCA ve suscripcion (Etapa 3)').toBe(403);
   });
 
   test('INVERSIONISTA (JWT minted por servidor): /me 200, resumen 200, abrir jornada 403', async () => {
@@ -212,7 +217,28 @@ test.describe.serial('Matriz RBAC real (contrato FastAPI :8001)', () => {
     expect(abrir.status).toBe(403);
   });
 
-  test('ADMINISTRADOR (JWT minted por servidor): /me 200, resumen 200', async () => {
+  test('INVERSIONISTA: GET /api/inversionista/suscripcion -> 200 con contrato real', async () => {
+    const res = await fetch(`${API}/api/inversionista/suscripcion`, {
+      headers: { Authorization: `Bearer ${seed.tokens.inversionista}` },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      negocio_id: string;
+      estado_suscripcion: string;
+      plan: string;
+      paid_through_at: string | null;
+      activa: boolean;
+    };
+    // Contrato SuscripcionStatusResponse: campos exactos, sin inventos.
+    expect(body.negocio_id).toBeTruthy();
+    expect(['al_dia', 'vencida']).toContain(body.estado_suscripcion);
+    expect(typeof body.plan).toBe('string');
+    expect(typeof body.activa).toBe('boolean');
+    // activa debe ser consistente con el estado (al_dia + pago vigente).
+    expect(body.activa).toBe(true);
+  });
+
+  test('ADMINISTRADOR (JWT minted por servidor): /me 200, resumen 200, suscripcion 200', async () => {
     const m = await me(seed.tokens.administrador);
     expect(m.status).toBe(200);
     const body = m.body as MeBody;
@@ -224,5 +250,10 @@ test.describe.serial('Matriz RBAC real (contrato FastAPI :8001)', () => {
       headers: { Authorization: `Bearer ${seed.tokens.administrador}` },
     });
     expect(res.status).toBe(200);
+
+    const sub = await fetch(`${API}/api/inversionista/suscripcion`, {
+      headers: { Authorization: `Bearer ${seed.tokens.administrador}` },
+    });
+    expect(sub.status).toBe(200);
   });
 });

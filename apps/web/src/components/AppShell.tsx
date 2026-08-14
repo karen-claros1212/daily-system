@@ -10,6 +10,7 @@ import {
   IconRoute,
   IconCaja,
   IconReportes,
+  IconSuscripcion,
   IconLogout,
   IconMenu,
   IconShield,
@@ -33,6 +34,7 @@ const ICONS: Record<string, React.ReactNode> = {
   routes: <IconRoute size={18} aria-hidden="true" />,
   caja: <IconCaja size={18} aria-hidden="true" />,
   reportes: <IconReportes size={18} aria-hidden="true" />,
+  suscripcion: <IconSuscripcion size={18} aria-hidden="true" />,
 };
 
 // Títulos humanos por ruta para breadcrumbs (label se mantiene por capabilities).
@@ -41,6 +43,7 @@ const TITLES: Record<string, string> = {
   routes: 'Rutas',
   caja: 'Caja',
   reportes: 'Reportes',
+  suscripcion: 'Suscripción',
 };
 
 export function AppShell({ children, session = null }: AppShellProps) {
@@ -82,6 +85,9 @@ export function AppShell({ children, session = null }: AppShellProps) {
       : []),
     ...(hasCapability(session, 'inversionista:resumen')
       ? [{ id: 'reportes', label: 'Reportes', icon: ICONS.reportes }]
+      : []),
+    ...(hasCapability(session, 'inversionista:suscripcion')
+      ? [{ id: 'suscripcion', label: 'Suscripción', icon: ICONS.suscripcion }]
       : []),
   ];
 

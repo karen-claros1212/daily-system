@@ -3,6 +3,7 @@ import type { components } from './generated';
 export type Ruta = components['schemas']['RutaResponse'];
 export type Jornada = components['schemas']['JornadaResponse'];
 export type InversionistaSummary = components['schemas']['InversionistaSummaryResponse'];
+export type Suscripcion = components['schemas']['SuscripcionStatusResponse'];
 
 export type DesafioAuth = components['schemas']['DesafioAuthResponse'];
 export type CanjearDesafio = components['schemas']['CanjearDesafioResponse'];
@@ -10,10 +11,22 @@ export type CanjearDesafio = components['schemas']['CanjearDesafioResponse'];
 export const API_BASE =
   process.env.API_BASE || 'http://localhost:8000';
 
+/** Error tipado de API: preserva el status HTTP para que la UI distinga
+ *  401 (sesión inexistente) de 403 (sesión válida sin permiso) de 5xx
+ *  (error transitorio recuperable). */
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 async function parseJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`API error ${res.status}: ${body}`);
+    throw new ApiError(res.status, `API error ${res.status}: ${body}`);
   }
   return res.json() as Promise<T>;
 }
@@ -37,5 +50,12 @@ export function fetchRuta(id: string): Promise<Ruta> {
 export function fetchResumen(): Promise<InversionistaSummary> {
   return fetch('/api/inversionista/resumen', { cache: 'no-store' }).then((r) =>
     parseJson<InversionistaSummary>(r),
+  );
+}
+
+/** GET /api/inversionista/suscripcion via BFF. */
+export function fetchSuscripcion(): Promise<Suscripcion> {
+  return fetch('/api/inversionista/suscripcion', { cache: 'no-store' }).then((r) =>
+    parseJson<Suscripcion>(r),
   );
 }

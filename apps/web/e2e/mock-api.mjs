@@ -99,6 +99,10 @@ const SESIONES = new Map([
   ['mock-custom', { user_id: 'u_inv', usuario_nombre: 'Inversor Test', rol: 'INVERSIONISTA', device_id: null, route_id: null, route_nombre: null, custom: true }],
   ['mock-empty', { user_id: 'u_inv', usuario_nombre: 'Inversor Test', rol: 'INVERSIONISTA', device_id: null, route_id: null, route_nombre: null, empty: true }],
   ['mock-error', { user_id: 'u_inv', usuario_nombre: 'Inversor Test', rol: 'INVERSIONISTA', device_id: null, route_id: null, route_nombre: null, error: true }],
+  // Variantes de estado de suscripción (Etapa 3): fieles al contrato real
+  // (SuscripcionStatusResponse). El rol nunca cambia; solo el negocio.
+  ['mock-vencida', { user_id: 'u_inv', usuario_nombre: 'Inversor Test', rol: 'INVERSIONISTA', device_id: null, route_id: null, route_nombre: null, vencida: true }],
+  ['mock-sin-suscripcion', { user_id: 'u_inv', usuario_nombre: 'Inversor Test', rol: 'INVERSIONISTA', device_id: null, route_id: null, route_nombre: null, sinSuscripcion: true }],
   // Alias COBRADOR estable (emitido por el flujo de dispositivo, rol COBRADOR).
   [MOCK_JWT, { user_id: 'u1', usuario_nombre: 'Cobrador Mock', rol: 'COBRADOR', device_id: 'mock-device', route_id: 'r1', route_nombre: 'Ruta Centro' }],
   // Alias para probar un desafío de sesión vencido (410).
@@ -196,6 +200,47 @@ const server = http.createServer(async (req, res) => {
     if (token === 'mock-error') return json(res, 500, { detail: 'Mock internal error' });
     if (token === 'mock-custom') return json(res, 200, { portfolio: { rutas_activas: 5, cobradores_activos: 2, total_creditos_activos: 50, cartera_neta: 10000000, recaudo_hoy: 800000, jornada_cerrada_hoy: true }, negocio_nombre: 'Test Negocio', plan: 'basic', moneda: 'COP' });
     return json(res, 200, { portfolio: { rutas_activas: 3, cobradores_activos: 2, total_creditos_activos: 50, cartera_neta: 5000000, recaudo_hoy: 800000, jornada_cerrada_hoy: true }, negocio_nombre: 'Test Negocio', plan: 'basic', moneda: 'COP' });
+  }
+
+  // ── GET /api/inversionista/suscripcion (Etapa 3, contrato real) ───────────
+  // Replica SuscripcionStatusResponse y las reglas de inversionista.py:
+  //   - solo INVERSIONISTA | ADMINISTRADOR (403 fail-closed para COBRADOR)
+  //   - 200 { negocio_id, estado_suscripcion, plan, paid_through_at, activa }
+  //   - activa = estado_suscripcion == 'al_dia' && (paid_through_at null o futuro)
+  // El estado se deriva del negocio del mock, NUNCA del token/cliente.
+  if (req.method === 'GET' && path === '/api/inversionista/suscripcion') {
+    const token = bearerToken(req);
+    const sesion = sesionDe(token);
+    if (!sesion) return json(res, 401, { detail: 'Unauthorized' });
+    if (!capabilities(sesion.rol).includes('inversionista:suscripcion')) {
+      return json(res, 403, { detail: 'Forbidden: el rol no puede ver la suscripcion' });
+    }
+    if (token === 'mock-error') return json(res, 500, { detail: 'Mock internal error' });
+    if (sesion.vencida) {
+      return json(res, 200, {
+        negocio_id: 'n1',
+        estado_suscripcion: 'vencida',
+        plan: 'basic',
+        paid_through_at: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+        activa: false,
+      });
+    }
+    if (sesion.sinSuscripcion) {
+      return json(res, 200, {
+        negocio_id: 'n1',
+        estado_suscripcion: 'sin_suscripcion',
+        plan: 'basic',
+        paid_through_at: null,
+        activa: false,
+      });
+    }
+    return json(res, 200, {
+      negocio_id: 'n1',
+      estado_suscripcion: 'al_dia',
+      plan: 'basic',
+      paid_through_at: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
+      activa: true,
+    });
   }
   if (req.method === 'GET' && path === '/api/rutas') {
     const sesion = sesionDe(bearerToken(req));
