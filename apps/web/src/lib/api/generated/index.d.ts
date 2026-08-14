@@ -526,7 +526,11 @@ export interface paths {
         put?: never;
         /**
          * Crear Codigo
-         * @description Genera codigo de activacion de un solo uso para un cobrador (ADMIN).
+         * @description Genera codigo de activacion de un solo uso para un usuario objetivo (admin).
+         *
+         *     El objetivo admite cualquier rol con sesion (Etapa 2): COBRADOR exige ruta
+         *     activa unica (H3); INVERSIONISTA/ADMINISTRADOR no. Se acepta `usuario_id`
+         *     (canónico) o su alias legado `cobrador_id`; ver CodigoActivacionCreate.
          */
         post: operations["crear_codigo_api_activaciones_codigos_post"];
         delete?: never;
@@ -891,10 +895,14 @@ export interface components {
              */
             negocio_id: string;
             /**
-             * Cobrador Id
+             * Usuario Id
              * Format: uuid
              */
-            cobrador_id: string;
+            usuario_id: string;
+            /** Rol */
+            rol?: string | null;
+            /** Cobrador Id */
+            cobrador_id?: string | null;
             /** Credencial Bootstrap */
             credencial_bootstrap: string;
             /** Expira El */
@@ -996,11 +1004,10 @@ export interface components {
         };
         /** CodigoActivacionCreate */
         CodigoActivacionCreate: {
-            /**
-             * Cobrador Id
-             * Format: uuid
-             */
-            cobrador_id: string;
+            /** Cobrador Id */
+            cobrador_id?: string | null;
+            /** Usuario Id */
+            usuario_id?: string | null;
             /**
              * Expira Minutos
              * @default 10
