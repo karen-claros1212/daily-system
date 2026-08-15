@@ -147,11 +147,15 @@ function publicKeyHash(spkiBase64) {
   return crypto.createHash('sha256').update(Buffer.from(spkiBase64, 'base64')).digest('hex');
 }
 
-// ─── dispositivos administrativos (Etapa 3, contrato DispositivoResponse) ──
+// ─── dispositivos administrativos (Etapa 3, contrato DispositivoAdminResponse) ──
 // Replica el estado que el backend conserva por negocio: estado ACTIVE /
 // REVOKED / REPLACED, activo 0/1, fechas y modelo/plataforma. Los IDs son
-// UUIDs estables por negocio (como el contrato); NUNCA se exponen secretos
-// (public_key_hash se deja null en la vista, igual que no se muestra en la UI).
+// UUIDs estables por negocio (como el contrato).
+//
+// El store interno conserva TODOS los campos del modelo, pero la superficie
+// (GET list y las acciones) devuelve SOLO el DTO admin minimizado: jamás se
+// exponen huella, public_key_hash, algoritmo_clave, negocio_id ni autorizado_por
+// (RBAC review — el mock replica el DTO del backend, no es mas permisivo).
 //
 // El store es mutable (revocar/reactivar/reemplazar lo modifican) y se
 // re-siembra desde el fixture en cada GET, de modo que cada test E2E
@@ -219,7 +223,25 @@ function seedDispositivosAdmin() {
 const dispositivosAdmin = new Map();
 
 function listaDispositivos() {
-  return Array.from(dispositivosAdmin.values());
+  return Array.from(dispositivosAdmin.values()).map(toAdminDTO);
+}
+
+/** DTO administrativo minimizado: la superficie web jamas recibe secretos
+ *  (huella, public_key_hash, algoritmo_clave) ni tenancy interno (negocio_id,
+ *  autorizado_por). Espeja DispositivoAdminResponse del backend. */
+function toAdminDTO(dev) {
+  return {
+    id: dev.id,
+    usuario_id: dev.usuario_id,
+    estado: dev.estado,
+    modelo: dev.modelo,
+    plataforma: dev.plataforma,
+    autorizado_el: dev.autorizado_el,
+    revocado_el: dev.revocado_el,
+    ultima_validacion_servidor: dev.ultima_validacion_servidor,
+    activo: dev.activo,
+    creado_el: dev.creado_el,
+  };
 }
 
 function nuevoDispositivo(data) {
@@ -345,17 +367,20 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── GET /api/dispositivos (Etapa 3, contrato real) ─────────────────────────
-  // Replica DispositivoResponse[] y las reglas de dispositivo.py:
-  //   - cualquier sesion valida lista (scoped al negocio del ctx)
+  // Replica DispositivoAdminResponse[] y las reglas de dispositivo.py:
+  //   - listar es SOLO ADMINISTRADOR (capability `dispositivos:registrar`);
+  //     COBRADOR / INVERSIONISTA -> 403 fail-closed (RBAC review)
   //   - 401 sin sesion; el detalle de estado/campos sale de la "DB" del mock
-  // La web ADMINISTRADORA es solo para rol con `dispositivos:registrar`, pero
-  // el backend lista para cualquier rol con sesion; el mock refleja lo mismo.
+  //   - el DTO devuelto es el admin minimizado (nunca secretos)
   if (req.method === 'GET' && path === '/api/dispositivos') {
     const token = bearerToken(req);
     const sesion = sesionDe(token);
     if (!sesion) return json(res, 401, { detail: 'Unauthorized' });
     if (sesion.dispositivos401) return json(res, 401, { detail: 'Credencial de sesion (Bearer JWT) requerida' });
     if (sesion.error) return json(res, 500, { detail: 'Mock internal error' });
+    if (!capabilities(sesion.rol).includes('dispositivos:registrar')) {
+      return json(res, 403, { detail: 'Solo ADMINISTRADOR puede listar dispositivos' });
+    }
     if (sesion.sinDispositivos) return json(res, 200, []);
     seedDispositivosAdmin();
     return json(res, 200, listaDispositivos());
@@ -383,7 +408,7 @@ const server = http.createServer(async (req, res) => {
     dev.estado = 'REVOKED';
     dev.activo = 0;
     dev.revocado_el = new Date().toISOString();
-    return json(res, 200, dev);
+    return json(res, 200, toAdminDTO(dev));
   }
 
   const reactivarMatch = path.match(/^\/api\/dispositivos\/([^/]+)\/reactivar$/);
@@ -395,11 +420,17 @@ const server = http.createServer(async (req, res) => {
     }
     const dev = dispositivosAdmin.get(reactivarMatch[1]);
     if (!dev || dev.estado !== 'REVOKED') return json(res, 404, { detail: 'Dispositivo no encontrado o ya activo' });
+    // Invariante: un cobrador solo tiene UN ACTIVE (409, igual que el backend);
+    // el camino canonico para renovar su dispositivo es Reemplazar.
+    const otroActivo = Array.from(dispositivosAdmin.values()).some(
+      (o) => o.id !== dev.id && o.usuario_id && o.usuario_id === dev.usuario_id && o.estado === 'ACTIVE',
+    );
+    if (otroActivo) return json(res, 409, { detail: 'El cobrador ya tiene un dispositivo ACTIVE; revoque o reemplace antes' });
     dev.estado = 'ACTIVE';
     dev.activo = 1;
     dev.revocado_el = null;
     dev.autorizado_el = new Date().toISOString();
-    return json(res, 200, dev);
+    return json(res, 200, toAdminDTO(dev));
   }
 
   const reemplazarMatch = path.match(/^\/api\/dispositivos\/([^/]+)\/reemplazar$/);
@@ -416,7 +447,7 @@ const server = http.createServer(async (req, res) => {
     dev.estado = 'REPLACED';
     dev.activo = 0;
     return json(res, 200, {
-      dispositivo: dev,
+      dispositivo: toAdminDTO(dev),
       nuevo_codigo: {
         codigo_id: uuid(),
         token: randomToken(),

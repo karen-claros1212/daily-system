@@ -6,7 +6,6 @@ import {
   revocarDispositivo,
   reactivarDispositivo,
   reemplazarDispositivo,
-  generarCodigoActivacion,
   ApiError,
   type Dispositivo,
   type CodigoActivacion,
@@ -42,9 +41,15 @@ const ESTADO_LABEL: Record<string, { label: string; tone: 'success' | 'danger' |
  * EL BACKEND ES LA AUTORIDAD: esta página solo representa y opera lo que
  * entrega GET /api/dispositivos (`estado`, `activo`, `modelo`, `plataforma`,
  * fechas) y consume las operaciones productivas que ya existen (revocar,
- * reactivar, reemplazar, generar código). No expone secretos: jamás muestra
- * huella, public_key_hash, claves ni IDs técnicos completos. Los códigos de
+ * reactivar, reemplazar). No expone secretos: jamás muestra huella,
+ * public_key_hash, claves ni IDs técnicos completos. Los códigos de
  * activación los genera el backend y se muestran tal cual los devuelve.
+ *
+ * Un dispositivo ACTIVE NO ofrece "generar código": canjear un código nuevo
+ * para un cobrador que ya tiene su celular activo choca con el backend (409,
+ * una invariante de UN dispositivo ACTIVE por cobrador). El camino canónico
+ * para renovar su dispositivo es Reemplazar (marca el viejo REPLACED y emite
+ * un código nuevo).
  *
  * Estados: loading/skeleton · lista · vacío · 401 · 403 (SIN redirect
  * silencioso) · error transitorio recuperable con reintento.
@@ -56,7 +61,7 @@ export function Dispositivos() {
   const [flash, setFlash] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [codigo, setCodigo] = useState<{ deviceId: string; codigo: CodigoActivacion; tipo: 'reemplazo' | 'activacion' } | null>(null);
+  const [codigo, setCodigo] = useState<{ deviceId: string; codigo: CodigoActivacion } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -116,7 +121,7 @@ export function Dispositivos() {
         prev ? prev.map((x) => (x.id === d.id ? { ...x, ...res.dispositivo } : x)) : prev,
       );
       setConfirmId(null);
-      setCodigo({ deviceId: d.id, codigo: res.nuevo_codigo, tipo: 'reemplazo' });
+      setCodigo({ deviceId: d.id, codigo: res.nuevo_codigo });
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 0;
       setFlash({
@@ -124,26 +129,6 @@ export function Dispositivos() {
         text: status === 403
           ? 'No tienes permisos para ejecutar esta operación.'
           : 'No se pudo reemplazar el dispositivo. Verifica que tenga cobrador asignado.',
-      });
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const handleGenerarCodigo = async (d: Dispositivo) => {
-    if (!d.usuario_id) return;
-    setBusyId(d.id);
-    setFlash(null);
-    try {
-      const codigoNuevo = await generarCodigoActivacion(d.usuario_id);
-      setCodigo({ deviceId: d.id, codigo: codigoNuevo, tipo: 'activacion' });
-    } catch (e) {
-      const status = e instanceof ApiError ? e.status : 0;
-      setFlash({
-        tone: 'error',
-        text: status === 403
-          ? 'No tienes permisos para generar códigos de activación.'
-          : 'No se pudo generar el código de activación.',
       });
     } finally {
       setBusyId(null);
@@ -207,9 +192,7 @@ export function Dispositivos() {
         <Card padding="lg" elevated className="space-y-3">
           <div className="flex items-center gap-2">
             <IconKey size={18} aria-hidden="true" className="text-primary" />
-            <h2 className="font-semibold">
-              {codigo.tipo === 'reemplazo' ? 'Nuevo código de activación' : 'Código de activación'}
-            </h2>
+            <h2 className="font-semibold">Nuevo código de activación</h2>
           </div>
           <p className="text-sm text-textSecondary">
             Pásale este código al cobrador para activar su dispositivo. Es de un solo uso y expira.
@@ -260,17 +243,6 @@ export function Dispositivos() {
                       )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      {esActivo && cobrador && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={busyId === d.id}
-                          loading={busyId === d.id}
-                          onClick={() => handleGenerarCodigo(d)}
-                        >
-                          Generar código
-                        </Button>
-                      )}
                       {esActivo && cobrador && (
                         <Button
                           size="sm"

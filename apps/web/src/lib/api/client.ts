@@ -4,8 +4,9 @@ export type Ruta = components['schemas']['RutaResponse'];
 export type Jornada = components['schemas']['JornadaResponse'];
 export type InversionistaSummary = components['schemas']['InversionistaSummaryResponse'];
 export type Suscripcion = components['schemas']['SuscripcionStatusResponse'];
-export type Dispositivo = components['schemas']['DispositivoResponse'];
+export type Dispositivo = components['schemas']['DispositivoAdminResponse'];
 export type CodigoActivacion = components['schemas']['CodigoActivacionResponse'];
+export type DispositivoReemplazo = components['schemas']['DispositivoReemplazoResponse'];
 
 export type DesafioAuth = components['schemas']['DesafioAuthResponse'];
 export type CanjearDesafio = components['schemas']['CanjearDesafioResponse'];
@@ -89,25 +90,9 @@ export function reactivarDispositivo(id: string): Promise<Dispositivo> {
  * POST /api/dispositivos/{id}/reemplazar via BFF (ADMINISTRADOR).
  * Emite un nuevo código de activación para el cobrador del dispositivo.
  */
-export function reemplazarDispositivo(id: string): Promise<{
-  dispositivo: Dispositivo;
-  nuevo_codigo: CodigoActivacion;
-}> {
+export function reemplazarDispositivo(id: string): Promise<DispositivoReemplazo> {
   return fetch(`/api/dispositivos/${encodeURIComponent(id)}/reemplazar`, {
     method: 'POST',
     cache: 'no-store',
-  }).then((r) => parseJson(r));
-}
-
-/**
- * POST /api/activaciones/codigos via BFF (ADMINISTRADOR).
- * Genera un código de activación de un solo uso para un usuario objetivo.
- */
-export function generarCodigoActivacion(usuarioId: string): Promise<CodigoActivacion> {
-  return fetch('/api/activaciones/codigos', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usuario_id: usuarioId }),
-    cache: 'no-store',
-  }).then((r) => parseJson<CodigoActivacion>(r));
+  }).then((r) => parseJson<DispositivoReemplazo>(r));
 }

@@ -416,7 +416,11 @@ export interface paths {
         };
         /**
          * Listar
-         * @description List all devices for the negocio (from ctx).
+         * @description List devices (ADMINISTRADOR only, DTO minimizado sin secretos).
+         *
+         *     RBAC review: el listado administrativo NO es visible para COBRADOR ni
+         *     INVERSIONISTA (403 fail-closed) — un celular no necesita enumerar
+         *     dispositivos del negocio.
          */
         get: operations["listar_api_dispositivos_get"];
         put?: never;
@@ -487,6 +491,9 @@ export interface paths {
         /**
          * Reactivar
          * @description Reactivate a revoked device (ADMINISTRADOR only, audited).
+         *
+         *     409 si el cobrador ya tiene otro dispositivo ACTIVE (invariante explicita,
+         *     no 500 por indice unico parcial); el camino canonico es Reemplazar.
          */
         post: operations["reactivar_api_dispositivos__dispositivo_id__reactivar_post"];
         delete?: never;
@@ -1177,6 +1184,42 @@ export interface components {
             /** Environment */
             environment: string;
         };
+        /**
+         * DispositivoAdminResponse
+         * @description DTO administrativo minimizado (superficie web).
+         *
+         *     La UI web NO recibe secretos (huella, public_key_hash, algoritmo_clave)
+         *     ni ids internos de tenancy (negocio_id, autorizado_por): solo lo que la
+         *     superficie admin necesita para listar/revocar/reactivar/reemplazar.
+         */
+        DispositivoAdminResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Usuario Id */
+            usuario_id: string | null;
+            /** Estado */
+            estado: string;
+            /** Modelo */
+            modelo: string | null;
+            /** Plataforma */
+            plataforma: string | null;
+            /** Autorizado El */
+            autorizado_el: string | null;
+            /** Revocado El */
+            revocado_el: string | null;
+            /** Ultima Validacion Servidor */
+            ultima_validacion_servidor: string | null;
+            /** Activo */
+            activo: number;
+            /**
+             * Creado El
+             * Format: date-time
+             */
+            creado_el: string;
+        };
         /** DispositivoCreate */
         DispositivoCreate: {
             /** Huella */
@@ -1185,6 +1228,17 @@ export interface components {
             modelo?: string | null;
             /** Plataforma */
             plataforma?: string | null;
+        };
+        /**
+         * DispositivoReemplazoResponse
+         * @description Respuesta tipada de POST /dispositivos/{id}/reemplazar (ADMIN).
+         *
+         *     Dispositivo viejo en DTO admin minimizado (REPLACED) + nuevo codigo de
+         *     activacion para el celular de reemplazo.
+         */
+        DispositivoReemplazoResponse: {
+            dispositivo: components["schemas"]["DispositivoAdminResponse"];
+            nuevo_codigo: components["schemas"]["CodigoActivacionResponse"];
         };
         /** DispositivoResponse */
         DispositivoResponse: {
@@ -2965,7 +3019,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DispositivoResponse"][];
+                    "application/json": components["schemas"]["DispositivoAdminResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -3078,7 +3132,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DispositivoResponse"];
+                    "application/json": components["schemas"]["DispositivoAdminResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3115,7 +3169,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DispositivoResponse"];
+                    "application/json": components["schemas"]["DispositivoAdminResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3152,7 +3206,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["DispositivoReemplazoResponse"];
                 };
             };
             /** @description Validation Error */

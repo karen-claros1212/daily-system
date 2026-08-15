@@ -15,13 +15,28 @@ test.describe('Dispositivos autorizados (Etapa 3)', () => {
     await expect(page.locator('body')).toContainText('Redmi Note 12');
   });
 
-  test('ADMINISTRADOR: no muestra secretos (claves ni hashes)', async ({ page }) => {
+  test('ADMINISTRADOR: la API NO envía secretos (DTO admin minimizado)', async ({ page }) => {
     await setSessionToken(page, 'mock-admin');
+    // Captura la respuesta real del listado: verifica a nivel de red que el
+    // DTO admin minimizado nunca expone secretos ni tenancy interno.
+    const resPromise = page.waitForResponse(
+      (r) => r.url().includes('/api/dispositivos') && r.request().method() === 'GET',
+    );
     await page.goto('/dispositivos');
-    const body = page.locator('body');
-    await expect(body).not.toContainText('public_key');
-    await expect(body).not.toContainText('private_key');
-    await expect(body).not.toContainText('sha256');
+    const res = await resPromise;
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body)).toBe(true);
+    for (const dev of body) {
+      for (const campo of ['huella', 'public_key_hash', 'algoritmo_clave', 'negocio_id', 'autorizado_por']) {
+        expect(dev).not.toHaveProperty(campo);
+      }
+    }
+    // Y a nivel DOM tampoco
+    const dom = page.locator('body');
+    await expect(dom).not.toContainText('public_key');
+    await expect(dom).not.toContainText('private_key');
+    await expect(dom).not.toContainText('sha256');
   });
 
   test('ADMINISTRADOR: empty state cuando no hay dispositivos', async ({ page }) => {
@@ -57,13 +72,15 @@ test.describe('Dispositivos autorizados (Etapa 3)', () => {
     await expect(page.locator('li', { hasText: 'Galaxy A54' }).locator('.badge-warning')).toContainText('Reemplazado');
   });
 
-  test('ADMINISTRADOR: genera código de activación para el cobrador del dispositivo', async ({ page }) => {
+  test('ADMINISTRADOR: un ACTIVE no ofrece "Generar código" (el camino es Reemplazar)', async ({ page }) => {
+    // RBAC review: generar un código nuevo para un cobrador con dispositivo
+    // ACTIVE choca con la invariante de UN ACTIVE por cobrador (409). La UI
+    // no ofrece ese flujo inválido; la renovación del dispositivo es Reemplazar.
     await setSessionToken(page, 'mock-admin');
     await page.goto('/dispositivos');
     const activeCard = page.locator('li', { hasText: 'Galaxy A54' });
-    await activeCard.getByRole('button', { name: 'Generar código' }).click();
-    await expect(page.locator('body')).toContainText('Código de activación');
-    await expect(page.locator('body')).toContainText('Expira:');
+    await expect(activeCard.getByRole('button', { name: 'Generar código' })).toHaveCount(0);
+    await expect(activeCard.getByRole('button', { name: 'Reemplazar' })).toBeVisible();
   });
 
   test('COBRADOR: 403 controlado, sin redirect silencioso al login', async ({ page }) => {
