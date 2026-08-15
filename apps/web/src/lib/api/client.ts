@@ -11,6 +11,9 @@ export type DispositivoReemplazo = components['schemas']['DispositivoReemplazoRe
 export type DesafioAuth = components['schemas']['DesafioAuthResponse'];
 export type CanjearDesafio = components['schemas']['CanjearDesafioResponse'];
 
+export type OnboardingNegocioCreate = components['schemas']['OnboardingNegocioCreate'];
+export type OnboardingNegocioResponse = components['schemas']['OnboardingNegocioResponse'];
+
 export const API_BASE =
   process.env.API_BASE || 'http://localhost:8000';
 
@@ -95,4 +98,19 @@ export function reemplazarDispositivo(id: string): Promise<DispositivoReemplazo>
     method: 'POST',
     cache: 'no-store',
   }).then((r) => parseJson<DispositivoReemplazo>(r));
+}
+
+/**
+ * POST /api/onboarding/negocios via BFF (publico, pre-sesion): alta segura y
+ * atomica de un negocio nuevo + su ADMINISTRADOR inicial. El body NO puede
+ * dirigir tenancy (negocio_id/rol/plan salen del servidor). Errores del
+ * contrato preservados: 422 (payload invalido), 409 (NIT ya registrado).
+ */
+export function registrarNegocio(data: OnboardingNegocioCreate): Promise<OnboardingNegocioResponse> {
+  return fetch('/api/onboarding/negocios', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    cache: 'no-store',
+  }).then((r) => parseJson<OnboardingNegocioResponse>(r));
 }

@@ -17,7 +17,16 @@ export interface paths {
          */
         get: operations["listar_negocios_api_negocios_get"];
         put?: never;
-        /** Crear Negocio */
+        /**
+         * Crear Negocio
+         * @description Crea un negocio. SOLO ADMINISTRADOR (autoridad en el servidor).
+         *
+         *     Con la Etapa 3 (onboarding seguro), esta ruta deja de ser el bypass publico
+         *     de creacion de tenants: la frontera de registro es POST /api/onboarding/
+         *     negocios (atomica, crea tambien el admin inicial + codigo bootstrap). Este
+         *     alta administrativa se conserva para consumidores admin/seed/tests con la
+         *     misma politica de NIT (conflicto -> 409).
+         */
         post: operations["crear_negocio_api_negocios_post"];
         delete?: never;
         options?: never;
@@ -39,6 +48,30 @@ export interface paths {
         get: operations["obtener_negocio_api_negocios__nid__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/onboarding/negocios": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Crear Negocio Onboarding
+         * @description Alta segura y atomica de un negocio nuevo + su ADMINISTRADOR inicial.
+         *
+         *     Todo (negocio, usuario admin, codigo de activacion) se crea en la misma
+         *     transaccion: un fallo en cualquier paso revierte la operacion completa.
+         *     Conflicto de NIT -> 409 controlado dentro de la transaccion.
+         */
+        post: operations["crear_negocio_onboarding_api_onboarding_negocios_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -781,6 +814,13 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdministradorOnboarding */
+        AdministradorOnboarding: {
+            /** Nombre */
+            nombre: string;
+            /** Documento */
+            documento?: string | null;
+        };
         /** BootstrapResponse */
         BootstrapResponse: {
             /**
@@ -1672,6 +1712,28 @@ export interface components {
              */
             creado_el: string;
         };
+        /** OnboardingNegocioCreate */
+        OnboardingNegocioCreate: {
+            /** Nombre */
+            nombre: string;
+            /** Nit */
+            nit?: string | null;
+            administrador: components["schemas"]["AdministradorOnboarding"];
+        };
+        /**
+         * OnboardingNegocioResponse
+         * @description Respuesta tipada del alta segura. El `token` del codigo de activacion
+         *     se entrega UNA vez: es la identidad bootstrap con la que el admin inicial
+         *     usa el login Web ya existente (siguiente_paso="activar_codigo"). Nunca se
+         *     exponen secretos del servidor ni datos de tenancy de terceros.
+         */
+        OnboardingNegocioResponse: {
+            negocio: components["schemas"]["NegocioResponse"];
+            administrador: components["schemas"]["UsuarioResponse"];
+            codigo_activacion: components["schemas"]["CodigoActivacionResponse"];
+            /** Siguiente Paso */
+            siguiente_paso: string;
+        };
         /** PagoCreate */
         PagoCreate: {
             /**
@@ -1890,6 +1952,32 @@ export interface components {
             /** Jornadas */
             jornadas: components["schemas"]["JornadaResponse"][];
         };
+        /** UsuarioResponse */
+        UsuarioResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Negocio Id
+             * Format: uuid
+             */
+            negocio_id: string;
+            /** Rol */
+            rol: string;
+            /** Nombre */
+            nombre: string;
+            /** Documento */
+            documento: string | null;
+            /** Activo */
+            activo: number;
+            /**
+             * Creado El
+             * Format: date-time
+             */
+            creado_el: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -1949,7 +2037,13 @@ export interface operations {
     };
     crear_negocio_api_negocios_post: {
         parameters: {
-            query?: never;
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2004,6 +2098,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NegocioResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    crear_negocio_onboarding_api_onboarding_negocios_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingNegocioCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingNegocioResponse"];
                 };
             };
             /** @description Validation Error */

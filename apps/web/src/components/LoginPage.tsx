@@ -101,6 +101,13 @@ export function LoginPage() {
               {error}
             </div>
           )}
+
+          <p className="text-center text-sm text-textSecondary pt-2 border-t border-borderColor">
+            ¿Es un negocio nuevo?{' '}
+            <a id="registroLink" href="/registro" className="font-semibold underline underline-offset-2">
+              Regístrese aquí
+            </a>
+          </p>
         </div>
       </div>
     </div>

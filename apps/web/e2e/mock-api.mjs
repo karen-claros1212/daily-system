@@ -37,6 +37,91 @@ const dispositivos = new Map();
 // codigo -> device_id (bootstrap emitido)
 const bootstrap = new Map();
 
+// ─── alta de negocios (Etapa 3, contrato real OnboardingNegocioResponse) ────
+// Replica la frontera de registro publica del backend:
+//   - body NO admite negocio_id/rol/plan/estado_suscripcion (extra=forbid -> 422)
+//   - NIT normalizado (trim, vacio -> null) + conflicto -> 409
+//   - crea negocio con los defaults reales del modelo (CO/COP/basic/al_dia) y
+//     un ADMINISTRADOR inicial + codigo de activacion de un solo uso.
+// El store es mutable y se resetea explicitamente via /api/_test/reset-onboarding.
+const onboardingNegocios = new Map(); // nit -> nombre (conflictos de NIT)
+
+function seedOnboarding() {
+  onboardingNegocios.clear();
+  onboardingNegocios.set('900123456', 'Negocio Existente');
+}
+
+function normalizarNit(v) {
+  if (typeof v !== 'string') return v;
+  const t = v.trim();
+  return t || null;
+}
+
+function validarAlta(body) {
+  const errors = [];
+  if (typeof body.nombre !== 'string' || !body.nombre.trim()) errors.push('nombre');
+  if (typeof body.nombre === 'string' && body.nombre.trim().length > 255) errors.push('nombre');
+  const adm = body.administrador;
+  if (!adm || typeof adm !== 'object' || typeof adm.nombre !== 'string' || !adm.nombre.trim()) {
+    errors.push('administrador.nombre');
+  }
+  if (adm && typeof adm.nombre === 'string' && adm.nombre.trim().length > 255) errors.push('administrador.nombre');
+  const permitidos = new Set(['nombre', 'nit', 'administrador']);
+  for (const k of Object.keys(body)) if (!permitidos.has(k)) errors.push(k);
+  if (adm && typeof adm === 'object') {
+    const permitidosAdm = new Set(['nombre', 'documento']);
+    for (const k of Object.keys(adm)) if (!permitidosAdm.has(k)) errors.push(`administrador.${k}`);
+  }
+  return errors;
+}
+
+function altaNegocio(body) {
+  const nombre = body.nombre.trim();
+  const nit = normalizarNit(body.nit);
+  if (nit && onboardingNegocios.has(nit)) {
+    return { status: 409, detail: 'El NIT ya esta registrado' };
+  }
+  const negocio_id = uuid();
+  const admin_id = uuid();
+  if (nit) onboardingNegocios.set(nit, nombre);
+  const ahora = Date.now();
+  const token = randomToken();
+  const creadoEl = new Date(ahora).toISOString();
+  return {
+    status: 201,
+    body: {
+      negocio: {
+        id: negocio_id,
+        nombre,
+        nit: nit ?? null,
+        pais: 'CO',
+        moneda: 'COP',
+        plan: 'basic',
+        estado_suscripcion: 'al_dia',
+        creado_el: creadoEl,
+      },
+      administrador: {
+        id: admin_id,
+        negocio_id,
+        rol: 'ADMINISTRADOR',
+        nombre: body.administrador.nombre.trim(),
+        documento: typeof body.administrador.documento === 'string' && body.administrador.documento.trim()
+          ? body.administrador.documento.trim()
+          : null,
+        activo: 1,
+        creado_el: creadoEl,
+      },
+      codigo_activacion: {
+        codigo_id: uuid(),
+        token,
+        prefijo: token.slice(0, 8),
+        expira_el: rfc3339(ahora + 10 * 60 * 1000),
+      },
+      siguiente_paso: 'activar_codigo',
+    },
+  };
+}
+
 // códigos de activación por rol (contrato real: src/rbac.ROLES).
 //
 // Cada código está ligado a un usuario objetivo y su rol. El canje de activación
@@ -393,6 +478,23 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && path === '/api/_test/reset-dispositivos') {
     seedDispositivosAdmin();
     return json(res, 200, { ok: true });
+  }
+  if (req.method === 'POST' && path === '/api/_test/reset-onboarding') {
+    seedOnboarding();
+    return json(res, 200, { ok: true });
+  }
+
+  // ── POST /api/onboarding/negocios (publico, pre-sesion, Etapa 3) ──────────
+  // Replica el contrato real: valida el body (422 con extra=forbid), NIT con
+  // conflicto -> 409, y devuelve negocio + admin inicial + codigo bootstrap.
+  if (req.method === 'POST' && path === '/api/onboarding/negocios') {
+    const errors = validarAlta(body);
+    if (errors.length) {
+      return json(res, 422, { detail: `Campos invalidos: ${errors.join(', ')}` });
+    }
+    const out = altaNegocio(body);
+    if (out.status === 409) return json(res, 409, { detail: out.detail });
+    return json(res, 201, out.body);
   }
 
   // ── GET /api/dispositivos (Etapa 3, contrato real) ─────────────────────────
@@ -772,4 +874,5 @@ function buildAuthPayload(challengeId, deviceId, nonce, expiraMs, env, publicKey
 
 const port = Number(process.env.MOCK_API_PORT || 8000);
 seedDispositivosAdmin();
+seedOnboarding();
 server.listen(port, () => console.log(`[mock-api] listening on :${port}`));

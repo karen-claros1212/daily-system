@@ -66,3 +66,25 @@ export async function proxyPost(path: string, req: Request): Promise<NextRespons
     return NextResponse.json({ detail: 'Gateway error', status: 'error' }, { status: 502 });
   }
 }
+
+/**
+ * Forward server-to-server POST SIN Bearer (endpoints publicos de pre-sesion,
+ * p. ej. POST /api/onboarding/negocios). El browser nunca toca el backend
+ * directo; el BFF conserva la autoridad del contrato (422/409 tal cual los
+ * emite el backend).
+ */
+export async function proxyPostPublic(path: string, req: Request): Promise<NextResponse> {
+  const body = await req.json().catch(() => ({}));
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    });
+    const resBody = await res.json().catch(() => ({}));
+    return NextResponse.json(resBody, { status: res.status });
+  } catch {
+    return NextResponse.json({ detail: 'Gateway error', status: 'error' }, { status: 502 });
+  }
+}
