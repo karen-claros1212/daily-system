@@ -223,6 +223,10 @@ def reactivar_dispositivo(
     dispositivo.activo = 1
     dispositivo.estado = "ACTIVE"
     dispositivo.version_asignacion = (dispositivo.version_asignacion or 1) + 1
+    # Autoridad vigente: cada reactivacion es una autorizacion NUEVA y deja
+    # constancia del ADMINISTRADOR que la ejecuto (la ruta pasa ctx.user_id).
+    # No puede quedarse en el valor historico del alta (codigo.creado_por).
+    dispositivo.autorizado_por = autorizado_por
     dispositivo.autorizado_el = datetime.now(timezone.utc)
     dispositivo.ultima_validacion_servidor = datetime.now(timezone.utc)
     db.flush()

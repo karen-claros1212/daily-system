@@ -157,10 +157,11 @@ function publicKeyHash(spkiBase64) {
 // exponen huella, public_key_hash, algoritmo_clave, negocio_id ni autorizado_por
 // (RBAC review — el mock replica el DTO del backend, no es mas permisivo).
 //
-// El store es mutable (revocar/reactivar/reemplazar lo modifican) y se
-// re-siembra desde el fixture en cada GET, de modo que cada test E2E
-// empieza siempre desde un estado determinista (los POSTs modifican el
-// store; la UI los aplica localmente sin re-fetch).
+// El store es mutable (revocar/reactivar/reemplazar lo modifican) y las
+// mutaciones PERSISTEN entre GETs dentro del mismo test: el mock NO se
+// re-siembra en cada GET (la persistencia es fiel al backend). El reset
+// entre tests es EXPLICITO y test-only: POST /api/_test/reset-dispositivos
+// (lo llama un beforeEach de los specs de dispositivos).
 const DISPOSITIVOS_FIXTURE = [
   {
     id: 'dev-11111111-1111-4111-8111-111111111111',
@@ -212,6 +213,25 @@ const DISPOSITIVOS_FIXTURE = [
     ultima_validacion_servidor: new Date(Date.now() - 25 * 24 * 3600 * 1000).toISOString(),
     activo: 0,
     creado_el: new Date(Date.now() - 120 * 24 * 3600 * 1000).toISOString(),
+  },
+  {
+    // Mismo cobrador que el ACTIVE (u1): permite ejercitar en la UI el 409 de
+    // reactivar ("ya tiene otro dispositivo activo") sin tocar la respuesta.
+    id: 'dev-44444444-4444-4444-8444-444444444444',
+    negocio_id: 'n1',
+    usuario_id: 'u1',
+    huella: null,
+    public_key_hash: null,
+    algoritmo_clave: 'ES256',
+    estado: 'REVOKED',
+    modelo: 'Moto G84',
+    plataforma: 'android',
+    autorizado_por: 'u_admin',
+    autorizado_el: new Date(Date.now() - 200 * 24 * 3600 * 1000).toISOString(),
+    revocado_el: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
+    ultima_validacion_servidor: new Date(Date.now() - 31 * 24 * 3600 * 1000).toISOString(),
+    activo: 0,
+    creado_el: new Date(Date.now() - 200 * 24 * 3600 * 1000).toISOString(),
   },
 ];
 
@@ -366,6 +386,15 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
+  // ── reset test-only (fuera del contrato productivo) ────────────────────────
+  // El mock NO se re-siembra en cada GET: las mutaciones persisten dentro de
+  // cada test. El reset entre tests es EXPLICITO y lo invoca un beforeEach de
+  // los specs (persistencia fiel al backend, sin seed por GET).
+  if (req.method === 'POST' && path === '/api/_test/reset-dispositivos') {
+    seedDispositivosAdmin();
+    return json(res, 200, { ok: true });
+  }
+
   // ── GET /api/dispositivos (Etapa 3, contrato real) ─────────────────────────
   // Replica DispositivoAdminResponse[] y las reglas de dispositivo.py:
   //   - listar es SOLO ADMINISTRADOR (capability `dispositivos:registrar`);
@@ -382,7 +411,6 @@ const server = http.createServer(async (req, res) => {
       return json(res, 403, { detail: 'Solo ADMINISTRADOR puede listar dispositivos' });
     }
     if (sesion.sinDispositivos) return json(res, 200, []);
-    seedDispositivosAdmin();
     return json(res, 200, listaDispositivos());
   }
 
@@ -429,6 +457,7 @@ const server = http.createServer(async (req, res) => {
     dev.estado = 'ACTIVE';
     dev.activo = 1;
     dev.revocado_el = null;
+    dev.autorizado_por = sesion.user_id;
     dev.autorizado_el = new Date().toISOString();
     return json(res, 200, toAdminDTO(dev));
   }

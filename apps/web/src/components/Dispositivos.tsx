@@ -23,11 +23,8 @@ function formatFecha(iso: string | null | undefined): string | null {
   return new Intl.DateTimeFormat('es-CO', { dateStyle: 'long' }).format(d);
 }
 
-/** Referencia corta del usuario asociado (nunca el UUID completo). */
-function userRef(usuarioId: string | null | undefined): string | null {
-  if (!usuarioId) return null;
-  return usuarioId.slice(0, 8);
-}
+/** Confirmación destructiva discriminada: un solo camino activo a la vez. */
+type ConfirmAccion = 'REVOKE' | 'REPLACE';
 
 const ESTADO_LABEL: Record<string, { label: string; tone: 'success' | 'danger' | 'warning' | 'neutral' }> = {
   ACTIVE: { label: 'Autorizado', tone: 'success' },
@@ -42,8 +39,15 @@ const ESTADO_LABEL: Record<string, { label: string; tone: 'success' | 'danger' |
  * entrega GET /api/dispositivos (`estado`, `activo`, `modelo`, `plataforma`,
  * fechas) y consume las operaciones productivas que ya existen (revocar,
  * reactivar, reemplazar). No expone secretos: jamás muestra huella,
- * public_key_hash, claves ni IDs técnicos completos. Los códigos de
- * activación los genera el backend y se muestran tal cual los devuelve.
+ * public_key_hash, claves ni IDs técnicos completos. El contrato no entrega
+ * un nombre humano del cobrador, así que la tarjeta tampoco muestra su UUID
+ * (si un contrato futuro entrega `usuario_nombre`, se puede presentar).
+ * Los códigos de activación los genera el backend y se muestran tal cual los
+ * devuelve.
+ *
+ * La confirmación destructiva es DISCRIMINADA: al pulsar Revocar se ofrece
+ * solo "Confirmar revocación" y al pulsar Reemplazar solo "Confirmar
+ * reemplazo" — nunca ambas a la vez.
  *
  * Un dispositivo ACTIVE NO ofrece "generar código": canjear un código nuevo
  * para un cobrador que ya tiene su celular activo choca con el backend (409,
@@ -60,7 +64,7 @@ export function Dispositivos() {
   const [error, setError] = useState<{ status: number; message: string } | null>(null);
   const [flash, setFlash] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<{ id: string; action: ConfirmAccion } | null>(null);
   const [codigo, setCodigo] = useState<{ deviceId: string; codigo: CodigoActivacion } | null>(null);
 
   const load = useCallback(async () => {
@@ -81,7 +85,12 @@ export function Dispositivos() {
     load();
   }, [load]);
 
-  const runAction = async (id: string, action: () => Promise<Dispositivo>, okText: string) => {
+  const runAction = async (
+    id: string,
+    action: () => Promise<Dispositivo>,
+    okText: string,
+    conflictText?: string,
+  ) => {
     setBusyId(id);
     setFlash(null);
     try {
@@ -89,7 +98,7 @@ export function Dispositivos() {
       setDispositivos((prev) =>
         prev ? prev.map((d) => (d.id === id ? { ...d, ...updated } : d)) : prev,
       );
-      setConfirmId(null);
+      setConfirm(null);
       setFlash({ tone: 'success', text: okText });
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 0;
@@ -98,6 +107,10 @@ export function Dispositivos() {
         setFlash({ tone: 'error', text: 'Tu sesión expiró. Vuelve a iniciar sesión.' });
       } else if (status === 403) {
         setFlash({ tone: 'error', text: 'No tienes permisos para ejecutar esta operación.' });
+      } else if (status === 409 && conflictText) {
+        // 409 = invariante del backend (p.ej. reactivar con otro ACTIVE del
+        // mismo cobrador): mensaje de producto, no el detalle técnico crudo.
+        setFlash({ tone: 'error', text: conflictText });
       } else {
         setFlash({ tone: 'error', text: `No se pudo completar la operación. ${detail}` });
       }
@@ -110,7 +123,12 @@ export function Dispositivos() {
     runAction(d.id, () => revocarDispositivo(d.id), 'Dispositivo revocado correctamente.');
 
   const handleReactivar = (d: Dispositivo) =>
-    runAction(d.id, () => reactivarDispositivo(d.id), 'Dispositivo reactivado correctamente.');
+    runAction(
+      d.id,
+      () => reactivarDispositivo(d.id),
+      'Dispositivo reactivado correctamente.',
+      'No se puede reactivar este dispositivo porque el cobrador ya tiene otro dispositivo activo.',
+    );
 
   const handleReemplazar = async (d: Dispositivo) => {
     setBusyId(d.id);
@@ -120,7 +138,7 @@ export function Dispositivos() {
       setDispositivos((prev) =>
         prev ? prev.map((x) => (x.id === d.id ? { ...x, ...res.dispositivo } : x)) : prev,
       );
-      setConfirmId(null);
+      setConfirm(null);
       setCodigo({ deviceId: d.id, codigo: res.nuevo_codigo });
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 0;
@@ -226,9 +244,14 @@ export function Dispositivos() {
             const autorizado = formatFecha(d.autorizado_el);
             const revocado = formatFecha(d.revocado_el);
             const ultimaValidacion = formatFecha(d.ultima_validacion_servidor);
-            const cobrador = userRef(d.usuario_id);
             const esActivo = d.estado === 'ACTIVE';
             const esRevocado = d.estado === 'REVOKED';
+            const toggleConfirm = (action: ConfirmAccion) =>
+              setConfirm(
+                confirm && confirm.id === d.id && confirm.action === action
+                  ? null
+                  : { id: d.id, action },
+              );
             return (
               <li key={d.id}>
                 <Card padding="md" className="space-y-2">
@@ -243,12 +266,12 @@ export function Dispositivos() {
                       )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      {esActivo && cobrador && (
+                      {esActivo && (
                         <Button
                           size="sm"
                           variant="outline"
                           disabled={busyId === d.id}
-                          onClick={() => setConfirmId(confirmId === d.id ? null : d.id)}
+                          onClick={() => toggleConfirm('REPLACE')}
                         >
                           Reemplazar
                         </Button>
@@ -258,7 +281,7 @@ export function Dispositivos() {
                           size="sm"
                           variant="danger"
                           disabled={busyId === d.id}
-                          onClick={() => setConfirmId(confirmId === d.id ? null : d.id)}
+                          onClick={() => toggleConfirm('REVOKE')}
                         >
                           Revocar
                         </Button>
@@ -278,12 +301,6 @@ export function Dispositivos() {
                   </div>
 
                   <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                    {cobrador && (
-                      <div className="flex items-center gap-2">
-                        <dt className="text-textSecondary">Cobrador</dt>
-                        <dd className="font-mono text-xs">{cobrador}</dd>
-                      </div>
-                    )}
                     <div className="flex items-center gap-2">
                       <dt className="text-textSecondary">Autorizado</dt>
                       <dd>{autorizado ?? '—'}</dd>
@@ -300,9 +317,9 @@ export function Dispositivos() {
                     </div>
                   </dl>
 
-                  {confirmId === d.id && esActivo && (
+                  {confirm && confirm.id === d.id && esActivo && (
                     <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-outline">
-                      {esActivo && cobrador && (
+                      {confirm.action === 'REPLACE' && (
                         <Button
                           size="sm"
                           variant="danger"
@@ -312,15 +329,17 @@ export function Dispositivos() {
                           Confirmar reemplazo (genera código nuevo)
                         </Button>
                       )}
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        loading={busyId === d.id}
-                        onClick={() => handleRevocar(d)}
-                      >
-                        Confirmar revocación
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setConfirmId(null)}>
+                      {confirm.action === 'REVOKE' && (
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          loading={busyId === d.id}
+                          onClick={() => handleRevocar(d)}
+                        >
+                          Confirmar revocación
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={() => setConfirm(null)}>
                         Cancelar
                       </Button>
                     </div>

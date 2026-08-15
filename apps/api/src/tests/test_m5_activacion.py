@@ -555,6 +555,45 @@ class TestFlujoActivacion:
         assert resp2.json()["estado"] == "ACTIVE"
         assert resp2.json()["id"] == str(d2_id)
 
+    def test_09_reactivar_actualiza_autorizado_por(self, client, db_session, escenario):
+        """Reactivar deja constancia de QUIEN autorizo la reactivacion.
+
+        RBAC review: `autorizado_por` es la autorizacion vigente del dispositivo.
+        Al reactivar no puede quedarse en el valor historico del alta
+        (codigo.creado_por): el servicio lo sobreescribe y la ruta le pasa
+        ctx.user_id (el ADMINISTRADOR que ejecuta). Se reactiva con un user_id
+        distinto del creador para probar que el servicio SI lo actualiza.
+        """
+        private_key, spki, pk_hash = _ec_keypair()
+        codigo = _emitir_codigo(client, escenario)
+        r = _flujo_completo(client, codigo["token"], private_key, spki, pk_hash)
+        assert r.status_code == 200
+        d1_id = r.json()["dispositivo_id"]
+
+        otro_admin = uuid4()
+        params_creador = _auth(
+            escenario["negocio_id"], role="ADMINISTRADOR", user_id=escenario["admin_id"]
+        )
+        params_react = _auth(
+            escenario["negocio_id"], role="ADMINISTRADOR", user_id=otro_admin
+        )
+
+        # Nace con la autorizacion del creador del codigo (canje)
+        d1 = db_session.query(Dispositivo).filter(Dispositivo.id == uuid.UUID(d1_id)).first()
+        assert d1.autorizado_por == escenario["admin_id"]
+
+        r_revoke = client.post(f"/api/dispositivos/{d1_id}/revocar", params=params_creador)
+        assert r_revoke.status_code == 200, r_revoke.text
+
+        r_react = client.post(f"/api/dispositivos/{d1_id}/reactivar", params=params_react)
+        assert r_react.status_code == 200, r_react.text
+
+        d1 = db_session.query(Dispositivo).filter(Dispositivo.id == uuid.UUID(d1_id)).first()
+        assert d1.estado == "ACTIVE"
+        # La reactivacion sobreescribe la autorizacion con el admin que la hizo
+        assert d1.autorizado_por == otro_admin
+        assert d1.autorizado_el is not None
+
 
 # === regla del body publico (contrato 8.13) ===
 
