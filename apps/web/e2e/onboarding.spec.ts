@@ -31,6 +31,53 @@ test.describe('Registro de negocio (Etapa 3)', () => {
     await expect(page.locator('#loginTitle')).toBeVisible();
   });
 
+  test('TTL del codigo se deriva de expira_el (no hardcodeado)', async ({ page }) => {
+    // Intercepta la respuesta del contrato y entrega un TTL distinto al
+    // default (10 min): la UI debe mostrar el valor derivado de expira_el.
+    await page.route('**/api/onboarding/negocios', async (route) => {
+      const res = await route.fetch();
+      const body = await res.json();
+      body.codigo_activacion.expira_el = new Date(
+        Date.now() + 25 * 60 * 1000,
+      ).toISOString();
+      await route.fulfill({ response: res, json: body });
+    });
+    await page.goto('/registro');
+    await page.locator('#negocioNombre').fill('TTL Derivado');
+    await page.locator('#adminNombre').fill('Admin');
+    await page.locator('#registroBtn').click();
+    await expect(page.locator('#registroOkTitle')).toBeVisible();
+    await expect(page.locator('#activationCodeHint')).toContainText('vence en 25 minutos');
+    await expect(page.locator('#activationCodeHint')).not.toContainText('es de un solo uso y expira');
+  });
+
+  test('los campos nit y documento limitan a 50 caracteres en el cliente', async ({ page }) => {
+    // El contrato limita nit/documento a 50 (422 en el servidor; nunca 500). El
+    // input tambien lo capa en el cliente, de modo que >50 no puede llegar al
+    // backend desde la UI.
+    await page.goto('/registro');
+    await expect(page.locator('#nitNegocio')).toHaveAttribute('maxlength', '50');
+    await expect(page.locator('#adminDocumento')).toHaveAttribute('maxlength', '50');
+  });
+
+  test('422 del contrato -> mensaje recuperable y el formulario sigue usable', async ({ page }) => {
+    await page.goto('/registro');
+    await page.route('**/api/onboarding/negocios', async (route) => {
+      await route.fulfill({ status: 422, json: { detail: 'Campos invalidos: administrador.documento' } });
+    });
+    await page.locator('#negocioNombre').fill('Payload invalido');
+    await page.locator('#adminNombre').fill('Admin');
+    await page.locator('#registroBtn').click();
+    await expect(page.locator('#registroError')).toContainText('Revise los datos del formulario');
+    // Sigue en el formulario (estado recuperable, no se pierde la pagina).
+    await expect(page.locator('#registroTitle')).toBeVisible();
+
+    // Quitar el interceptor: el reintento del mismo usuario funciona.
+    await page.unroute('**/api/onboarding/negocios');
+    await page.locator('#registroBtn').click();
+    await expect(page.locator('#registroOkTitle')).toBeVisible();
+  });
+
   test('validacion: campos obligatorios vacios -> error y sin request de alta', async ({ page }) => {
     await page.goto('/registro');
     await page.locator('#registroBtn').click();

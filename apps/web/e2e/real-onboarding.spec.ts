@@ -2,41 +2,48 @@ import { test, expect } from '@playwright/test';
 
 const API_BASE = process.env.REAL_API_BASE ?? 'http://127.0.0.1:8001';
 
-test.describe('Onboarding real (Etapa 3): alta de negocio → primer login del ADMINISTRADOR', () => {
-  test('POST /api/onboarding/negocios real → login Web con el código bootstrap → identidad ADMINISTRADOR canónica', async ({ page }) => {
-    // 1) Contrato real de alta atomica (sin auth previa: superficie pre-sesion).
+test.describe('Onboarding real (Etapa 3): /registro → BFF → FastAPI → Postgres → primer login del ADMINISTRADOR', () => {
+  test('alta desde la UI → codigo leido del DOM → login bootstrap → identidad ADMINISTRADOR canónica', async ({ page }) => {
     const nit = `90${Date.now().toString().slice(-8)}`; // NIT unico por corrida
-    const res = await page.request.post(`${API_BASE}/api/onboarding/negocios`, {
-      data: {
-        nombre: `E2E Real ${nit}`,
-        nit,
-        administrador: { nombre: 'María Pérez', documento: 'CC 123456789' },
-      },
+
+    // 1) Happy path REAL desde /registro: el formulario Web pasa por el BFF
+    //    (proxyPostPublic) hasta FastAPI y Postgres reales. Sin auth previa.
+    let negocioId: string | null = null;
+    page.on('response', (res) => {
+      if (res.url().includes('/api/onboarding/negocios') && res.status() === 201) {
+        res.json().then((body) => {
+          negocioId = body?.negocio?.id ?? null;
+        });
+      }
     });
-    expect(res.status(), 'onboarding real debe responder 201').toBe(201);
-    const body = await res.json();
 
-    // El contrato entrega el trinomio: negocio + admin inicial + codigo bootstrap.
-    const negocioId = body.negocio.id;
-    expect(body.negocio.nombre).toBe(`E2E Real ${nit}`);
-    expect(body.negocio.pais).toBe('CO');
-    expect(body.negocio.moneda).toBe('COP');
-    expect(body.negocio.plan).toBe('basic');
-    expect(body.negocio.estado_suscripcion).toBe('al_dia');
-    expect(body.administrador.rol).toBe('ADMINISTRADOR');
-    expect(body.administrador.negocio_id).toBe(negocioId);
-    expect(body.siguiente_paso).toBe('activar_codigo');
-    const codigo = body.codigo_activacion.token;
+    await page.goto('/registro');
+    await expect(page.locator('#registroTitle')).toBeVisible();
+    await page.locator('#negocioNombre').fill(`E2E Real ${nit}`);
+    await page.locator('#nitNegocio').fill(nit);
+    await page.locator('#adminNombre').fill('María Pérez');
+    await page.locator('#adminDocumento').fill('CC 123456789');
+    await page.locator('#registroBtn').click();
+
+    // 2) El codigo bootstrap se lee de la UI (se entrega UNA vez).
+    await expect(page.locator('#registroOkTitle')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('body')).toContainText(`E2E Real ${nit}`);
+    await expect(page.locator('body')).toContainText('María Pérez');
+    const codigo = (await page.locator('#activationCodeResult').textContent())?.trim() ?? '';
     expect(codigo.length).toBeGreaterThan(20);
+    // TTL derivado de expira_el del contrato real (10 min server-side).
+    await expect(page.locator('#activationCodeHint')).toContainText('vence en');
 
-    // 2) El NIT recien creado ya no se puede volver a registrar -> 409 (la
-    //    frontera NIT es server-side, no del browser).
+    expect(negocioId, 'debe capturarse el negocio creado desde la respuesta del BFF').not.toBeNull();
+
+    // 3) El NIT recien creado ya no se puede volver a registrar -> 409 real
+    //    (autoridad server-side uq_negocio_nit, no del browser).
     const dup = await page.request.post(`${API_BASE}/api/onboarding/negocios`, {
       data: { nombre: 'Duplicado', nit, administrador: { nombre: 'Otro' } },
     });
     expect(dup.status(), 'NIT duplicado real debe responder 409').toBe(409);
 
-    // 3) Primer login Web del ADMINISTRADOR con el codigo bootstrap (flujo
+    // 4) Primer login Web del ADMINISTRADOR con el codigo bootstrap (flujo
     //    existente de activacion diario: activar -> desafio -> canje -> cookie).
     await page.goto('/');
     await expect(page.locator('#loginTitle')).toBeVisible();
@@ -51,7 +58,7 @@ test.describe('Onboarding real (Etapa 3): alta de negocio → primer login del A
     const session = cookies.find((c) => c.name === 'daily_admin_token');
     expect(session!.httpOnly, 'cookie debe ser httpOnly').toBe(true);
 
-    // 4) Identidad canónica: /api/auth/me resuelve el rol desde la DB.
+    // 5) Identidad canónica: /api/auth/me resuelve el rol desde la DB.
     const me = await page.request.get(`${API_BASE}/api/auth/me`, {
       headers: { Authorization: `Bearer ${session!.value}` },
     });
@@ -67,7 +74,7 @@ test.describe('Onboarding real (Etapa 3): alta de negocio → primer login del A
     expect(meBody.capabilities).toContain('codigos:crear');
     expect(meBody.capabilities).toContain('dispositivos:registrar');
 
-    // 5) /dashboard deja entrar al ADMINISTRADOR real (sin redirect al login).
+    // 6) /dashboard deja entrar al ADMINISTRADOR real (sin redirect al login).
     await page.goto('/dashboard');
     await expect(page.locator('h1')).toContainText('Dashboard financiero', { timeout: 15000 });
   });

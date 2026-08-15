@@ -61,11 +61,15 @@ function validarAlta(body) {
   const errors = [];
   if (typeof body.nombre !== 'string' || !body.nombre.trim()) errors.push('nombre');
   if (typeof body.nombre === 'string' && body.nombre.trim().length > 255) errors.push('nombre');
+  // HARDENING: el contrato publico limita nit/documento a 50 (422, nunca 500),
+  // igual que los validadores del backend (Field max_length).
+  if (typeof body.nit === 'string' && body.nit.trim().length > 50) errors.push('nit');
   const adm = body.administrador;
   if (!adm || typeof adm !== 'object' || typeof adm.nombre !== 'string' || !adm.nombre.trim()) {
     errors.push('administrador.nombre');
   }
   if (adm && typeof adm.nombre === 'string' && adm.nombre.trim().length > 255) errors.push('administrador.nombre');
+  if (adm && typeof adm.documento === 'string' && adm.documento.trim().length > 50) errors.push('administrador.documento');
   const permitidos = new Set(['nombre', 'nit', 'administrador']);
   for (const k of Object.keys(body)) if (!permitidos.has(k)) errors.push(k);
   if (adm && typeof adm === 'object') {

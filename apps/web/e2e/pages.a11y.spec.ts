@@ -124,7 +124,7 @@ test.describe('A11y', () => {
             codigo_id: '33333333-3333-4333-8333-333333333333',
             token: 'Xz8R4pQ2mVu9wC1dN7kTfL3aB6hY5sE0',
             prefijo: 'Xz8R4pQ2',
-            expira_el: '2026-08-15T00:10:00Z',
+            expira_el: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
           },
           siguiente_paso: 'activar_codigo',
         },

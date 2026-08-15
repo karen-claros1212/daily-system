@@ -2,11 +2,25 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { registrarNegocio, type OnboardingNegocioResponse } from '@/lib/api/client';
+import {
+  ApiError,
+  registrarNegocio,
+  type OnboardingNegocioResponse,
+} from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/field';
 import { IconShield, IconKey } from '@/components/ui/icons';
+
+/** Minutos restantes hasta `expiraEl` (RFC3339) segun el reloj del cliente.
+ * Devuelve null si no es parseable (el texto cae a la variante generica). */
+function minutosRestantes(expiraEl: string | null | undefined): number | null {
+  if (!expiraEl) return null;
+  const fin = Date.parse(expiraEl);
+  if (Number.isNaN(fin)) return null;
+  const minutos = Math.ceil((fin - Date.now()) / 60_000);
+  return minutos > 0 ? minutos : null;
+}
 
 /**
  * Alta de negocios (Etapa 3) — superficie Web PRE-sesion.
@@ -50,10 +64,9 @@ export function RegistroPage() {
       });
       setResultado(res);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Error al registrar';
-      if (msg.includes('409') || msg.includes('NIT')) {
+      if (e instanceof ApiError && e.status === 409) {
         setError('El NIT ya está registrado. Verifique el número o continúe sin él.');
-      } else if (msg.includes('422')) {
+      } else if (e instanceof ApiError && e.status === 422) {
         setError('Revise los datos del formulario e intente de nuevo.');
       } else {
         setError('No se pudo completar el registro. Intente de nuevo en unos momentos.');
@@ -65,6 +78,7 @@ export function RegistroPage() {
 
   if (resultado) {
     const codigo = resultado.codigo_activacion;
+    const venceEnMinutos = minutosRestantes(codigo.expira_el);
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface px-4">
         <div className="card-elevated w-full" style={{ maxWidth: '440px' }}>
@@ -90,9 +104,10 @@ export function RegistroPage() {
             <p className="text-lg font-bold tracking-wider break-all select-all" id="activationCodeResult">
               {codigo.token}
             </p>
-            <p className="text-xs text-textSecondary mt-2">
-              Código de un solo uso. Consérvelo: vence en 10 minutos y sirve para el primer
-              ingreso al panel.
+            <p className="text-xs text-textSecondary mt-2" id="activationCodeHint">
+              {venceEnMinutos !== null
+                ? `Código de un solo uso. Consérvelo: vence en ${venceEnMinutos} minutos y sirve para el primer ingreso al panel.`
+                : 'Código de un solo uso. Es de un solo uso y expira; consérvelo para el primer ingreso al panel.'}
             </p>
           </div>
 
