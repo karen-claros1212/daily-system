@@ -14,6 +14,7 @@ completa el login Web ya existente (desafio/canje daily-v1 -> sesion).
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.database import get_db_transaction
@@ -38,6 +39,14 @@ WriteSession = Annotated[
     "/negocios",
     response_model=OnboardingNegocioResponse,
     status_code=201,
+    responses={
+        409: {
+            "description": "El NIT ya esta registrado (autoridad: uq_negocio_nit).",
+        },
+        422: {
+            "description": "Payload invalido (nit/documento > 50 o formato incorrecto).",
+        },
+    },
 )
 def crear_negocio_onboarding(
     data: OnboardingNegocioCreate,
@@ -47,7 +56,10 @@ def crear_negocio_onboarding(
 
     Todo (negocio, usuario admin, codigo de activacion) se crea en la misma
     transaccion: un fallo en cualquier paso revierte la operacion completa.
-    Conflicto de NIT -> 409 controlado dentro de la transaccion.
+    Conflicto de NIT -> 409 controlado dentro de la transaccion. El fast-path
+    del servicio (SELECT) es solo comodidad UX; la AUTORIDAD del conflicto es
+    el indice unico uq_negocio_nit (migracion m8): una colision que escape a
+    la carrera se mapea aqui a 409 (nunca 500).
     """
     try:
         negocio, admin, codigo, token = crear_negocio_con_admin(
@@ -59,6 +71,18 @@ def crear_negocio_onboarding(
         )
     except OnboardingError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except IntegrityError as e:
+        # uq_negocio_nit: mensaje PG "duplicate key value violates unique
+        # constraint 'uq_negocio_nit'"; SQLite "UNIQUE constraint failed:
+        # negocio.nit". En el alta onboarding, la unica colision de unicidad
+        # posible es el NIT, y la autoridad es el indice de la base.
+        msg = str(e.orig)
+        if "uq_negocio_nit" in msg or "UNIQUE constraint failed: negocio.nit" in msg:
+            raise HTTPException(
+                status_code=409,
+                detail="El NIT ya esta registrado",
+            ) from e
+        raise
 
     return OnboardingNegocioResponse(
         negocio=NegocioResponse.model_validate(negocio),

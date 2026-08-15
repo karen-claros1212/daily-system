@@ -66,14 +66,13 @@ async def suscripcion_middleware(request: Request, call_next):
     """Check subscription status on protected endpoints.
 
     Skips: GET /api/health, GET /api/inversionista/suscripcion,
-           POST /api/negocios (registration).
+           POST /api/onboarding/negocios (registration publica).
     Applies to: pagos, creditos, jornadas, movimientos, dispositivos.
     """
     # Skip subscription check for these paths
     skip_paths = {
         "/api/health",
         "/api/inversionista/suscripcion",
-        "/api/negocios",
         "/api/onboarding/negocios",
     }
 

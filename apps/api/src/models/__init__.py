@@ -28,6 +28,13 @@ from src.database import Base
 class Negocio(Base):
     __tablename__ = "negocio"
 
+    __table_args__ = (
+        # Invariante de NIT (hardening onboarding): un negocio con NIT es unico;
+        # los NULLs multiples conviven. Autoridad final = indice unico en DB
+        # (migracion m8_negocio_nit), no solo el fast-path del servicio.
+        UniqueConstraint("nit", name="uq_negocio_nit"),
+    )
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     nombre = Column(String(255), nullable=False)
     nit = Column(String(50))

@@ -6,11 +6,6 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 # --- Negocio ---
 
-class NegocioCreate(BaseModel):
-    nombre: str = Field(..., min_length=1, max_length=255)
-    nit: str | None = None
-
-
 class NegocioResponse(BaseModel):
     id: UUID
     nombre: str
@@ -515,7 +510,7 @@ class CodigoActivacionResponse(BaseModel):
 
 class AdministradorOnboarding(BaseModel):
     nombre: str = Field(..., min_length=1, max_length=255)
-    documento: str | None = None
+    documento: str | None = Field(None, max_length=50)
 
     @field_validator("documento", mode="before")
     @classmethod
@@ -529,7 +524,7 @@ class AdministradorOnboarding(BaseModel):
 
 class OnboardingNegocioCreate(BaseModel):
     nombre: str = Field(..., min_length=1, max_length=255)
-    nit: str | None = None
+    nit: str | None = Field(None, max_length=50)
     administrador: AdministradorOnboarding
 
     @field_validator("nit", mode="before")

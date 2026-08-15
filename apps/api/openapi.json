@@ -7,132 +7,6 @@
   },
   "paths": {
     "/api/negocios": {
-      "post": {
-        "tags": [
-          "negocios"
-        ],
-        "summary": "Crear Negocio",
-        "description": "Crea un negocio. SOLO ADMINISTRADOR (autoridad en el servidor).\n\nCon la Etapa 3 (onboarding seguro), esta ruta deja de ser el bypass publico\nde creacion de tenants: la frontera de registro es POST /api/onboarding/\nnegocios (atomica, crea tambien el admin inicial + codigo bootstrap). Este\nalta administrativa se conserva para consumidores admin/seed/tests con la\nmisma politica de NIT (conflicto -> 409).",
-        "operationId": "crear_negocio_api_negocios_post",
-        "parameters": [
-          {
-            "name": "negocio_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Negocio Id"
-            }
-          },
-          {
-            "name": "role",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Role"
-            }
-          },
-          {
-            "name": "route_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Route Id"
-            }
-          },
-          {
-            "name": "user_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "User Id"
-            }
-          },
-          {
-            "name": "device_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Device Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NegocioCreate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NegocioResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
       "get": {
         "tags": [
           "negocios"
@@ -388,7 +262,7 @@
           "onboarding"
         ],
         "summary": "Crear Negocio Onboarding",
-        "description": "Alta segura y atomica de un negocio nuevo + su ADMINISTRADOR inicial.\n\nTodo (negocio, usuario admin, codigo de activacion) se crea en la misma\ntransaccion: un fallo en cualquier paso revierte la operacion completa.\nConflicto de NIT -> 409 controlado dentro de la transaccion.",
+        "description": "Alta segura y atomica de un negocio nuevo + su ADMINISTRADOR inicial.\n\nTodo (negocio, usuario admin, codigo de activacion) se crea en la misma\ntransaccion: un fallo en cualquier paso revierte la operacion completa.\nConflicto de NIT -> 409 controlado dentro de la transaccion. El fast-path\ndel servicio (SELECT) es solo comodidad UX; la AUTORIDAD del conflicto es\nel indice unico uq_negocio_nit (migracion m8): una colision que escape a\nla carrera se mapea aqui a 409 (nunca 500).",
         "operationId": "crear_negocio_onboarding_api_onboarding_negocios_post",
         "requestBody": {
           "content": {
@@ -411,15 +285,11 @@
               }
             }
           },
+          "409": {
+            "description": "El NIT ya esta registrado (autoridad: uq_negocio_nit)."
+          },
           "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
+            "description": "Payload invalido (nit/documento > 50 o formato incorrecto)."
           }
         }
       }
@@ -5188,7 +5058,8 @@
           "documento": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 50
               },
               {
                 "type": "null"
@@ -7358,32 +7229,6 @@
         ],
         "title": "MovimientoResponse"
       },
-      "NegocioCreate": {
-        "properties": {
-          "nombre": {
-            "type": "string",
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Nombre"
-          },
-          "nit": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nit"
-          }
-        },
-        "type": "object",
-        "required": [
-          "nombre"
-        ],
-        "title": "NegocioCreate"
-      },
       "NegocioInfo": {
         "properties": {
           "negocio_id": {
@@ -7496,7 +7341,8 @@
           "nit": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 50
               },
               {
                 "type": "null"

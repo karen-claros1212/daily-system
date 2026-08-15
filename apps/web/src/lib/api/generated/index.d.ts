@@ -17,17 +17,7 @@ export interface paths {
          */
         get: operations["listar_negocios_api_negocios_get"];
         put?: never;
-        /**
-         * Crear Negocio
-         * @description Crea un negocio. SOLO ADMINISTRADOR (autoridad en el servidor).
-         *
-         *     Con la Etapa 3 (onboarding seguro), esta ruta deja de ser el bypass publico
-         *     de creacion de tenants: la frontera de registro es POST /api/onboarding/
-         *     negocios (atomica, crea tambien el admin inicial + codigo bootstrap). Este
-         *     alta administrativa se conserva para consumidores admin/seed/tests con la
-         *     misma politica de NIT (conflicto -> 409).
-         */
-        post: operations["crear_negocio_api_negocios_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -69,7 +59,10 @@ export interface paths {
          *
          *     Todo (negocio, usuario admin, codigo de activacion) se crea en la misma
          *     transaccion: un fallo en cualquier paso revierte la operacion completa.
-         *     Conflicto de NIT -> 409 controlado dentro de la transaccion.
+         *     Conflicto de NIT -> 409 controlado dentro de la transaccion. El fast-path
+         *     del servicio (SELECT) es solo comodidad UX; la AUTORIDAD del conflicto es
+         *     el indice unico uq_negocio_nit (migracion m8): una colision que escape a
+         *     la carrera se mapea aqui a 409 (nunca 500).
          */
         post: operations["crear_negocio_onboarding_api_onboarding_negocios_post"];
         delete?: never;
@@ -1660,13 +1653,6 @@ export interface components {
              */
             creado_el: string;
         };
-        /** NegocioCreate */
-        NegocioCreate: {
-            /** Nombre */
-            nombre: string;
-            /** Nit */
-            nit?: string | null;
-        };
         /** NegocioInfo */
         NegocioInfo: {
             /**
@@ -2035,45 +2021,6 @@ export interface operations {
             };
         };
     };
-    crear_negocio_api_negocios_post: {
-        parameters: {
-            query?: {
-                negocio_id?: string | null;
-                role?: string | null;
-                route_id?: string | null;
-                user_id?: string | null;
-                device_id?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["NegocioCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NegocioResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     obtener_negocio_api_negocios__nid__get: {
         parameters: {
             query?: {
@@ -2133,14 +2080,19 @@ export interface operations {
                     "application/json": components["schemas"]["OnboardingNegocioResponse"];
                 };
             };
-            /** @description Validation Error */
+            /** @description El NIT ya esta registrado (autoridad: uq_negocio_nit). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Payload invalido (nit/documento > 50 o formato incorrecto). */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
+                content?: never;
             };
         };
     };

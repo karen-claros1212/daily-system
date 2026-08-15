@@ -18,8 +18,10 @@ Garantias:
   - Atomicidad: si falla el admin o el codigo, la transaccion se revierte y no
     queda ningun negocio huerfano.
   - NIT: normalizacion minima (trim) + verificacion de conflicto server-side
-    dentro de la transaccion -> 409 controlado. Sin constraint migratoria
-    destructiva ni algoritmos DIAN inventados.
+    dentro de la transaccion -> 409 controlado. La autoridad final es el indice
+    unico uq_negocio_nit (migracion m8_negocio_nit): una colision que escape al
+    fast-path se mapea a 409 en el route (nunca 500), y la carrera en Postgres
+    no puede producir dos negocios con el mismo NIT.
   - El body publico no acepta negocio_id / rol / plan / estado: el servidor
     deriva todo (aislamiento de tenancy y de reglas comerciales).
 """

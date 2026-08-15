@@ -163,8 +163,61 @@ def client(db_session):
         finally:
             pass
 
+    def override_get_db_transaction():
+        try:
+            yield db_session
+        finally:
+            pass
+
     app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[get_db_transaction] = override_get_db
+    app.dependency_overrides[get_db_transaction] = override_get_db_transaction
+    client = TestClient(app)
+    yield client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def client_atomico(db_session):
+    """TestClient cuyo get_db_transaction replica la SEMANTICA productiva.
+
+    En produccion el route escribe con get_db_transaction (commit on success,
+    rollback on exception). El override comun de `client` es yield-only y no
+    distingue exito de fallo: sirve para tests de lectura, pero convierte en
+    falso positivo cualquier assert de atomicidad (el rollback lo tendria que
+    hacer el TEST a mano).
+
+    Este fixture ejecuta el boundary transaccional dentro de un SAVEPOINT del
+    fixture db_session: ante una excepcion del request revierte al SAVEPOINT
+    (todo-o-nada real), y en exito deja los cambios en la transaccion del
+    fixture (visibles al test) que revierte su teardown (aislamiento). NO hace
+    commit del SAVEPOINT en exito: commitearlo persiste mas alla del rollback
+    del fixture, rompiendo el aislamiento entre tests.
+    """
+    from fastapi.testclient import TestClient
+
+    from src.main import app
+
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
+
+    def override_get_db_transaction():
+        # Calienta la sesion para que SU transaccion se una a la del connection
+        # (de lo contrario begin_nested() inicia un root ajeno al fixture).
+        db_session.connection()
+        savepoint = db_session.begin_nested()
+        try:
+            yield db_session
+        except Exception:
+            savepoint.rollback()
+            raise
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_db_transaction] = override_get_db_transaction
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()

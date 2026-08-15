@@ -1,5 +1,6 @@
 """Tests for the API endpoints."""
 
+from src.models import Negocio
 
 
 class TestHealthCheck:
@@ -15,79 +16,59 @@ class TestHealthCheck:
 
 
 class TestNegocioAPI:
-    """Test negocio endpoints."""
+    """Test negocio endpoints.
 
-    def test_create_negocio(self, client, db_session):
-        """Create a new negocio."""
-        response = client.post(
-            "/api/negocios",
-            json={"nombre": "Test Negocio", "nit": "900123456"},
+    Desde el HARDENING FINAL ONBOARDING, POST /api/negocios ya no existe como
+    fabrica de tenants: la frontera de registro es POST /api/onboarding/
+    negocios. Los escenarios de GET se preparan creando el Negocio con el
+    modelo interno (como hace seed_web_integration), nunca via HTTP.
+    """
+
+    def _crear_negocio(self, db_session, nombre, nit=None):
+        from uuid import uuid4
+
+        n = Negocio(
+            id=uuid4(),
+            nombre=nombre,
+            nit=nit,
+            pais="CO",
+            moneda="COP",
         )
-        assert response.status_code == 201
-        data = response.json()
-        assert data["nombre"] == "Test Negocio"
-        assert data["nit"] == "900123456"
-        assert data["pais"] == "CO"
-        assert data["moneda"] == "COP"
-        assert "id" in data
+        db_session.add(n)
+        db_session.flush()
+        return n.id
 
     def test_list_negocios(self, client, db_session):
         """Listar negocios devuelve SOLO el tenant del contexto (G5, sin fuga)."""
-        r1 = client.post(
-            "/api/negocios",
-            json={"nombre": "Negocio 1"},
-        )
-        client.post(
-            "/api/negocios",
-            json={"nombre": "Negocio 2"},
-        )
-        nid = r1.json()["id"]
+        nid = self._crear_negocio(db_session, "Negocio 1", "900000001")
+        self._crear_negocio(db_session, "Negocio 2", "900000002")
         response = client.get(f"/api/negocios?negocio_id={nid}")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
-        assert data[0]["id"] == nid
+        assert data[0]["id"] == str(nid)
 
     def test_list_negocios_no_enumera_otros_tenants(self, client, db_session):
         """El contexto de un tenant NO ve los negocios de otro (G5)."""
-        r_ten_a = client.post(
-            "/api/negocios",
-            json={"nombre": "Tenant A"},
-        )
-        client.post(
-            "/api/negocios",
-            json={"nombre": "Tenant B"},
-        )
-        nid_a = r_ten_a.json()["id"]
+        nid_a = self._crear_negocio(db_session, "Tenant A", "900000003")
+        self._crear_negocio(db_session, "Tenant B", "900000004")
         response = client.get(f"/api/negocios?negocio_id={nid_a}")
         data = response.json()
-        assert all(n["id"] == nid_a for n in data)
+        assert all(n["id"] == str(nid_a) for n in data)
 
     def test_obtener_negocio_ajeno_404(self, client, db_session):
         """GET /api/negocios/{id} de otro tenant => 404, sin fuga (G5)."""
-        r_ten_a = client.post(
-            "/api/negocios",
-            json={"nombre": "Tenant A"},
-        )
-        r_ten_b = client.post(
-            "/api/negocios",
-            json={"nombre": "Tenant B"},
-        )
-        nid_a = r_ten_a.json()["id"]
-        nid_b = r_ten_b.json()["id"]
+        nid_a = self._crear_negocio(db_session, "Tenant A", "900000005")
+        nid_b = self._crear_negocio(db_session, "Tenant B", "900000006")
         response = client.get(f"/api/negocios/{nid_b}?negocio_id={nid_a}")
         assert response.status_code == 404
 
     def test_obtener_negocio_propio_ok(self, client, db_session):
         """GET /api/negocios/{id} del propio tenant => 200."""
-        r = client.post(
-            "/api/negocios",
-            json={"nombre": "Mi Negocio"},
-        )
-        nid = r.json()["id"]
+        nid = self._crear_negocio(db_session, "Mi Negocio", "900000007")
         response = client.get(f"/api/negocios/{nid}?negocio_id={nid}")
         assert response.status_code == 200
-        assert response.json()["id"] == nid
+        assert response.json()["id"] == str(nid)
 
 
 class TestRutaAPI:

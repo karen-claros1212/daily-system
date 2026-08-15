@@ -1,4 +1,3 @@
-from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -6,13 +5,9 @@ from sqlalchemy.orm import Session
 
 from src.auth.context import RequestContext
 from src.auth.deps import get_request_context
-from src.database import get_db, get_db_transaction
+from src.database import get_db
 from src.models import Negocio
-from src.schemas import NegocioCreate, NegocioResponse
-from src.services.onboarding_service import (
-    OnboardingError,
-    verificar_nit_disponible,
-)
+from src.schemas import NegocioResponse
 
 
 def _uuid_eq(column, val: str | UUID):
@@ -22,41 +17,6 @@ def _uuid_eq(column, val: str | UUID):
 
 
 router = APIRouter(prefix="/api/negocios", tags=["negocios"])
-
-WriteSession = Annotated[
-    Session,
-    Depends(get_db_transaction, scope="function"),
-]
-
-
-@router.post("", response_model=NegocioResponse, status_code=201)
-def crear_negocio(
-    data: NegocioCreate,
-    db: WriteSession,
-    ctx: RequestContext = Depends(get_request_context),
-):
-    """Crea un negocio. SOLO ADMINISTRADOR (autoridad en el servidor).
-
-    Con la Etapa 3 (onboarding seguro), esta ruta deja de ser el bypass publico
-    de creacion de tenants: la frontera de registro es POST /api/onboarding/
-    negocios (atomica, crea tambien el admin inicial + codigo bootstrap). Este
-    alta administrativa se conserva para consumidores admin/seed/tests con la
-    misma politica de NIT (conflicto -> 409).
-    """
-    if not ctx.is_admin():
-        raise HTTPException(
-            status_code=403,
-            detail="Solo ADMINISTRADOR puede crear un negocio",
-        )
-    try:
-        verificar_nit_disponible(db, data.nit)
-    except OnboardingError as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
-    negocio = Negocio(nombre=data.nombre, nit=data.nit)
-    db.add(negocio)
-    db.flush()
-    db.refresh(negocio)
-    return NegocioResponse.model_validate(negocio)
 
 
 @router.get("", response_model=list[NegocioResponse])
