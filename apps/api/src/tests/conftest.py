@@ -87,7 +87,15 @@ TEST_DATABASE_URL = os.environ["API_DATABASE_URL"]
 
 engine = create_engine(
     TEST_DATABASE_URL,
-    connect_args={"check_same_thread": False} if IS_SQLITE else {},
+    # SQLite/Python 3.12: transaction control NO-legacy (autocommit=False).
+    # Con el modo legacy del driver, un SAVEPOINT liberado (commit de la
+    # transaccion de Session) queda fuera de la transaccion exterior y
+    # sobrevive a su rollback. Con autocommit=False el driver no inicia
+    # transacciones implicitas: SQLAlchemy controla el BEGIN explicito y el
+    # SAVEPOINT queda dentro de la transaccion exterior. PostgreSQL no cambia.
+    connect_args={"check_same_thread": False, "autocommit": False}
+    if IS_SQLITE
+    else {},
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -137,10 +145,20 @@ def test_db():
 
 @pytest.fixture(scope="function")
 def db_session(test_db):
-    """Provide a transactional database session."""
+    """Provide a transactional database session.
+
+    Patron SQLAlchemy 2.x documentado para test suites: la sesion se une a la
+    transaccion exterior del connection con join_transaction_mode
+    'create_savepoint', de modo que session.commit()/rollback() solo afectan
+    el SAVEPOINT de la sesion y la transaccion exterior del fixture permanece.
+    El teardown (close + rollback + close) elimina todos los cambios del test.
+    """
     connection = engine.connect()
     transaction = connection.begin()
-    session = TestingSessionLocal(bind=connection)
+    session = TestingSessionLocal(
+        bind=connection,
+        join_transaction_mode="create_savepoint",
+    )
 
     yield session
 
@@ -186,23 +204,25 @@ def client_atomico(db_session):
     falso positivo cualquier assert de atomicidad (el rollback lo tendria que
     hacer el TEST a mano).
 
-    Este fixture ejecuta el boundary transaccional dentro de un SAVEPOINT del
-    fixture db_session: ante una excepcion del request revierte al SAVEPOINT
-    (todo-o-nada real), y en exito deja los cambios DENTRO del SAVEPOINT, bajo
-    la transaccion exterior del fixture (visibles al test; el rollback del
-    teardown aísla cada corrida).
+    Este fixture usa el patron documentado de SQLAlchemy 2.x para test suites:
+    la sesion se une a la transaccion exterior con join_transaction_mode
+    'create_savepoint' (ver fixture db_session) y el override replica
+    LITERALMENTE la semantica productiva:
 
-    Por que NO se libera el SAVEPOINT en exito (savepoint.commit()): la sesion
-    esta ligada a un Connection (no a un Engine) para que todos los overrides
-    compartan la MISMA transaccion, y en ese binding liberar el SAVEPOINT via
-    el Session COMMITEA la transaccion exterior en SQLite. Verificado
-    empiricamente (repro con echo y conteo paso a paso): una fila insertada en
-    el SAVEPOINT y liberada con commit() sobrevive al transaction.rollback()
-    del teardown y contamina el test siguiente. En la bibliografia el commit de
-    una transaccion NESTED solo libera el SAVEPOINT, pero eso vale para
-    sesiones ligadas a un Engine con transaccion propia; aqui no. Dejar el
-    SAVEPOINT abierto no afecta visibilidad (los datos estan en la transaccion
-    del fixture) ni aislamiento (el teardown lo deshace junto con todo).
+        try:
+            yield db_session
+            db_session.commit()
+        except Exception:
+            db_session.rollback()
+            raise
+
+    Con 'create_savepoint' el commit exitoso solo libera el SAVEPOINT de la
+    sesion y el rollback de error solo lo revierte; la transaccion exterior
+    del fixture permanece y su teardown elimina todos los cambios del test.
+    Requiere ademas transaction control NO-legacy en SQLite (connect_args
+    autocommit=False, engine del modulo): en el modo legacy del driver, un
+    SAVEPOINT liberado queda fuera de la transaccion exterior y sobrevive a su
+    rollback.
     """
     from fastapi.testclient import TestClient
 
@@ -215,29 +235,12 @@ def client_atomico(db_session):
             pass
 
     def override_get_db_transaction():
-        # Calienta la sesion para que SU transaccion se una a la del connection
-        # (de lo contrario begin_nested() inicia un root ajeno al fixture).
-        db_session.connection()
-        savepoint = db_session.begin_nested()
         try:
             yield db_session
+            db_session.commit()
         except Exception:
-            # NOTA: el rollback NO se condiciona a savepoint.is_active. Tras un
-            # flush fallido (p.ej. IntegrityError de uq_negocio_nit) SQLAlchemy
-            # marca el SAVEPOINT como inactivo (is_active=False) pero la sesion
-            # queda en pending-rollback: sin este rollback el estado se contagia
-            # al resto del test. rollback() solo deshace hasta el SAVEPOINT.
-            savepoint.rollback()
+            db_session.rollback()
             raise
-        else:
-            # EXITO: los cambios quedan DENTRO del SAVEPOINT, bajo la
-            # transaccion exterior del fixture (visibles al test; su teardown
-            # los revierte). NO se libera con savepoint.commit(): la sesion
-            # ligada a un Connection hace que el commit del SAVEPOINT sea un
-            # commit de la transaccion exterior en SQLite (verificado
-            # empiricamente: la fila sobrevive al rollback del teardown y
-            # contamina el test siguiente). Detalle en el docstring.
-            pass
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_db_transaction] = override_get_db_transaction
