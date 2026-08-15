@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { fetchResumen, InversionistaSummary } from '@/lib/api/client';
 import { MetricCard } from '@/components/ui/misc';
 import { LoadingState, Flash } from '@/components/ui/button';
@@ -10,20 +10,22 @@ export function Reportes() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function load() {
+  const load = useCallback(async () => {
     try {
-      setLoading(true);
       setData(await fetchResumen());
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cargar reportes');
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    // Fetch async: todos los setState ocurren tras un await. La regla
+    // react-hooks/set-state-in-effect no modela flujo async (falso positivo).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load();
+  }, [load]);
 
   if (loading) return <LoadingState />;
   if (error) return <Flash tone="error">{error}</Flash>;

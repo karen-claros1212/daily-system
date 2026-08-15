@@ -68,10 +68,9 @@ export function Dispositivos() {
   const [codigo, setCodigo] = useState<{ deviceId: string; codigo: CodigoActivacion } | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
     try {
       setDispositivos(await fetchDispositivos());
+      setError(null);
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 0;
       const message = e instanceof Error ? e.message : 'Error al cargar los dispositivos';
@@ -82,7 +81,10 @@ export function Dispositivos() {
   }, []);
 
   useEffect(() => {
-    load();
+    // Fetch async: todos los setState ocurren tras un await. La regla
+    // react-hooks/set-state-in-effect no modela flujo async (falso positivo).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load();
   }, [load]);
 
   const runAction = async (
@@ -167,7 +169,7 @@ export function Dispositivos() {
           Tu sesión está autenticada pero el rol no tiene permisos para gestionar dispositivos.
         </p>
         <div className="flex justify-center gap-3 pt-2">
-          <Button size="sm" onClick={() => load()}>
+          <Button size="sm" onClick={() => { setLoading(true); void load(); }}>
             Reintentar
           </Button>
         </div>
@@ -189,7 +191,7 @@ export function Dispositivos() {
     return (
       <div className="space-y-4">
         <Flash tone="error">No se pudieron cargar los dispositivos en este momento.</Flash>
-        <Button size="sm" onClick={() => load()}>
+        <Button size="sm" onClick={() => { setLoading(true); void load(); }}>
           Reintentar
         </Button>
       </div>

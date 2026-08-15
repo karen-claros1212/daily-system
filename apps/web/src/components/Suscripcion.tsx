@@ -34,10 +34,9 @@ export function Suscripcion() {
   const [error, setError] = useState<{ status: number; message: string } | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
     try {
       setData(await fetchSuscripcion());
+      setError(null);
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 0;
       const message = e instanceof Error ? e.message : 'Error al cargar la suscripción';
@@ -48,7 +47,10 @@ export function Suscripcion() {
   }, []);
 
   useEffect(() => {
-    load();
+    // Fetch async: todos los setState ocurren tras un await. La regla
+    // react-hooks/set-state-in-effect no modela flujo async (falso positivo).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load();
   }, [load]);
 
   if (loading) return <LoadingState />;
@@ -66,7 +68,7 @@ export function Suscripcion() {
           Tu sesión está autenticada pero el rol no tiene permisos para ver la suscripción.
         </p>
         <div className="flex justify-center gap-3 pt-2">
-          <Button size="sm" onClick={() => load()}>
+          <Button size="sm" onClick={() => { setLoading(true); void load(); }}>
             Reintentar
           </Button>
         </div>
@@ -88,7 +90,7 @@ export function Suscripcion() {
     return (
       <div className="space-y-4">
         <Flash tone="error">No se pudo cargar la suscripción en este momento.</Flash>
-        <Button size="sm" onClick={() => load()}>
+        <Button size="sm" onClick={() => { setLoading(true); void load(); }}>
           Reintentar
         </Button>
       </div>

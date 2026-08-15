@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { SessionUser } from '@/lib/rbac';
 import { hasCapability } from '@/lib/rbac';
@@ -52,16 +52,11 @@ const TITLES: Record<string, string> = {
 export function AppShell({ children, session = null }: AppShellProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const [currentPage, setCurrentPage] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  useEffect(() => {
-    const path = pathname?.split('/').pop() || 'dashboard';
-    setCurrentPage(path);
-  }, [pathname]);
+  const currentPage = pathname?.split('/').pop() || 'dashboard';
 
   const handleNav = (page: string) => {
-    setCurrentPage(page);
     router.push(`/${page}`);
   };
 

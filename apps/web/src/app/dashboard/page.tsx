@@ -5,7 +5,7 @@ import { Forbidden } from '@/components/Forbidden';
 import { Dashboard as DashboardInversionista } from '@/components/Dashboard';
 import { DashboardCobrador } from '@/components/DashboardCobrador';
 import { canViewFinancial, fetchSession, isCobrador } from '@/lib/session';
-import { API_BASE } from '@/lib/api/client';
+import { API_BASE, type InversionistaSummary } from '@/lib/api/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +36,9 @@ export default async function DashboardPage() {
     // Fetch server-side autorizado por rol; el backend es la autoridad final.
     const cookieStore = await cookies();
     const token = cookieStore.get('daily_admin_token');
+    let status: 'ok' | 'forbidden' | 'service-error' | 'fetch-error';
+    let data: InversionistaSummary | null = null;
+    let detail: string | undefined;
     try {
       const res = await fetch(`${API_BASE}/api/inversionista/resumen`, {
         headers: { Authorization: `Bearer ${token!.value}` },
@@ -43,20 +46,30 @@ export default async function DashboardPage() {
       });
       if (res.status === 401 || res.status === 403) {
         // Backend rechaza la autorizacion: vista 403 controlada (NO redirigir).
-        content = <Forbidden rol={session.rol} />;
+        status = 'forbidden';
       } else if (!res.ok) {
         // Error transitorio del servicio (5xx), no un rechazo de rol.
         const body = await res.json().catch(() => ({}));
-        content = (
-          <div className="flash flash-error">
-            {body?.detail ?? 'El servicio financiero no respondió correctamente'}
-          </div>
-        );
+        status = 'service-error';
+        detail = body?.detail;
       } else {
-        const data = await res.json();
-        content = <DashboardInversionista data={data} />;
+        data = (await res.json()) as InversionistaSummary;
+        status = 'ok';
       }
     } catch {
+      status = 'fetch-error';
+    }
+    if (status === 'forbidden') {
+      content = <Forbidden rol={session.rol} />;
+    } else if (status === 'service-error') {
+      content = (
+        <div className="flash flash-error">
+          {detail ?? 'El servicio financiero no respondió correctamente'}
+        </div>
+      );
+    } else if (status === 'ok') {
+      content = <DashboardInversionista data={data!} />;
+    } else {
       content = (
         <div className="flash flash-error">No se pudo contactar el servicio financiero</div>
       );

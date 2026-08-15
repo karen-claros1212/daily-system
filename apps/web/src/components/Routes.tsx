@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { fetchRutas, fetchRuta, fetchJornadas, Ruta, Jornada } from '@/lib/api/client';
 import { Badge } from '@/components/ui/badge';
 import { Button, LoadingState, Flash } from '@/components/ui/button';
@@ -13,20 +13,22 @@ export function Routes() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function load() {
+  const load = useCallback(async () => {
     try {
-      setLoading(true);
       setRoutes(await fetchRutas());
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cargar rutas');
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    // Fetch async: todos los setState ocurren tras un await. La regla
+    // react-hooks/set-state-in-effect no modela flujo async (falso positivo).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load();
+  }, [load]);
 
   async function showDetail(routeId: string) {
     try {

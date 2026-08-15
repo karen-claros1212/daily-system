@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { fetchJornadas, Jornada } from '@/lib/api/client';
 import { Badge } from '@/components/ui/badge';
 import { LoadingState, Flash } from '@/components/ui/button';
@@ -10,20 +10,22 @@ export function Caja() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function load() {
+  const load = useCallback(async () => {
     try {
-      setLoading(true);
       setJornadas(await fetchJornadas());
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cargar jornadas');
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    // Fetch async: todos los setState ocurren tras un await. La regla
+    // react-hooks/set-state-in-effect no modela flujo async (falso positivo).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load();
+  }, [load]);
 
   const today = new Date().toISOString().slice(0, 10);
   const todayJornadas = jornadas.filter((j) => j.fecha === today);
