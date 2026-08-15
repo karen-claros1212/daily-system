@@ -115,6 +115,11 @@ def editar_usuario(
         usuario_id=usuario_id,
         negocio_id=ctx.negocio_id,
     )
+
+    # No-op si payload vacio (sin cambios)
+    if data.nombre is None and data.documento is None:
+        return UsuarioResponse.model_validate(usuario)
+
     usuario = usuario_service.editar_usuario(
         db=db,
         usuario=usuario,
@@ -141,6 +146,13 @@ def cambiar_estado_usuario(
         usuario_id=usuario_id,
         negocio_id=ctx.negocio_id,
     )
+
+    # H3: no bloquear al unico admin — prohibir desactivacion propia
+    if activo == 0 and usuario_id == ctx.user_id:
+        raise HTTPException(
+            status_code=409,
+            detail="El administrador no puede desactivar su propia cuenta",
+        )
 
     if activo == 0:
         usuario = usuario_service.desactivar_usuario(

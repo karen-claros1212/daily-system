@@ -8,13 +8,15 @@ Regla del hito: no existe capability que un endpoint no implemente. Cada
 entrada se justifica desde el dominio y tiene prueba negativa de que, sin
 ella, el endpoint falla 401/403.
 
-Verificacion en codigo (jun 2026):
+Verificacion en codigo (ago 2026):
   - inversionista.py: resumen/suscripcion  -> INVERSIONISTA | ADMINISTRADOR
   - jornada.py     : GET  filtrado por ruta (COBRADOR) o negocio (resto)
   - ruta.py        : POST creat + PATCH reasignar -> SOLO ADMINISTRADOR;
                      GET scoped a la ruta del COBRADOR
   - activacion.py  : POST /codigos -> SOLO ADMINISTRADOR
   - dispositivo.py : registrar -> SOLO ADMINISTRADOR
+  - usuario.py     : CRUD completo -> SOLO ADMINISTRADOR
+  - audit.py       : GET -> SOLO ADMINISTRADOR
 """
 
 from typing import Final
@@ -22,8 +24,8 @@ from typing import Final
 ROLES: Final = ("ADMINISTRADOR", "COBRADOR", "INVERSIONISTA")
 
 # capabilities por rol. Administrador = superposicion de inversionista +
-# operacion; se escribe explicito (no hereda) para que el contrato JSON sea
-# estable y auditable.
+# operacion + administracion; se escribe explicito (no hereda) para que el
+# contrato JSON sea estable y auditable.
 CAPABILITIES_POR_ROL: Final[dict[str, tuple[str, ...]]] = {
     "INVERSIONISTA": (
         "inversionista:resumen",
@@ -42,6 +44,9 @@ CAPABILITIES_POR_ROL: Final[dict[str, tuple[str, ...]]] = {
         "creditos:ver",
         "codigos:crear",
         "dispositivos:registrar",
+        "usuarios:ver",
+        "usuarios:gestionar",
+        "audit:ver",
     ),
     "COBRADOR": (
         "jornada:ver",

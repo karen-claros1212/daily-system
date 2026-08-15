@@ -87,6 +87,14 @@ class Usuario(Base):
             "rol IN ('INVERSIONISTA', 'ADMINISTRADOR', 'COBRADOR')",
             name="check_rol_valido",
         ),
+        Index(
+            "uq_usuario_negocio_documento",
+            "negocio_id",
+            "documento",
+            unique=True,
+            postgresql_where=text("documento IS NOT NULL"),
+            sqlite_where=text("documento IS NOT NULL"),
+        ),
     )
 
 

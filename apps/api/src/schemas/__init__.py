@@ -22,9 +22,27 @@ class NegocioResponse(BaseModel):
 # --- Usuario ---
 
 class UsuarioCreate(BaseModel):
-    nombre: str = Field(..., min_length=1)
-    rol: str = Field(..., pattern="^(INVERSIONISTA|ADMINISTRADOR|COBRADOR)$")
+    nombre: str = Field(..., min_length=1, max_length=255)
+    rol: str = Field(..., pattern="^(INVERSIONISTA|COBRADOR)$")
     documento: str | None = None
+
+    @field_validator("nombre", mode="before")
+    @classmethod
+    def _strip_nombre(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+        if not v:
+            raise ValueError("nombre no puede ser solo espacios")
+        return v
+
+    @field_validator("documento", mode="before")
+    @classmethod
+    def _strip_documento(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+        if v and len(v) > 50:
+            raise ValueError("documento no puede superar los 50 caracteres")
+        return v or None
 
 
 class UsuarioResponse(BaseModel):
@@ -735,7 +753,22 @@ class SyncResponse(BaseModel):
 class UsuarioUpdate(BaseModel):
     nombre: str | None = Field(None, min_length=1, max_length=255)
     documento: str | None = Field(None, max_length=50)
-    activo: int | None = Field(None, ge=0, le=1)
+
+    @field_validator("nombre", mode="before")
+    @classmethod
+    def _strip_nombre(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+        if not v:
+            raise ValueError("nombre no puede ser solo espacios")
+        return v
+
+    @field_validator("documento", mode="before")
+    @classmethod
+    def _strip_documento(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+        return v or None
 
     model_config = ConfigDict(extra="forbid")
 

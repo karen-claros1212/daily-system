@@ -70,18 +70,4 @@ class AuditLog(Base):
         Index("ix_audit_log_negocio_creado", "negocio_id", "creado_el"),
         Index("ix_audit_log_entity", "entity_type", "entity_id"),
         Index("ix_audit_log_action", "action"),
-        CheckConstraint(
-            "action IN ("
-            "'USUARIO_CREADO', 'USUARIO_ACTIVADO', 'USUARIO_DESATIVADO', "
-            "'USUARIO_EDITADO', "
-            "'RUTA_CREADA', 'RUTA_EDITADA', 'RUTA_ELIMINADA', "
-            "'DISPOSITIVO_REGISTRADO', 'DISPOSITIVO_REVOCADO', 'DISPOSITIVO_REEMPLAZADO', "
-            "'CODIGO_ACTIVACION_CREADO', "
-            "'NEGOCIO_ACTUALIZADO', "
-            "'JORNADA_CERRADA', "
-            "'PAGO_REGISTRADO', 'PAGO_REVERSADO', "
-            "'CREDITO_CREADO', 'CREDITO_EDITADO', 'CREDITO_ELIMINADO' "
-            ")",
-            name="check_audit_action",
-        ),
     )

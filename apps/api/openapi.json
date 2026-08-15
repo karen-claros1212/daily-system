@@ -5712,7 +5712,7 @@
           "audit"
         ],
         "summary": "Consultar Audit",
-        "description": "Consultar audit trail con filtros opcionales.\n\nFiltros:\n  - action: filtrar por tipo de accion\n  - entity_type: filtrar por tipo de entidad\n  - actor_id: filtrar por ID del actor (string o UUID)\n  - since: solo registros despues de esta fecha\n  - limit: maximo de resultados (1-200)\n\nOrden: mas reciente primero.",
+        "description": "Consultar audit trail con filtros opcionales.\n\nFiltros:\n  - action: filtrar por tipo de accion\n  - entity_type: filtrar por tipo de entidad\n  - actor_id: filtrar por ID del actor (UUID, 422 si invalido)\n  - since: solo registros despues de esta fecha\n  - limit: maximo de resultados (1-200)\n\nOrden: mas reciente primero.",
         "operationId": "consultar_audit_api_audit_get",
         "parameters": [
           {
@@ -5754,7 +5754,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "format": "uuid"
                 },
                 {
                   "type": "null"
@@ -8899,12 +8900,13 @@
         "properties": {
           "nombre": {
             "type": "string",
+            "maxLength": 255,
             "minLength": 1,
             "title": "Nombre"
           },
           "rol": {
             "type": "string",
-            "pattern": "^(INVERSIONISTA|ADMINISTRADOR|COBRADOR)$",
+            "pattern": "^(INVERSIONISTA|COBRADOR)$",
             "title": "Rol"
           },
           "documento": {
@@ -9052,19 +9054,6 @@
               }
             ],
             "title": "Documento"
-          },
-          "activo": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "maximum": 1.0,
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Activo"
           }
         },
         "additionalProperties": false,

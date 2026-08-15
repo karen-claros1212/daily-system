@@ -1,12 +1,11 @@
 """Servicio de usuarios — W1 (U1).
 
 Solo ADMINISTRADOR puede crear, listar, editar y desactivar usuarios.
-INVERSIONISTA solo ve usuarios de su negocio.
 
 Reglas:
   - COBRADOR y INVERSIONISTA: solo ADMINISTRADOR puede crearlos.
   - Un negocio puede tener multiples usuarios por rol.
-  - documento: unico por (negocio, documento) para no-NULL.
+  - documento: unico por (negocio, documento) para no-NULL (DB authority).
   - Desactivar (activo=0) es soft-delete: no se puede reusar el documento.
 """
 
@@ -14,6 +13,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.models import AuditLog, Usuario
@@ -36,6 +36,7 @@ def crear_usuario(
     """Crear un nuevo usuario en el negocio.
 
     Solo ADMINISTRADOR. Rol debe ser COBRADOR o INVERSIONISTA.
+    Documento se normaliza (strip) ANTES del precheck.
     """
     if rol not in ("COBRADOR", "INVERSIONISTA"):
         raise HTTPException(
@@ -43,28 +44,38 @@ def crear_usuario(
             detail="Rol debe ser COBRADOR o INVERSIONISTA",
         )
 
-    if documento:
+    doc = documento.strip() if documento else None
+
+    if doc:
         existente = db.query(Usuario).filter(
             Usuario.negocio_id == negocio_id,
-            Usuario.documento == documento,
+            Usuario.documento == doc,
         ).first()
         if existente:
             raise HTTPException(
                 status_code=409,
-                detail=f"Ya existe un usuario con documento {documento} en este negocio",
+                detail=f"Ya existe un usuario con documento {doc} en este negocio",
             )
 
     usuario = Usuario(
         negocio_id=negocio_id,
         rol=rol,
-        nombre=nombre.strip(),
-        documento=documento.strip() if documento else None,
+        nombre=nombre,
+        documento=doc,
         activo=1,
     )
     db.add(usuario)
-    db.flush()
 
-    # Audit log
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Ya existe un usuario con documento {doc} en este negocio",
+        )
+
+    # Audit log — sin PII innecesaria
     audit = AuditLog(
         negocio_id=negocio_id,
         actor_id=actor_id,
@@ -74,7 +85,6 @@ def crear_usuario(
         metadata_col={
             "rol": rol,
             "nombre": nombre,
-            "documento": usuario.documento,
         },
         ip_address=ip_address,
         user_agent=user_agent,
@@ -124,31 +134,42 @@ def editar_usuario(
     ip_address: str | None = None,
     user_agent: str | None = None,
 ) -> Usuario:
-    """Editar usuario existente. Solo ADMINISTRADOR."""
+    """Editar usuario existente. Solo ADMINISTRADOR.
+
+    Si ambos campos son None, no hace nada (drift contractual).
+    """
+    nombre_norm = nombre.strip() if nombre else None
+    doc_norm = documento.strip() if documento else None
+
+    # Si no hay cambios reales, devolver sin flush
+    if nombre_norm is None and doc_norm is None:
+        return usuario
+
     cambios = {}
-    if nombre is not None:
-        if not nombre.strip():
-            raise HTTPException(status_code=400, detail="nombre no puede estar vacio")
-        usuario.nombre = nombre.strip()
-        cambios["nombre"] = nombre
-    if documento is not None:
-        doc = documento.strip()
-        if doc:
-            existente = db.query(Usuario).filter(
-                Usuario.id != usuario.id,
-                Usuario.negocio_id == usuario.negocio_id,
-                Usuario.documento == doc,
-            ).first()
-            if existente:
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Ya existe un usuario con documento {doc} en este negocio",
-                )
-            usuario.documento = doc
-            cambios["documento"] = doc
+
+    if nombre_norm is not None:
+        if not nombre_norm:
+            raise HTTPException(status_code=400, detail="nombre no puede ser solo espacios")
+        usuario.nombre = nombre_norm
+        cambios["nombre"] = nombre_norm
+
+    if doc_norm is not None:
+        existente = db.query(Usuario).filter(
+            Usuario.id != usuario.id,
+            Usuario.negocio_id == usuario.negocio_id,
+            Usuario.documento == doc_norm,
+        ).first()
+        if existente:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Ya existe un usuario con documento {doc_norm} en este negocio",
+            )
+        usuario.documento = doc_norm
+        cambios["documento"] = doc_norm
+
     db.flush()
 
-    # Audit log
+    # Audit log — solo campos cambiados, sin valor completo de documento
     audit = AuditLog(
         negocio_id=usuario.negocio_id,
         actor_id=actor_id,
@@ -157,7 +178,7 @@ def editar_usuario(
         entity_id=usuario.id,
         metadata_col={
             "rol": usuario.rol,
-            "cambios": cambios,
+            "cambios": list(cambios.keys()),
         },
         ip_address=ip_address,
         user_agent=user_agent,
@@ -182,12 +203,11 @@ def desactivar_usuario(
     audit = AuditLog(
         negocio_id=usuario.negocio_id,
         actor_id=actor_id,
-        action="USUARIO_DESATIVADO",
+        action="USUARIO_DESACTIVADO",
         entity_type="USUARIO",
         entity_id=usuario.id,
         metadata_col={
             "rol": usuario.rol,
-            "nombre": usuario.nombre,
         },
         ip_address=ip_address,
         user_agent=user_agent,
@@ -217,7 +237,6 @@ def activar_usuario(
         entity_id=usuario.id,
         metadata_col={
             "rol": usuario.rol,
-            "nombre": usuario.nombre,
         },
         ip_address=ip_address,
         user_agent=user_agent,

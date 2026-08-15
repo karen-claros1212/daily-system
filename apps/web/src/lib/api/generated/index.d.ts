@@ -853,7 +853,7 @@ export interface paths {
          *     Filtros:
          *       - action: filtrar por tipo de accion
          *       - entity_type: filtrar por tipo de entidad
-         *       - actor_id: filtrar por ID del actor (string o UUID)
+         *       - actor_id: filtrar por ID del actor (UUID, 422 si invalido)
          *       - since: solo registros despues de esta fecha
          *       - limit: maximo de resultados (1-200)
          *
@@ -2120,8 +2120,6 @@ export interface components {
             nombre?: string | null;
             /** Documento */
             documento?: string | null;
-            /** Activo */
-            activo?: number | null;
         };
         /** ValidationError */
         ValidationError: {
