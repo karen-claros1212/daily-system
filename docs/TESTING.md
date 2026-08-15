@@ -2,8 +2,9 @@
 
 **Documento:** Estado vivo  
 **Última actualización:** 2026-08-15  
-**Base verificada:** `product/web-premium-v1` @ `33b1342`
-**Baseline funcional certificado:** `bbb3e102`
+**Base verificada:** `product/web-premium-v1` @ `bbb3e102`
+**HEAD operativo:** dinámico — `git rev-parse HEAD`
+**Commit fuente de evidencia visual responsive:** `33b1342`
 
 ---
 

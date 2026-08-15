@@ -14,8 +14,9 @@ Este es el checkout operativo canónico. Confirmar siempre con `pwd` y `git rev-
 | Concepto | Valor |
 |---|---|
 | Rama de trabajo | `product/web-premium-v1` |
-| HEAD documental | `33b1342` (reconciliación docs + evidencia visual) |
+| HEAD operativo | dinámico — `git rev-parse HEAD` (Git es autoridad) |
 | Baseline funcional certificado | `bbb3e102` |
+| Commit fuente evidencia visual responsive | `33b1342` |
 | HEAD (repositorio) | **Dinámico** — `git rev-parse HEAD` (Git es autoridad; SHA no se hardcodea en docs) |
 | origin/master | `486d08b` (no contiene hardening ni Web Premium) |
 

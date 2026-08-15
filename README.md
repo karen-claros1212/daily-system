@@ -35,8 +35,9 @@
 | Producción / deploy | ⏳ PENDIENTE — NO desplegada todavía |
 
 > **Rama de trabajo:** `product/web-premium-v1`
-> **HEAD documental:** `33b1342` (reconciliación docs + evidencia)
+> **HEAD operativo:** dinámico — `git rev-parse HEAD` (Git es autoridad)
 > **Baseline funcional certificado:** `bbb3e102`
+> **Commit fuente de evidencia visual responsive:** `33b1342`
 > `master` (`486d08b`) es una rama legacy sin el hardening. Ver [Estado del proyecto](docs/STATUS.md) para detalle en vivo.
 
 ---
@@ -271,7 +272,7 @@ npm test                 # Playwright E2E (mock y real según configuración)
 
 ## Pruebas y gates
 
-> **Último baseline verificado (2026-08-15):** `product/web-premium-v1` @ `33b1342`.
+> **Último baseline verificado (2026-08-15):** `product/web-premium-v1` @ `bbb3e102`.
 > **Baseline funcional certificado:** `bbb3e102`.
 > Los workflows (`backend-ci.yml`, `web-ci.yml`) corren en GitHub Actions sobre `product/web-premium-v1`.
 > `ui-gate.yml` existe con trigger en `master`; no corrió sobre este push (sin cambios Mobile).
@@ -387,7 +388,7 @@ Ver [Security](docs/SECURITY.md), [Offline Sync](docs/OFFLINE-SYNC.md), [Archite
 | [Históricos](docs/historical/) | Archivo | Documentos archivados (no son verdad vigente) |
 
 > 📌 **Verdad documental vigente:** `docs/STATUS.md` + `DAILY-SYSTEM-CONTEXT-HANDOFF.md`.
-> El handoff operativo vigente es `DAILY-SYSTEM-CONTEXT-HANDOFF.md` (HEAD documental `33b1342`, baseline funcional `bbb3e102`).
+> El handoff operativo vigente es `DAILY-SYSTEM-CONTEXT-HANDOFF.md` (HEAD operativo dinámico, baseline funcional `bbb3e102`).
 
 ---
 

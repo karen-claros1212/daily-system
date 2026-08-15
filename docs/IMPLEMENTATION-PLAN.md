@@ -4,7 +4,7 @@
 **Versión:** 1.3
 **Fecha:** 2026-07-31 (actualizado 2026-08-15)
 **Estado:** Etapa 1 ✅ · Etapa 2 ✅ · Etapa 3 EN PROGRESO · Etapa 4 ⏳ · Etapa 5 ⏳
-**HEAD documental:** `33b1342` · **Baseline funcional certificado:** `bbb3e102`
+**HEAD operativo:** dinámico — `git rev-parse HEAD` · **Baseline funcional certificado:** `bbb3e102`
 
 > ## ⚠️ NOTA DE RECONCILIACIÓN (2026-08-15) — estados históricos
 >

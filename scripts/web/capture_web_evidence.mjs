@@ -1,7 +1,7 @@
-// capture_web_evidence.mjs — Captura de evidencia visual de la Web Premium.
+// capture_web_evidence.mjs — Captura de evidencia visual de Web Premium production-grade.
 //
-//   Drivea la UI real de Web Premium contra mock-api (contrato contractual
-//   del backend) con Playwright: flujo de login por código de activación y captura
+//   Drivea la UI real de Web Premium contra mock-api (mock contractual reproducible;
+//   sin backend real) con Playwright: flujo de login por código de activación y captura
 //   de cada pantalla con verificación de firma (rechaza capturas inválidas).
 //   Cada captura se registra en manifest.json con SHA-256 + commit + timestamp,
 //   espejando el patrón Android de docs/ui-audit/screenshots/manifest.json.
@@ -149,7 +149,7 @@ async function main() {
           generated: ts,
           commit,
           engine: 'nextjs-16 + react-19 + tailwind',
-          mode: 'mock-api (contrato contractual del backend)',
+          mode: 'mock contractual reproducible; sin backend real',
           base_url: BASE,
           captures,
         },

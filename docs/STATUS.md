@@ -4,8 +4,9 @@
 **Última actualización:** 2026-08-15
 **Ruta de trabajo verificada (local):** `/home/jesus/proyectos/daily-system`
 **Rama de trabajo:** `product/web-premium-v1`
-**HEAD documental:** `33b13428d5b9364ae6d8ed39d2875ee99b33d2f7`
+**HEAD operativo:** dinámico — `git rev-parse HEAD` (Git es autoridad)
 **Baseline funcional certificado:** `bbb3e1024cd0380cf48288c486565a4411c602c3`
+**Commit fuente de evidencia visual responsive:** `33b13428d5b9364ae6d8ed39d2875ee99b33d2f7`
 **Repo:** https://github.com/karen-claros1212/daily-system
 
 > ## ⚠️ NOTA DE RECONCILIACIÓN (2026-08-15)

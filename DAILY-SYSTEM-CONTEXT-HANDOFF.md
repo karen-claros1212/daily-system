@@ -4,12 +4,17 @@
 
 ```
 S0–S5: PASS · Web Premium: PRODUCTION-GRADE (preparada para producción, NO desplegada)
-HEAD DOCUMENTAL: 33b13424cd0380cf48288c486565a4411c602c3
-BASELINE FUNCIONAL: bbb3e1024cd0380cf48288c486565a4411c602c3
 RAMA: product/web-premium-v1
-WORKTREE: DIRTY (reconciliación documental en curso — sin commit aún)
 MASTER: INTACTO (remote: 486d08b)
 CI: 2 workflows PASS (backend-ci · web-ci) · ui-gate (trigger: master)
+```
+
+### Verificación operativa
+
+```bash
+cd /home/jesus/proyectos/daily-system
+git status --short          # → limpio / lista cambios pendientes
+git rev-parse HEAD          # → HEAD operativo (dinámico)
 ```
 
 ## Bloque activo — Reconciliación documental (docs + evidencia visual)
@@ -74,4 +79,4 @@ Antes de iniciar cualquier trabajo nuevo:
 - S4: b75f2c482d5b3f42d60cdbb0f384195c1df73ffc
 - S5: 877f24d70dc43246f968e32e50e1bcc8e450191b
 - Baseline funcional certificado: bbb3e1024cd0380cf48288c486565a4411c602c3
-- HEAD documental actual: 33b13428d5b9364ae6d8ed39d2875ee99b33d2f7
+- Commit fuente evidencia visual responsive: 33b13428d5b9364ae6d8ed39d2875ee99b33d2f7

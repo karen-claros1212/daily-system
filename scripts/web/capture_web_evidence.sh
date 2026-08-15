@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# ─── capture_web_evidence.sh — Evidencia visual del panel web productivo ──
-# Arranca el stack de la Web Premium (mock-api con el contrato REAL del
-# backend en :8100 + Next.js dev en :3000), captura las 8 pantallas del panel
-# con Playwright (login real por código de activación) y escribe un
-# manifest.json con SHA-256 + commit + timestamp.
+# ─── capture_web_evidence.sh — Evidencia visual de Web Premium production-grade ──
+# Arranca el stack de la Web Premium (mock-api con contrato contractual reproducible
+# del backend en :8100 + Next.js dev en :3000), captura las pantallas por flujo UI
+# real contra mock contractual (código de activación) y escribe manifest.json con
+# SHA-256 + commit + timestamp.
 #
-# OUTPUT
-#   docs/assets/readme/web/01-login.png … 08-registro.png
-#   docs/assets/readme/web/manifest.json
+# OUTPUT (desktop):
+#   docs/assets/readme/web/desktop/01-login.png … 08-registro.png
+#   docs/assets/readme/web/desktop/manifest.json
+# OUTPUT (mobile):
+#   docs/assets/readme/web/mobile/01-login.png … 05-registro.png
+#   docs/assets/readme/web/mobile/manifest.json
 #
 # REQUIREMENTS
 #   - node + apps/web/node_modules (npm ci) + browsers de Playwright instalados
