@@ -4,6 +4,7 @@ from datetime import date
 from uuid import uuid4
 
 from src.models import Cliente, Credito, Negocio, Ruta
+from src.services.hoja_viva_service import today_bogota
 from src.services.renewal_service import renew_credito
 from src.services.schedule_service import generate_schedule_for_id
 
@@ -232,6 +233,10 @@ class TestVenceHoyReal:
         rid = uuid4()
         cid = uuid4()
         credito_id = uuid4()
+        # Fecha de negocio Bogotá (UTC-5), igual que hoja_viva_service: el
+        # runner de CI en UTC puede estar un día por delante de Bogotá y
+        # date.today() haría que la cuota del "día 15" no venza el "14".
+        hoy = today_bogota()
 
         db_session.add(Negocio(id=nid, nombre="N", nit="1"))
         db_session.add(Ruta(id=rid, negocio_id=nid, nombre="R1"))
@@ -242,13 +247,13 @@ class TestVenceHoyReal:
         db_session.add(Credito(
             id=credito_id, negocio_id=nid, cliente_id=cid, ruta_id=rid,
             cuota=30000, n_cuotas=40, monto=1000000, total=1200000,
-            periodicidad="DIARIO", fecha_inicio=date.today(), estado="ACTIVO",
+            periodicidad="DIARIO", fecha_inicio=hoy, estado="ACTIVO",
         ))
         db_session.commit()
 
         # Generate schedule
         cuotas = generate_schedule_for_id(db_session, credito_id)
-        vencen_hoy = [c for c in cuotas if c.fecha_vencimiento == date.today()]
+        vencen_hoy = [c for c in cuotas if c.fecha_vencimiento == hoy]
         assert len(vencen_hoy) >= 1  # at least one cuota due today
 
         resp = client.get(f"/api/rutas/{rid}/hoja-viva?negocio_id={nid}")
