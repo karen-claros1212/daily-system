@@ -783,6 +783,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/usuarios": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listar Usuarios */
+        get: operations["listar_usuarios_api_usuarios_get"];
+        put?: never;
+        /** Crear Usuario */
+        post: operations["crear_usuario_api_usuarios_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/usuarios/{usuario_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Obtener Usuario */
+        get: operations["obtener_usuario_api_usuarios__usuario_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Editar Usuario */
+        patch: operations["editar_usuario_api_usuarios__usuario_id__patch"];
+        trace?: never;
+    };
+    "/api/usuarios/{usuario_id}/estado": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Cambiar Estado Usuario
+         * @description Activar (activo=1) o desactivar (activo=0) un usuario.
+         */
+        patch: operations["cambiar_estado_usuario_api_usuarios__usuario_id__estado_patch"];
+        trace?: never;
+    };
+    "/api/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Consultar Audit
+         * @description Consultar audit trail con filtros opcionales.
+         *
+         *     Filtros:
+         *       - action: filtrar por tipo de accion
+         *       - entity_type: filtrar por tipo de entidad
+         *       - actor_id: filtrar por ID del actor (string o UUID)
+         *       - since: solo registros despues de esta fecha
+         *       - limit: maximo de resultados (1-200)
+         *
+         *     Orden: mas reciente primero.
+         */
+        get: operations["consultar_audit_api_audit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -813,6 +898,41 @@ export interface components {
             nombre: string;
             /** Documento */
             documento?: string | null;
+        };
+        /** AuditLogResponse */
+        AuditLogResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Negocio Id
+             * Format: uuid
+             */
+            negocio_id: string;
+            /**
+             * Actor Id
+             * Format: uuid
+             */
+            actor_id: string;
+            /** Action */
+            action: string;
+            /** Entity Type */
+            entity_type: string;
+            /** Entity Id */
+            entity_id: string | null;
+            /** Metadata */
+            metadata: Record<string, never> | null;
+            /** Ip Address */
+            ip_address: string | null;
+            /** User Agent */
+            user_agent: string | null;
+            /**
+             * Creado El
+             * Format: date-time
+             */
+            creado_el: string;
         };
         /** BootstrapResponse */
         BootstrapResponse: {
@@ -1938,6 +2058,36 @@ export interface components {
             /** Jornadas */
             jornadas: components["schemas"]["JornadaResponse"][];
         };
+        /** UsuarioCreate */
+        UsuarioCreate: {
+            /** Nombre */
+            nombre: string;
+            /** Rol */
+            rol: string;
+            /** Documento */
+            documento?: string | null;
+        };
+        /** UsuarioListResponse */
+        UsuarioListResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Rol */
+            rol: string;
+            /** Nombre */
+            nombre: string;
+            /** Documento */
+            documento: string | null;
+            /** Activo */
+            activo: number;
+            /**
+             * Creado El
+             * Format: date-time
+             */
+            creado_el: string;
+        };
         /** UsuarioResponse */
         UsuarioResponse: {
             /**
@@ -1963,6 +2113,15 @@ export interface components {
              * Format: date-time
              */
             creado_el: string;
+        };
+        /** UsuarioUpdate */
+        UsuarioUpdate: {
+            /** Nombre */
+            nombre?: string | null;
+            /** Documento */
+            documento?: string | null;
+            /** Activo */
+            activo?: number | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -3586,6 +3745,238 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuscripcionStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listar_usuarios_api_usuarios_get: {
+        parameters: {
+            query?: {
+                rol?: string | null;
+                activo?: number | null;
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsuarioListResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    crear_usuario_api_usuarios_post: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UsuarioCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsuarioResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    obtener_usuario_api_usuarios__usuario_id__get: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path: {
+                usuario_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsuarioResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    editar_usuario_api_usuarios__usuario_id__patch: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path: {
+                usuario_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UsuarioUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsuarioResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cambiar_estado_usuario_api_usuarios__usuario_id__estado_patch: {
+        parameters: {
+            query: {
+                activo: number;
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path: {
+                usuario_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsuarioResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    consultar_audit_api_audit_get: {
+        parameters: {
+            query?: {
+                action?: string | null;
+                entity_type?: string | null;
+                actor_id?: string | null;
+                since?: string | null;
+                limit?: number;
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditLogResponse"][];
                 };
             };
             /** @description Validation Error */
