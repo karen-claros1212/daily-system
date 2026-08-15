@@ -194,8 +194,9 @@ class TestToken:
         t = pyjwt.encode(claims, None, algorithm="none")
         with pytest.raises(TokenError):
             decode_token(t)
-        # HS256: firmado con una clave simetrica, rechazado.
-        t = pyjwt.encode(claims, "any-symmetric-secret", algorithm="HS256")
+        # HS256: firmado con una clave simetrica (test-only, >= 32 bytes para
+        # no disparar InsecureKeyLengthWarning), rechazado.
+        t = pyjwt.encode(claims, "any-symmetric-secret-0123456789ABCDEF", algorithm="HS256")
         with pytest.raises(TokenError):
             decode_token(t)
         # RS256: firmado con una clave real, rechazado porque solo ES256 existe.
