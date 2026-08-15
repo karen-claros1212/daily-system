@@ -109,6 +109,10 @@ const SESIONES = new Map([
   [MOCK_JWT_EXPIRED, { user_id: 'u1', usuario_nombre: 'Cobrador Mock', rol: 'COBRADOR', device_id: 'mock-device', route_id: 'r1', route_nombre: 'Ruta Centro' }],
   // ADMINISTRADOR: la identidad que derivaría la DB para un admin del negocio.
   ['mock-admin', { user_id: 'u_admin', usuario_nombre: 'Admin Mock', rol: 'ADMINISTRADOR', device_id: null, route_id: null, route_nombre: null }],
+  // Variantes de gestión de dispositivos (Etapa 3): rol ADMIN sin cambios.
+  ['mock-admin-empty', { user_id: 'u_admin', usuario_nombre: 'Admin Mock', rol: 'ADMINISTRADOR', device_id: null, route_id: null, route_nombre: null, sinDispositivos: true }],
+  ['mock-admin-error', { user_id: 'u_admin', usuario_nombre: 'Admin Mock', rol: 'ADMINISTRADOR', device_id: null, route_id: null, route_nombre: null, error: true }],
+  ['mock-admin-401', { user_id: 'u_admin', usuario_nombre: 'Admin Mock', rol: 'ADMINISTRADOR', device_id: null, route_id: null, route_nombre: null, dispositivos401: true }],
 ]);
 
 function sesionDe(token) {
@@ -141,6 +145,103 @@ function uuid() {
 
 function publicKeyHash(spkiBase64) {
   return crypto.createHash('sha256').update(Buffer.from(spkiBase64, 'base64')).digest('hex');
+}
+
+// ─── dispositivos administrativos (Etapa 3, contrato DispositivoResponse) ──
+// Replica el estado que el backend conserva por negocio: estado ACTIVE /
+// REVOKED / REPLACED, activo 0/1, fechas y modelo/plataforma. Los IDs son
+// UUIDs estables por negocio (como el contrato); NUNCA se exponen secretos
+// (public_key_hash se deja null en la vista, igual que no se muestra en la UI).
+//
+// El store es mutable (revocar/reactivar/reemplazar lo modifican) y se
+// re-siembra desde el fixture en cada GET, de modo que cada test E2E
+// empieza siempre desde un estado determinista (los POSTs modifican el
+// store; la UI los aplica localmente sin re-fetch).
+const DISPOSITIVOS_FIXTURE = [
+  {
+    id: 'dev-11111111-1111-4111-8111-111111111111',
+    negocio_id: 'n1',
+    usuario_id: 'u1',
+    huella: null,
+    public_key_hash: null,
+    algoritmo_clave: 'ES256',
+    estado: 'ACTIVE',
+    modelo: 'Galaxy A54',
+    plataforma: 'android',
+    autorizado_por: 'u_admin',
+    autorizado_el: new Date(Date.now() - 40 * 24 * 3600 * 1000).toISOString(),
+    revocado_el: null,
+    ultima_validacion_servidor: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+    activo: 1,
+    creado_el: new Date(Date.now() - 40 * 24 * 3600 * 1000).toISOString(),
+  },
+  {
+    id: 'dev-22222222-2222-4222-8222-222222222222',
+    negocio_id: 'n1',
+    usuario_id: 'u2',
+    huella: null,
+    public_key_hash: null,
+    algoritmo_clave: 'ES256',
+    estado: 'REVOKED',
+    modelo: 'iPhone 12',
+    plataforma: 'ios',
+    autorizado_por: 'u_admin',
+    autorizado_el: new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString(),
+    revocado_el: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString(),
+    ultima_validacion_servidor: new Date(Date.now() - 12 * 24 * 3600 * 1000).toISOString(),
+    activo: 0,
+    creado_el: new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString(),
+  },
+  {
+    id: 'dev-33333333-3333-4333-8333-333333333333',
+    negocio_id: 'n1',
+    usuario_id: 'u3',
+    huella: null,
+    public_key_hash: null,
+    algoritmo_clave: 'ES256',
+    estado: 'REPLACED',
+    modelo: 'Redmi Note 12',
+    plataforma: 'android',
+    autorizado_por: 'u_admin',
+    autorizado_el: new Date(Date.now() - 120 * 24 * 3600 * 1000).toISOString(),
+    revocado_el: new Date(Date.now() - 20 * 24 * 3600 * 1000).toISOString(),
+    ultima_validacion_servidor: new Date(Date.now() - 25 * 24 * 3600 * 1000).toISOString(),
+    activo: 0,
+    creado_el: new Date(Date.now() - 120 * 24 * 3600 * 1000).toISOString(),
+  },
+];
+
+function seedDispositivosAdmin() {
+  dispositivosAdmin.clear();
+  for (const d of DISPOSITIVOS_FIXTURE) dispositivosAdmin.set(d.id, { ...d });
+}
+
+const dispositivosAdmin = new Map();
+
+function listaDispositivos() {
+  return Array.from(dispositivosAdmin.values());
+}
+
+function nuevoDispositivo(data) {
+  const dev = {
+    id: uuid(),
+    negocio_id: 'n1',
+    usuario_id: null,
+    huella: data.huella ?? null,
+    public_key_hash: null,
+    algoritmo_clave: 'ES256',
+    estado: 'ACTIVE',
+    modelo: data.modelo ?? null,
+    plataforma: data.plataforma ?? null,
+    autorizado_por: 'u_admin',
+    autorizado_el: new Date().toISOString(),
+    revocado_el: null,
+    ultima_validacion_servidor: new Date().toISOString(),
+    activo: 1,
+    creado_el: new Date().toISOString(),
+  };
+  dispositivosAdmin.set(dev.id, dev);
+  return dev;
 }
 
 function parseSpki(spkiBase64) {
@@ -240,6 +341,104 @@ const server = http.createServer(async (req, res) => {
       plan: 'basic',
       paid_through_at: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
       activa: true,
+    });
+  }
+
+  // ── GET /api/dispositivos (Etapa 3, contrato real) ─────────────────────────
+  // Replica DispositivoResponse[] y las reglas de dispositivo.py:
+  //   - cualquier sesion valida lista (scoped al negocio del ctx)
+  //   - 401 sin sesion; el detalle de estado/campos sale de la "DB" del mock
+  // La web ADMINISTRADORA es solo para rol con `dispositivos:registrar`, pero
+  // el backend lista para cualquier rol con sesion; el mock refleja lo mismo.
+  if (req.method === 'GET' && path === '/api/dispositivos') {
+    const token = bearerToken(req);
+    const sesion = sesionDe(token);
+    if (!sesion) return json(res, 401, { detail: 'Unauthorized' });
+    if (sesion.dispositivos401) return json(res, 401, { detail: 'Credencial de sesion (Bearer JWT) requerida' });
+    if (sesion.error) return json(res, 500, { detail: 'Mock internal error' });
+    if (sesion.sinDispositivos) return json(res, 200, []);
+    seedDispositivosAdmin();
+    return json(res, 200, listaDispositivos());
+  }
+
+  // ── acciones administrativas de dispositivos (SOLO ADMINISTRADOR, 403) ────
+  if (req.method === 'POST' && path === '/api/dispositivos') {
+    const sesion = sesionDe(bearerToken(req));
+    if (!sesion) return json(res, 401, { detail: 'Unauthorized' });
+    if (!capabilities(sesion.rol).includes('dispositivos:registrar')) {
+      return json(res, 403, { detail: 'Solo ADMINISTRADOR puede registrar dispositivos' });
+    }
+    return json(res, 201, nuevoDispositivo(body));
+  }
+
+  const revocarMatch = path.match(/^\/api\/dispositivos\/([^/]+)\/revocar$/);
+  if (req.method === 'POST' && revocarMatch) {
+    const sesion = sesionDe(bearerToken(req));
+    if (!sesion) return json(res, 401, { detail: 'Unauthorized' });
+    if (!capabilities(sesion.rol).includes('dispositivos:registrar')) {
+      return json(res, 403, { detail: 'Solo ADMINISTRADOR puede revocar dispositivos' });
+    }
+    const dev = dispositivosAdmin.get(revocarMatch[1]);
+    if (!dev) return json(res, 404, { detail: 'Dispositivo no encontrado' });
+    dev.estado = 'REVOKED';
+    dev.activo = 0;
+    dev.revocado_el = new Date().toISOString();
+    return json(res, 200, dev);
+  }
+
+  const reactivarMatch = path.match(/^\/api\/dispositivos\/([^/]+)\/reactivar$/);
+  if (req.method === 'POST' && reactivarMatch) {
+    const sesion = sesionDe(bearerToken(req));
+    if (!sesion) return json(res, 401, { detail: 'Unauthorized' });
+    if (!capabilities(sesion.rol).includes('dispositivos:registrar')) {
+      return json(res, 403, { detail: 'Solo ADMINISTRADOR puede reactivar dispositivos' });
+    }
+    const dev = dispositivosAdmin.get(reactivarMatch[1]);
+    if (!dev || dev.estado !== 'REVOKED') return json(res, 404, { detail: 'Dispositivo no encontrado o ya activo' });
+    dev.estado = 'ACTIVE';
+    dev.activo = 1;
+    dev.revocado_el = null;
+    dev.autorizado_el = new Date().toISOString();
+    return json(res, 200, dev);
+  }
+
+  const reemplazarMatch = path.match(/^\/api\/dispositivos\/([^/]+)\/reemplazar$/);
+  if (req.method === 'POST' && reemplazarMatch) {
+    const sesion = sesionDe(bearerToken(req));
+    if (!sesion) return json(res, 401, { detail: 'Unauthorized' });
+    if (!capabilities(sesion.rol).includes('dispositivos:registrar')) {
+      return json(res, 403, { detail: 'Solo ADMINISTRADOR puede reemplazar dispositivos' });
+    }
+    const dev = dispositivosAdmin.get(reemplazarMatch[1]);
+    if (!dev) return json(res, 404, { detail: 'Dispositivo no encontrado' });
+    if (!dev.usuario_id) return json(res, 404, { detail: 'El dispositivo no tiene cobrador asignado para reemplazo' });
+    if (dev.estado === 'REPLACED') return json(res, 404, { detail: 'El dispositivo ya fue reemplazado' });
+    dev.estado = 'REPLACED';
+    dev.activo = 0;
+    return json(res, 200, {
+      dispositivo: dev,
+      nuevo_codigo: {
+        codigo_id: uuid(),
+        token: randomToken(),
+        prefijo: 'DS',
+        expira_el: rfc3339(Date.now() + 30 * 60 * 1000),
+      },
+    });
+  }
+
+  // ── POST /api/activaciones/codigos (SOLO ADMINISTRADOR, 201) ──────────────
+  if (req.method === 'POST' && path === '/api/activaciones/codigos') {
+    const sesion = sesionDe(bearerToken(req));
+    if (!sesion) return json(res, 401, { detail: 'Unauthorized' });
+    if (!capabilities(sesion.rol).includes('codigos:crear')) {
+      return json(res, 403, { detail: 'Solo ADMINISTRADOR puede generar codigos de activacion' });
+    }
+    if (!body.usuario_id) return json(res, 422, { detail: 'usuario_id requerido' });
+    return json(res, 201, {
+      codigo_id: uuid(),
+      token: randomToken(),
+      prefijo: 'DS',
+      expira_el: rfc3339(Date.now() + 30 * 60 * 1000),
     });
   }
   if (req.method === 'GET' && path === '/api/rutas') {
@@ -512,4 +711,5 @@ function buildAuthPayload(challengeId, deviceId, nonce, expiraMs, env, publicKey
 }
 
 const port = Number(process.env.MOCK_API_PORT || 8000);
+seedDispositivosAdmin();
 server.listen(port, () => console.log(`[mock-api] listening on :${port}`));

@@ -65,6 +65,36 @@ test.describe('A11y', () => {
     expect(results.violations).toEqual([]);
   });
 
+  test('dispositivos a11y scan', async ({ page }) => {
+    // Solo ADMINISTRADOR tiene acceso (dispositivos:registrar).
+    await page.route('**/api/dispositivos', async (route) => {
+      await route.fulfill({
+        status: 200,
+        json: [{
+          id: 'dev-11111111-1111-4111-8111-111111111111',
+          negocio_id: 'n1',
+          usuario_id: 'u1',
+          huella: null,
+          public_key_hash: null,
+          algoritmo_clave: 'ES256',
+          estado: 'ACTIVE',
+          modelo: 'Galaxy A54',
+          plataforma: 'android',
+          autorizado_por: 'u_admin',
+          autorizado_el: '2026-01-01T00:00:00Z',
+          revocado_el: null,
+          ultima_validacion_servidor: '2026-08-01T00:00:00Z',
+          activo: 1,
+          creado_el: '2026-01-01T00:00:00Z',
+        }],
+      });
+    });
+    await setSessionToken(page, 'mock-admin');
+    await page.goto('/dispositivos');
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
   test('keyboard navigation on sidebar', async ({ page }) => {
     await setSessionToken(page);
     await page.goto('/dashboard');

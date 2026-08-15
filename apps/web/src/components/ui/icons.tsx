@@ -186,3 +186,13 @@ export function IconSuscripcion(p: IconProps) {
     </svg>
   );
 }
+
+export function IconDispositivo(p: IconProps) {
+  return (
+    <svg {...BASE} width={p.size ?? 18} height={p.size ?? 18} className={p.className}>
+      <rect x="6" y="2" width="12" height="20" rx="2" />
+      <path d="M11 18h2" />
+      <path d="M9 5h6" />
+    </svg>
+  );
+}
