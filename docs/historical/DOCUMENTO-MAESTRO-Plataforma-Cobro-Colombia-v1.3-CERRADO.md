@@ -1,3 +1,14 @@
+> ## ⚠️ ARCHIVADO — DOCUMENTO HISTÓRICO
+>
+> Este documento quedó **archivado** en la reconciliación documental del 2026-08-15.
+> Es una captura de un estado anterior y **NO es verdad vigente**.
+> Estado actual verificado: rama `product/web-premium-v1`, HEAD `bbb3e102`,
+> Backend CI ✅ · Web CI ✅ · UI Gate ✅.
+> Especificación de negocio v1.3 (cerrada); sus reglas quedan preservadas y verificadas en código y tests.
+> Ver [README](../README.md) y [docs/STATUS](STATUS.md).
+
+---
+
 # Plataforma inteligente de cobro diario — documento maestro Colombia
 
 > **Versión:** 1.3 · Documento cerrado funcional y técnicamente

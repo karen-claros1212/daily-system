@@ -1,5 +1,15 @@
 # Mobile UI Baseline — Daily System
 
+> ## ⚠️ ARCHIVADO — DOCUMENTO HISTÓRICO
+>
+> Este documento describe el **baseline de UI móvil (2026-07-31)**. El producto avanzó:
+> M3.6.x (Material 3 Expressive), hardening B1-B7/S0-S5, y la auditoría premium
+> (UX/UI Phase 2). Se conserva **in-place** como parte del paquete de evidencia de
+> `docs/ui-audit/` (rutas del script de captura intactas). Estado móvil canónico:
+> **177/177 tests · 14 infos de analyzer preexistentes/0 nuevos**. Ver
+> [docs/STATUS.md](../STATUS.md) y [docs/TESTING.md](../TESTING.md).
+> Reconciliación documental 2026-08-15 — rama `product/web-premium-v1`, HEAD `bbb3e102`.
+
 **Fecha:** 2026-07-31
 **BASE_SHA:** 57a3336
 **Flutter:** 3.44.0 • Dart 3.12.0

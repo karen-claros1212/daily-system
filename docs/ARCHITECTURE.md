@@ -1,9 +1,8 @@
 # Arquitectura — Daily System
 
 **Documento:** Normativo
-**Última actualización:** 2026-08-11
-**Base verificada:** `c0a3a9c` (baseline código S0-S2)
-**HEAD (repositorio):** dinámico — `git rev-parse HEAD`
+**Última actualización:** 2026-08-15
+**Base verificada:** `product/web-premium-v1` @ `bbb3e102`
 
 ---
 
@@ -14,6 +13,7 @@
 3. **Rutas son dinámicas e indefinidas.** Nada asume R1/R2/R3/R4 de forma fija.
 4. **Money = integers (COP).** Rates = NUMERIC.
 5. **Append-only.** Pagos, reversiones, movimientos, cierres y ajustes son inmutables y trazables.
+6. **El frontend web nunca deduce identidad ni rol.** La sesión consulta `/api/auth/me`; los permisos se resuelven por capacidades server-side.
 
 ---
 
@@ -21,13 +21,14 @@
 
 | Capa | Tecnología |
 |---|---|
-| Mobile client | Flutter (Android), SQLite local |
+| Mobile client | Flutter (Android), SQLite local, offline-first |
 | Mobile auth | JWT ES256 + AndroidKeyStore (EC P-256, SHA256withECDSA) |
 | Backend | Python, FastAPI, SQLAlchemy, Alembic |
+| Web admin | Next.js 16 · React 19 · TypeScript · Tailwind CSS · Playwright E2E |
 | DB (prod) | PostgreSQL 18 |
 | DB (test mobile) | SQLite in-memory |
 | DB (test backend) | SQLite (default) / PostgreSQL scratch (concurrency) |
-| CI | GitHub Actions: `ui-gate.yml` (móvil) — backend CI pendiente |
+| CI | GitHub Actions: `backend-ci.yml` · `web-ci.yml` · `ui-gate.yml` (3 workflows) |
 
 ---
 
@@ -48,11 +49,12 @@ apps/mobile/
 │   │   ├── jcs.dart                  # RFC 8785 canonicalization (Dart)
 │   │   ├── auth_token_store.dart     # Secure token persistence
 │   │   └── models.dart               # DesafioAuth, CanjearAuth, BootstrapIdentity, etc.
-│   ├── sync/                  # Offline sync (S0-S3 implemented)
+│   ├── sync/                  # Offline sync (S0-S5)
 │   │   ├── sync_client.dart      # GET /api/mobile/sync, session renewal (S0-S1)
 │   │   ├── sync_models.dart       # SyncDataset/Cliente/Credito/Cuota/Pago/Movimiento/Jornada
-│   │   └── sync_repository.dart   # UPSERT por PK (ON CONFLICT), protección pendientes
-│   ├── database/            # SQLite v2/v3/v4, migraciones, seed, tablas
+│   │   ├── sync_repository.dart   # UPSERT por PK (ON CONFLICT), protección pendientes
+│   │   └── push_orchestrator.dart # Outbox push → ACK → retry (S3) + dependencias
+│   ├── database/            # SQLite v2..v7, migraciones, seed, tablas
 │   ├── domain/              # Tipos financieros, excepciones, JornadaGuard
 │   ├── models/              # DTOs (JornadaSnapshot, CajaResultado)
 │   ├── services/            # caja, hoja_viva, jornada, pago, movimiento, pdf, sync_queue
@@ -64,10 +66,9 @@ apps/mobile/
 │   └── utils/
 ├── android/app/             # Manifest, themes, icons, splash
 ├── android/app/src/main/kt/ # MainActivity.kt (device identity channel)
-├── test/                    # Unit/widget/golden/semantics/paridad/sync
+├── test/                    # Unit/widget/golden/semantics/paridad/sync (177)
 ├── test/auth/               # JCS vector, auth DTOs
-├── test/sync/               # SyncRepository upsert/pendientes/S2-H2
-├── test/paridad_b5_test.dart
+├── test/sync/               # SyncRepository + push_orchestrator (S3-S5)
 ├── integration_test/        # jornada_cierre_test.dart
 └── build/                   # APKs (gitignored)
 ```
@@ -84,7 +85,7 @@ DeviceIdentity (AndroidKeyStore) → DeviceAuthClient (challenge/response JCS)
         ↓
     MovimientoService / PagoService / JornadaService (local SQLite)
         ↓
-    sync_queue (outbox) ← S3 IMPLEMENTADO (PushOrchestrator: push → server → ACK → retry)
+    sync_queue (outbox) → PushOrchestrator (push → server → ACK → retry → conflictos S3/S5)
 ```
 
 ### Backend FastAPI
@@ -92,27 +93,30 @@ DeviceIdentity (AndroidKeyStore) → DeviceAuthClient (challenge/response JCS)
 ```
 apps/api/
 ├── src/
-│   ├── main.py              # App, CORS, 13 routers, startup checks
+│   ├── main.py              # App, CORS, 15 routers, startup checks
 │   ├── auth/
 │   │   ├── deps.py          # get_request_context, JWT ES256 validation, fail-closed
 │   │   ├── jcs.py           # RFC 8785 canonicalization (Python)
 │   │   ├── auth_jcs.py      # Auth-profile canonicalization
 │   │   └── context.py       # RequestContext (negocio, cobrador, ruta, rol, device)
-│   ├── models/              # SQLAlchemy (12 tablas: negocio, usuario, ruta, dispositivo, cliente, credito, cuota_programada, jornada, pago, movimiento_caja, suscripcion, plan_limite)
-│   ├── schemas/             # Pydantic (JornadaCreate, JornadaCierreCreate, JornadaSyncResponse, etc.)
-│   ├── routes/              # 13 routers
-│   │   ├── activacion.py    # /api/activaciones/* + /api/mobile/bootstrap + /api/auth/device/* + /api/mobile/sync
+│   ├── models/              # SQLAlchemy (negocio, usuario, ruta, dispositivo, cliente, credito, cuota_programada, jornada, pago, movimiento_caja, suscripcion, plan_limite)
+│   ├── schemas/             # Pydantic (JornadaCreate, JornadaCierreCreate, JornadaSyncResponse, MeResponse, InversionistaSummaryResponse, SuscripcionStatusResponse, …)
+│   ├── routes/              # 15 routers
+│   │   ├── negocio.py       # /api/negocios — tenant
+│   │   ├── onboarding.py    # /api/onboarding — registro de negocio (NIT invariante)
+│   │   ├── ruta.py          # /api/rutas
 │   │   ├── cliente.py       # /api/clientes
 │   │   ├── credito.py       # /api/creditos
-│   │   ├── dispositivo.py   # /api/dispositivos, /api/dispositivos/{id}/reemplazar
+│   │   ├── pago.py          # /api/pagos (POST, reversar, GET — idempotencia)
 │   │   ├── hoja_viva.py     # /api/hoja-viva
 │   │   ├── jornada.py       # /api/jornadas (open, close, sync, caja, preparar-siguiente)
-│   │   ├── movimiento.py    # /api/movimientos (POST/GET — idempotency)
-│   │   ├── negocio.py       # /api/negocios
-│   │   ├── pago.py          # /api/pagos (POST, reversar, GET) — idempotency
-│   │   ├── ruta.py          # /api/rutas
-│   │   ├── inversionista.py # (panel admin, pendiente)
-│   │   └── __init__.py
+│   │   ├── movimiento.py    # /api/movimientos (POST/GET — idempotencia)
+│   │   ├── dispositivo.py   # /api/dispositivos, /api/dispositivos/{id}/reemplazar
+│   │   ├── activacion.py    # /api/activaciones/* (desafio, canje, bootstrap)
+│   │   ├── mobile.py        # /api/mobile/* (bootstrap, sync)
+│   │   ├── device.py        # /api/auth/device/* (daily-auth-v1)
+│   │   ├── auth.py          # /api/auth/* (me — identidad web)
+│   │   └── inversionista.py # /api/inversionista/* (resumen, suscripcion — panel web)
 │   ├── services/
 │   │   ├── calculation_service.py
 │   │   ├── hoja_viva_service.py
@@ -120,47 +124,97 @@ apps/api/
 │   │   ├── movimiento_service.py # register_movimiento, naturaleza server-derived
 │   │   ├── payment_service.py    # register_payment, reverse_payment
 │   │   ├── activacion_service.py # generar_codigo, desafio, canjear, bootstrappear
-│   │   ├── auth_service.py       # JWT generation, desafio/canjear (daily-auth-v1)
-│   │   └── mobile_sync_service.py # sync_dataset (ruta activa única)
-│   ├── tests/               # 13 files, 257 test functions
+│   │   ├── auth_service.py       # JWT generation, desafio/canjear (daily-auth-v1), me
+│   │   ├── mobile_sync_service.py # sync_dataset (ruta activa única)
+│   │   └── conflict_service.py   # S5 — 6 verificadores server-authoritative de conflicto
+│   ├── tests/               # 367 passed, 8 skipped (SQLite)
 │   └── utils/
-├── migrations/              # Alembic: init → m2_apertura → m2_jornada → m3_dispositivo → m5_dispositivo_activacion → m7_desafio_auth
+├── migrations/              # Alembic: init → m2..m8_negocio_nit (head)
 ├── alembic.ini
 └── requirements.txt
 ```
 
-**API routes (13 routers):**
+**API routers (15):**
 
 | Router | Prefix | Auth | Purpose |
 |---|---|---|---|
-| activacion | `/api/activaciones/*` | admin / público | Codigo, challenge, canje, bootstrap, device auth, sync |
+| negocio | `/api/negocios` | JWT (admin) | Tenant management |
+| onboarding | `/api/onboarding` | público (bootstrap) | Registro de negocio, NIT 201/409 |
+| ruta | `/api/rutas` | JWT | Routes, scope |
 | cliente | `/api/clientes` | JWT | Clientes (scoped por ruta) |
 | credito | `/api/creditos` | JWT | Créditos, cuotas |
-| dispositivo | `/api/dispositivos/*` | admin / cobrador | Device lifecycle, replace |
+| pago | `/api/pagos/*` | JWT | POST, reversar, GET (idempotencia) |
 | hoja_viva | `/api/hoja-viva` | JWT | Daily sheet for active route |
 | jornada | `/api/jornadas/*` | JWT | Open/close/sync/caja/preparar |
 | movimiento | `/api/movimientos` | JWT | POST (idempotency), GET |
-| negocio | `/api/negocios` | JWT (admin) | Tenant management |
-| pago | `/api/pagos/*` | JWT | POST, reversar, GET (idempotency) |
-| ruta | `/api/rutas` | JWT | Routes, scope |
-| inversionista | `/api/inversionista/*` | investor/admin | Reporting (future) |
+| dispositivo | `/api/dispositivos/*` | admin / cobrador | Device lifecycle, replace |
+| activacion | `/api/activaciones/*` | admin / público | Codigo, challenge, canje, bootstrap |
+| mobile | `/api/mobile/*` | JWT (device) | bootstrap, sync |
+| device | `/api/auth/device/*` | credencial_bootstrap | daily-auth-v1 challenge/auth |
+| auth | `/api/auth/*` | JWT | me — identidad del panel web |
+| inversionista | `/api/inversionista/*` | investor/admin | resumen, suscripcion (panel web) |
 
-### Web (`apps/web/`)
+### Web — Panel administrativo (`apps/web/`) — PRODUCTIVO
 
-**VACÍO.** Solo prototipo estático HTML/CSS en `design/prototypes/web/`. No es aplicación productiva. Ver [WEB-UI-BLUEPRINT.md](web/WEB-UI-BLUEPRINT.md).
+Next.js 16 · React 19 · TypeScript · Tailwind CSS. El panel es una aplicación productiva; el
+prototipo estático MOCK de `design/prototypes/web/` es histórico.
+
+```
+apps/web/
+├── src/app/
+│   ├── layout.tsx            # Metadata + HTML shell
+│   ├── page.tsx              # `/` → LoginPage o redirect /dashboard
+│   ├── dashboard/            # Despacha superficie según rol (COBRADOR / INVERSIONISTA / ADMINISTRADOR)
+│   ├── caja/                 # Caja / jornada
+│   ├── dispositivos/         # Gestión de dispositivos
+│   ├── registro/             # Onboarding — registro de negocio
+│   ├── reportes/             # Reportes
+│   ├── routes/               # Rutas
+│   ├── suscripcion/          # Plan / suscripción
+│   ├── api/                  # BFF — route handlers (auth, dispositivos, rutas, jornadas,
+│   │   │                    #   inversionista, activaciones, onboarding)
+│   └── globals.css
+├── src/lib/
+│   ├── session.ts            # fetchSession: cookie httpOnly daily_admin_token → GET /api/auth/me
+│   ├── rbac.ts               # hasCapability / canViewFinancial / isCobrador (puro)
+│   ├── api/client.ts         # API_BASE, fetch helpers
+│   ├── api/gateway.ts        # Gateway BFF hacia el backend
+│   ├── api/generated/        # Cliente TS generado (openapi-typescript)
+│   └── auth/
+├── src/components/           # LoginPage + componentes del panel
+├── e2e/                      # 19 spec files (Playwright mock + real + a11y axe)
+├── playwright.config.ts      # mock (:8100)
+├── playwright.config.real.ts # real (:8001, FastAPI + PostgreSQL)
+├── next.config.mjs           # Next 16, devIndicators top-right
+├── tailwind.config.* / postcss.*
+└── package.json
+```
+
+**Web identity flow:**
+```
+POST /api/auth/web (BFF) → backend valida credenciales → JWT web
+        ↓
+Cookie httpOnly `daily_admin_token` (Bearer)
+        ↓
+Cada request: GET /api/auth/me → rol derivado de la DB (fuente canónica)
+        ↓
+hasCapability(...) server-side → renderizado por rol (COBRADOR / INVERSIONISTA / ADMINISTRADOR)
+```
 
 ---
 
-## Sync architecture (S0-S3)
+## Sync architecture (S0-S5)
 
 Ver [`OFFLINE-SYNC.md`](OFFLINE-SYNC.md) para el contrato completo.
 
 | Capa | Responsabilidad | Estado |
 |---|---|---|
-| S0 | Session maintenance (renew before expiry) | ✅ Implementado |
-| S1 | Route isolation (server-side scope) | ✅ Implementado |
-| S2 | Pull dataset + SQLite persistence (UPSERT PK) | ✅ Implementado |
-| S3 | Outbox push → ACK → retry → conflict resolution | ✅ Implementado |
+| S0 | Session maintenance (renew before expiry) | ✅ PASS |
+| S1 | Route isolation (server-side scope) | ✅ PASS |
+| S2 | Pull dataset + SQLite persistence (UPSERT PK) | ✅ PASS |
+| S3 | Outbox push → ACK → retry → conflict resolution | ✅ PASS |
+| S4 | Reasignación de ruta R1→R2 (ruta_id_origen inmutable) + orquestación sync | ✅ PASS |
+| S5 | `conflict_service.py` — verificadores server-authoritative (pago, movimiento, jornada, apertura, reversal, ruta) | ✅ PASS |
 
 ---
 

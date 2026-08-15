@@ -2,49 +2,50 @@
 
 **Cobro diario offline — Tu ruta, tus cobros y tu caja, incluso sin internet.**
 
+![Backend CI](https://github.com/karen-claros1212/daily-system/actions/workflows/backend-ci.yml/badge.svg)
+![Web CI](https://github.com/karen-claros1212/daily-system/actions/workflows/web-ci.yml/badge.svg)
 ![UI Gate](https://github.com/karen-claros1212/daily-system/actions/workflows/ui-gate.yml/badge.svg)
 
 ---
 
 ## Estado
 
-**Alpha — APK Debug Construido**
+**Productivo en desarrollo — Móvil offline + Panel web administrativo.**
 
 | Componente | Estado |
 |---|---|
-| Backend API | Implementado |
-| Android Offline Alpha | Implementado / APK debug construido |
-| Panel web productivo | Planificado (`apps/web/` vacío; prototipo MOCK) |
-| Prototipo web visual | Implementado (MOCK — no productivo) |
+| Backend API (FastAPI) | ✅ Implementado — CI PASS |
+| Android Offline Alpha | ✅ Implementado / APK debug construido |
+| **Panel web administrativo** | ✅ **Productivo** (Next.js 16, `apps/web/`) |
+| Web — onboarding, dispositivos, suscripción, dashboard, rutas, caja, reportes | ✅ Implementado |
+| Prototipo web visual (MOCK) | Histórico — `design/prototypes/web/` (no productivo) |
 | Auth productivo (JWT ES256 + AndroidKeyStore) | ✅ Implementado |
 | Bootstrap single-route | ✅ Implementado |
 | Mobile auth bridge | ✅ Implementado |
-| Offline sync (S0-S2 pull + session) | ✅ Implementado |
-| Offline sync outbox (S3 push/ACK/retry) | ✅ Implementado |
+| Offline sync (S0-S5) | ✅ PASS (session, ruta, pull, outbox, reasignación, conflictos) |
 | Splash nativo (Android 12+) | ✅ Implementado |
 | Icono adaptable (adaptive) | ✅ Implementado |
 | Tema claro/oscuro | ✅ Implementado |
 | Diseño tokens (JSON → Dart + CSS) | ✅ Implementado |
-| UI Gate CI | ✅ Estricto (flutter analyze + flutter test) |
-| Backend CI | ⏳ PENDIENTE (no hay GitHub Actions de backend) |
+| Backend CI | ✅ PASS (`backend-ci.yml`) |
+| Web CI | ✅ PASS (`web-ci.yml` — static + e2e mock + e2e real) |
+| UI Gate CI | ✅ PASS (flutter analyze + flutter test) |
 | APK debug construido | ✅ PASS |
 | Verificado en emulador (API 35) | ✅ PASS |
 | Verificado en dispositivo físico | ⏳ PENDING |
-| Pantallas reales refactorizadas | ✅ Implementado (Theme.of en todas) |
-| Pruebas golden y semantics | ✅ Implementado (31 goldens + 37 semantics/widgets) + 77 sync/paridad/integration |
-| Producción | Pendiente |
+| Producción | ⏳ PENDIENTE |
 
-> **Rama de trabajo verificada:** `hardening/b1-b7-audit` — código baseline S0-S2 `c0a3a9c`.
-> `master` (`486d08b`) no contiene el hardening B1-B7. Ver [Estado del proyecto](docs/STATUS.md) para detalle en vivo.
-> (HEAD actual: `git rev-parse HEAD`; no hardcodeado en docs)
+> **Rama de trabajo:** `product/web-premium-v1` — HEAD `bbb3e102` (baseline verificado).
+> `master` (`486d08b`) es una rama legacy sin el hardening. Ver [Estado del proyecto](docs/STATUS.md) para detalle en vivo.
 
 ---
 
 ## Capturas
 
-Capturas reales del emulador Android (phone 412×915, light y dark) y del prototipo web.
-Generadas por `scripts/android/capture_ui_evidence.sh`; el conjunto completo before/after
-está en [docs/ui-audit/screenshots/](docs/ui-audit/screenshots/) con manifest SHA-256.
+Capturas reales del emulador Android (phone 412×915, light y dark) y del panel web productivo.
+El conjunto completo de evidencia (antes/después + manifest SHA-256) está en
+[docs/ui-audit/screenshots/](docs/ui-audit/screenshots/). Las capturas web se generan con
+`scripts/web/capture_web_evidence.sh` y su manifest SHA-256 vive en [docs/assets/readme/web/](docs/assets/readme/web/manifest.json).
 
 ### Android (claro)
 
@@ -66,13 +67,19 @@ está en [docs/ui-audit/screenshots/](docs/ui-audit/screenshots/) con manifest S
 |---|---|---|
 | ![Login dark](docs/assets/readme/mobile/01-login-dark.png) | ![Inicio dark](docs/assets/readme/mobile/02-inicio-dark.png) | ![Cierre dark](docs/assets/readme/mobile/07-cierre-dark.png) |
 
-### Web
+### Web — Panel administrativo
 
-| Inicio | Cartera | Caja | Reportes |
-|---|---|---|---|
-| ![Web index](docs/assets/readme/web/01-index.png) | ![Web cartera](docs/assets/readme/web/02-cartera.png) | ![Web caja](docs/assets/readme/web/03-caja.png) | ![Web reportes](docs/assets/readme/web/04-reportes.png) |
+| Login | Dashboard | Suscripción |
+|---|---|---|
+| ![Web login](docs/assets/readme/web/01-login.png) | ![Web dashboard](docs/assets/readme/web/02-dashboard.png) | ![Web suscripción](docs/assets/readme/web/03-suscripcion.png) |
 
-> **Prototipo web visual (MOCK):** HTML/CSS estático sin JS, API, auth ni build. No es aplicación productiva. `apps/web/` está vacío. Ver [Web Blueprint](docs/web/WEB-UI-BLUEPRINT.md).
+| Rutas | Caja | Reportes |
+|---|---|---|
+| ![Web rutas](docs/assets/readme/web/04-rutas.png) | ![Web caja](docs/assets/readme/web/05-caja.png) | ![Web reportes](docs/assets/readme/web/06-reportes.png) |
+
+| Dispositivos | Registro (onboarding) |
+|---|---|
+| ![Web dispositivos](docs/assets/readme/web/07-dispositivos.png) | ![Web registro](docs/assets/readme/web/08-registro.png) |
 
 ---
 
@@ -84,6 +91,7 @@ está en [docs/ui-audit/screenshots/](docs/ui-audit/screenshots/) con manifest S
 - Challenge-response single-use (daily-v1 para activación; daily-auth-v1 para auth)
 - Bootstrap: credencial_bootstrap temporal → desafío/auth → access JWT → GET /api/mobile/bootstrap → sesión persistente (envelope atómico daily_session)
 - Android permissions y `MethodChannel daily_system/device_identity` en `MainActivity.kt`
+- Una única ruta activa derivada por servidor (el cliente no elige ruta)
 
 ### Negocio y cobro
 - Gestión de negocios, rutas y clientes
@@ -96,12 +104,24 @@ está en [docs/ui-audit/screenshots/](docs/ui-audit/screenshots/) con manifest S
 - Idempotencia financiera (clave_idempotencia, full-payload comparison, 409 on mismatch)
 - Suscripciones por plan (free 1 ruta/100 clientes, básico 5/500, pro ilimitado)
 - Límite de rutas y clientes por plan
+- Invariante de NIT por negocio garantizada por la base de datos (`m8_negocio_nit`)
 
-### Offline sync
-- **S0**: session maintenance (renew antes de expirar) — ✅ PASS
+### Offline sync (S0-S5)
+- **S0**: session maintenance (renovación antes de expirar) — ✅ PASS
 - **S1**: aislamiento de ruta (scope derivado por servidor; cliente no elige ruta) — ✅ PASS
 - **S2**: pull servidor→móvil (GET /api/mobile/sync) + persistencia SQLite (UPSERT por PK, ON CONFLICT) — ✅ PASS
-- **S3**: outbox móvil→servidor, push, ACK, retry y resolución de conflictos — ✅ Implementado
+- **S3**: outbox móvil→servidor, push, ACK, retry y resolución de conflictos — ✅ PASS
+- **S4**: reasignación de ruta R1→R2 (ruta_id_origen inmutable) + orquestación de sync — ✅ PASS
+- **S5**: `conflict_service.py` — verificadores server-authoritative de conflicto (pago, movimiento, jornada, apertura, reversal, ruta) — ✅ PASS
+
+### Panel web administrativo (`apps/web/`)
+- Next.js 16 + React 19 + TypeScript + Tailwind CSS (fuente: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md))
+- Login con sesión httpOnly (`daily_admin_token`) consultando `/api/auth/me` del backend (única fuente de identidad)
+- RBAC por capacidades: roles `COBRADOR`, `INVERSIONISTA`, `ADMINISTRADOR` (server-side)
+- Dashboard financiero, rutas, caja, reportes, dispositivos, suscripción y onboarding (registro de negocio)
+- BFF con route handlers (`src/app/api/*`) — el frontend nunca deduce el rol del JWT
+- E2E Playwright: mock (con axe a11y) + real contra FastAPI+Postgres
+- CLI typescript generado desde `openapi.json` (`src/lib/api/generated/`)
 
 ### UI/UX
 - Flutter Offline Alpha con SQLite local
@@ -119,10 +139,10 @@ está en [docs/ui-audit/screenshots/](docs/ui-audit/screenshots/) con manifest S
 ```
 daily-system/
 ├── apps/
-│   ├── mobile/          # Flutter app (Android) — primary client
+│   ├── mobile/          # Flutter app (Android) — cobrador offline-first
 │   │   ├── lib/
 │   │   │   ├── main.dart              # DAILY_DEMO, Theme.of(context)
-│   │   │   ├── database/   # SQLite v2/v3/v4, migraciones, seed
+│   │   │   ├── database/   # SQLite v2..v7, migraciones, seed
 │   │   │   ├── domain/     # Tipos financieros, excepciones (JornadaGuard, etc.)
 │   │   │   ├── models/     # DTOs y modelos (JornadaSnapshot, CajaResultado)
 │   │   │   ├── navigation.dart  # MainShell → Inicio/Cobros/Historial/Más
@@ -138,58 +158,64 @@ daily-system/
 │   │   │   └── utils/
 │   │   ├── android/app/         # Manifest, themes, AndroidManifest.xml (permissions)
 │   │   ├── android/app/src/main/kt  # MainActivity.kt (MethodChannel device_identity)
-│   │   ├── test/                # unit/widget/golden/semantics/paridad/sync
-│   │   ├── test/auth/           # JCS vector, auth DTOs
-│   │   ├── test/sync/           # SyncRepository (pendientes, upsert, S2-H2)
-│   │   ├── test/helpers/
-│   │   ├── test/goldens/
+│   │   ├── test/                # unit/widget/golden/semantics/paridad/sync (177)
 │   │   ├── integration_test/    # jornada_cierre_test.dart
 │   │   └── build/               # APKs (gitignored)
-│   └── api/             # FastAPI backend
+│   ├── web/             # Panel administrativo — Next.js 16 (productivo)
+│   │   ├── src/app/             # layout, page (login), dashboard, caja, dispositivos,
+│   │   │   │                   #   registro (onboarding), reportes, routes, suscripcion
+│   │   │   ├── api/             # BFF — route handlers (auth, dispositivos, rutas, jornadas,
+│   │   │   │                   #   inversionista, activaciones, onboarding)
+│   │   │   └── globals.css
+│   │   ├── src/lib/             # api/client.ts, api/gateway.ts, api/generated/,
+│   │   │                       #   auth/, session.ts (httpOnly cookie + /api/auth/me), rbac.ts
+│   │   ├── src/components/      # LoginPage, layout del panel, etc.
+│   │   ├── e2e/                 # 19 spec files (Playwright mock + real + a11y)
+│   │   ├── playwright.config.ts # mock (:8100) / real (:8001)
+│   │   └── next.config.mjs      # Next 16, devIndicators top-right
+│   └── api/             # FastAPI backend (autoridad financiera)
 │       ├── src/
-│       │   ├── main.py          # FastAPI app, CORS, 13 routers
+│       │   ├── main.py          # FastAPI app, CORS, routers
 │       │   ├── auth/            # JWT ES256, JCS, DeviceAuth, context
-│       │   ├── models/          # SQLAlchemy (12 tablas, incl. dispositivo)
+│       │   ├── models/          # SQLAlchemy
 │       │   ├── schemas/         # Pydantic
-│       │   ├── routes/          # cliente, credito, dispositivo, hoja_viva,
-│       │   │                   #   jornada, movimiento, negocio, pago, ruta,
-│       │   │                   #   activacion (bootstrap + auth + sync)
-│       │   ├── services/        # calculation, hoja_viva, jornada, movimiento,
-│       │   │                   #   payment, activacion, auth_service, mobile_sync
-│       │   └── tests/           # 13 archivos, 257 test functions
-│       ├── migrations/          # Alembic: init → m2 → m3 → m5 → m7_desafio_auth
+│       │   ├── routes/          # cliente, credito, dispositivo, hoja_viva, jornada,
+│       │   │                   #   movimiento, negocio, pago, ruta, activacion, auth/web
+│       │   ├── services/        # calculation, hoja_viva, jornada, movimiento, payment,
+│       │   │                   #   activacion, auth_service, mobile_sync, conflict_service
+│       │   └── tests/           # 367 passed, 8 skipped (SQLite)
+│       ├── migrations/          # Alembic: init → m2..m8_negocio_nit (head)
 │       ├── alembic.ini
 │       └── requirements.txt
 ├── design/
 │   ├── brand/           # Logo, conceptos, rationale
 │   ├── tokens/          # Tokens compartidos (JSON + generados)
-│   └── prototypes/      # Prototipo web estático (MOCK visual)
+│   └── prototypes/      # Prototipo web estático (MOCK — histórico)
 ├── docs/
 │   ├── STATUS.md          # Estado vivo actual
 │   ├── README.md          # Índice documental
 │   ├── ARCHITECTURE.md    # Arquitectura vigente
 │   ├── SECURITY.md        # Auth + device + tenant + ruta + idempotencia
-│   ├── OFFLINE-SYNC.md    # S0-S3 contract
+│   ├── OFFLINE-SYNC.md    # S0-S5 contract
 │   ├── TESTING.md         # Suites, gates, CI
 │   ├── IMPLEMENTATION-PLAN.md
 │   ├── ENGRAM-PROTOCOL.md
-│   ├── DOCUMENTO-MAESTRO-Plataforma-Cobro-Colombia-v1.3-CERRADO.md
-│   ├── ADR-INFRA-NAMING.md
-│   ├── ui-audit/        # Auditoría visual before/after
-│   ├── web/             # Web UI blueprint
-│   ├── assets/          # Capturas README optimizadas
+│   ├── web/             # Web blueprint (prototipo histórico)
+│   ├── ui-audit/        # Auditoría visual before/after (Android)
+│   ├── assets/          # Capturas README optimizadas (mobile + web + manifest)
+│   ├── historical/      # Documentos archivados (no son verdad vigente)
 │   └── decisions/
 ├── scripts/
 │   ├── ci/              # ui_gate.sh (strict — analyze + test + tokens)
-│   └── android/         # capture_ui_evidence.sh
+│   ├── android/         # capture_ui_evidence.sh
+│   └── web/             # capture_web_evidence.sh
 ├── tool/
 │   └── generate_design_tokens.dart
 ├── infra/
-│   ├── docker-compose.yml    # cobro-postgres (port 7103), DB cobro
+│   ├── docker-compose.yml    # postgres (port 7103)
 │   ├── init.sql
 │   └── .env.example
-├── DAILY-SYSTEM-*.md    # Archivo maestro, auditoría activación, handoff
-└── graphify-out/        # Regenerable (gitignored)
+└── .github/workflows/   # backend-ci.yml · web-ci.yml · ui-gate.yml
 ```
 
 ---
@@ -200,8 +226,9 @@ daily-system/
 
 - Flutter 3.44+ / Dart 3.12+ (Android SDK 35)
 - Python 3.12+ (backend)
+- Node.js 22+ (panel web)
 - PostgreSQL 18+ (para backend productivo; tests usan SQLite por defecto)
-- Docker (para PostgreSQL dev: `docker start cobro-postgres`)
+- Docker (para PostgreSQL dev)
 
 ### Backend
 
@@ -210,7 +237,7 @@ cd apps/api
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt  # dependencias Python
 alembic upgrade head  # migraciones a PostgreSQL
-uvicorn src.main:app --reload  # servidor desarrollo
+uvicorn src.main:app --reload  # servidor desarrollo (por defecto :8000)
 ```
 
 ### Móvil
@@ -218,18 +245,30 @@ uvicorn src.main:app --reload  # servidor desarrollo
 ```bash
 cd apps/mobile
 flutter pub get
-flutter analyze          # No issues found!
-flutter test             # 163/163 passing (incluye goldens, semantics, paridad, sync, S3)
+flutter analyze          # 14 infos preexistentes (migraciones congeladas v5/v7) / 0 nuevos
+flutter test             # 177/177 passing (goldens, semantics, paridad, sync, S0-S5)
 flutter run              # requiere dispositivo/emulador
-flutter build apk --debug  # genera build/app/outputs/flutter-apk/app-debug.apk
+flutter build apk --debug
+```
+
+### Web
+
+```bash
+cd apps/web
+npm ci
+npm run dev              # servidor desarrollo (dev server + API_BASE)
+npm run api:check        # drift del cliente TS contra openapi.json
+npm run lint && npm run typecheck
+npm run build && npm start
+npm test                 # Playwright E2E (mock y real según configuración)
 ```
 
 ---
 
 ## Pruebas y gates
 
-> **Último baseline verificado (2026-08-11):** ejecutado localmente contra `hardening/b1-b7-audit` @ `c0a3a9c`.
-> No equivale a GitHub Actions salvo el workflow `ui-gate.yml` que existe explícitamente.
+> **Último baseline verificado (2026-08-15):** `product/web-premium-v1` @ `bbb3e102`.
+> Los tres workflows (`backend-ci.yml`, `web-ci.yml`, `ui-gate.yml`) corren en GitHub Actions.
 
 ```bash
 # Gate de UI (strict — no --no-fatal flags)
@@ -237,30 +276,37 @@ scripts/ci/ui_gate.sh
 
 # Tests móviles
 cd apps/mobile
-flutter analyze          # No issues found!
-flutter test             # 163 passing
+flutter analyze          # 14 infos preexistentes / 0 nuevos
+flutter test             # 177 passing
 
 # Tokens (deterministic)
 dart run tool/generate_design_tokens.dart --check
 
 # Backend (SQLite default)
 cd apps/api
-python3 -m pytest src/tests/   # 262 passed, 7 skipped (269 funciones)
+python3 -m pytest src/tests/   # 367 passed, 8 skipped
 python3 -m alembic check       # No new upgrade operations detected
 
-# Backend (PostgreSQL — requiere scratch DB)
-#   API_DATABASE_URL=postgresql://cobro:cobro_secret@localhost:7103/cobro_scratch_b6_pg \
-#   DAILY_ENV=test ALLOW_PG_TRUNCATE=1 python3 -m pytest src/tests/ -q
+# Web
+cd apps/web
+npm run api:check
+npm run lint
+npm run typecheck
+npm run build
 ```
 
 | Gate | Resultado | Tool |
 |---|---|---|
-| Flutter analyze | No issues found | flutter analyzer |
-| Flutter test (mobile) | 163 passing | flutter_test |
-| Backend pytest (SQLite) | 262 passed, 7 skipped | pytest |
-| Alembic | head = m7_desafio_auth, clean | alembic |
-| UI Gate CI | PASS (GitHub Actions) | `.github/workflows/ui-gate.yml` |
-| Backend CI | ⛔ NO EXISTE | — |
+| Flutter analyze | 14 infos preexistentes (migraciones congeladas), 0 nuevos | flutter analyzer |
+| Flutter test (mobile) | 177 passing | flutter_test |
+| Backend pytest (SQLite) | 367 passed, 8 skipped | pytest |
+| Alembic | head = m8_negocio_nit, clean | alembic |
+| Web — api:check + lint + typecheck + build | PASS | npm (web-static CI) |
+| Web E2E mock (incl. a11y axe) | PASS | Playwright (`web-e2e-mock`) |
+| Web E2E real (FastAPI + Postgres) | PASS | Playwright (`web-real-integration`) |
+| Backend CI (pytest + alembic + NIT PG concurrency) | PASS | `.github/workflows/backend-ci.yml` |
+| Web CI (3 jobs) | PASS | `.github/workflows/web-ci.yml` |
+| UI Gate CI | PASS | `.github/workflows/ui-gate.yml` |
 
 ---
 
@@ -270,7 +316,7 @@ python3 -m alembic check       # No new upgrade operations detected
 - [x] M1: Hoja viva y pagos
 - [x] M2: Jornada, caja y Terminar Jornada
 - [x] M3 base: Suscripción / límites por plan
-- [!] M3.2-M3.5 históricos: Bot Telegram, panel inversionista, reporte diario — **no implementados** en el árbol actual
+- [!] M3.2-M3.5 históricos: Bot Telegram, panel inversionista, reporte diario — **no implementados** como bloques originales
 - [x] M3.6: Flutter Offline Alpha + Visual Alpha Premium
 - [x] UX/UI Premium: marca, tokens, componentes, tema
 - [x] UX/UI Phase 2: splash nativo, DAILY_DEMO, light/dark, CSS generator, gate estricto
@@ -283,13 +329,13 @@ python3 -m alembic check       # No new upgrade operations detected
 - [ ] Verificado en dispositivo físico
 - [x] Capturas profesionales before/after con manifest SHA-256
 - [x] **B1-B7 hardening:** JWT ES256, AndroidKeyStore, challenge-response, bootstrap productivo, S0-S2 sync
-- [x] **S3:** outbox móvil→servidor (push/ACK/retry/conflictos) — IMPLEMENTADO
+- [x] **S0-S5 sync/hardening:** session, ruta, pull, outbox, reasignación, conflictos
+- [x] **Web Premium:** panel administrativo productivo (Next.js 16) — dashboard, rutas, caja, reportes, dispositivos, suscripción, onboarding
+- [x] **Migración Next.js 16** (security baseline) — CI Web 3/3 PASS, npm audit 0 vulns
 - [ ] M4: Importación OCR (_`ocr_service.py` no existe en árbol_)
 - [ ] M5: Score, chatbot, inteligencia
 - [ ] M6: Producción y despliegue
-
-> ⚠️ M3.3 (Bot Telegram) y M3.4 (Panel inversionista): **históricos, no implementados.**
-> `apps/telegram-bot/` no existe; `apps/web/` está vacío. Ver nota de reconciliación en `docs/STATUS.md`.
+- [ ] Bot administrativo futuro (exclusivamente administrativo; **NO bot en móvil**)
 
 ---
 
@@ -302,10 +348,12 @@ python3 -m alembic check       # No new upgrade operations detected
 - Route isolation (scope derivado del servidor; cliente no elige ruta)
 - Idempotencia financiera (clave_idempotencia + full-payload comparison; 409 on mismatch)
 - JCS (RFC 8785) canonicalización byte-exacta en auth y activación
-- SQLite local con migraciones versionadas (v2/v3/v4)
+- SQLite local con migraciones versionadas (v2..v7)
 - Hash reproducible SHA-256 de snapshot de jornada (canonical JSON)
 - Backend FastAPI con auth JWT (no sesión)
+- Web: sesión httpOnly (`daily_admin_token`), identidad solo vía `/api/auth/me`, RBAC por capacidades server-side
 - Suscripciones y límites por plan
+- Invariante de NIT en base de datos (`m8_negocio_nit`) — concurrencia 201/409 probada en CI
 
 Ver [Security](docs/SECURITY.md), [Offline Sync](docs/OFFLINE-SYNC.md), [Architecture](docs/ARCHITECTURE.md).
 
@@ -319,16 +367,17 @@ Ver [Security](docs/SECURITY.md), [Offline Sync](docs/OFFLINE-SYNC.md), [Archite
 | [README.md](docs/README.md) | Índice | Navegador documental |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Normativo | Arquitectura vigente |
 | [SECURITY.md](docs/SECURITY.md) | Normativo | Auth, device, tenant, ruta, idempotencia |
-| [OFFLINE-SYNC.md](docs/OFFLINE-SYNC.md) | Normativo | S0-S3 contract + gaps |
+| [OFFLINE-SYNC.md](docs/OFFLINE-SYNC.md) | Normativo | S0-S5 contract |
 | [TESTING.md](docs/TESTING.md) | Estado vivo | Suites, gates, CI |
 | [IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md) | Estado vivo | Roadmap reconciliado |
 | [ENGRAM-PROTOCOL.md](docs/ENGRAM-PROTOCOL.md) | Normativo | Memoria de agentes |
-| [Documento Maestro v1.3](docs/DOCUMENTO-MAESTRO-Plataforma-Cobro-Colombia-v1.3-CERRADO.md) | Normativo | Especificaciones |
-| [Auditoría UI/UX](docs/ui-audit/) | Evidencia | Before/after premium |
-| [Web Blueprint](docs/web/WEB-UI-BLUEPRINT.md) | Normativo | Prototipo web MOCK |
+| [Documento Maestro v1.3](docs/historical/DOCUMENTO-MAESTRO-Plataforma-Cobro-Colombia-v1.3-CERRADO.md) | Histórico | Especificación cerrada |
+| [Auditoría UI/UX](docs/ui-audit/) | Evidencia | Before/after premium (Android) |
+| [Web Blueprint](docs/web/WEB-UI-BLUEPRINT.md) | Histórico | Prototipo web MOCK |
+| [Históricos](docs/historical/) | Archivo | Documentos archivados (no son verdad vigente) |
 
-> 📌 **Verdad documental vigente:** `docs/STATUS.md` + `DAILY-SYSTEM-CONTEXT-HANDOFF.md` + `DAILY-SYSTEM-ARCHIVO-MAESTRO-CONTINUIDAD-OPENCODE.md`.
-> El handoff operativo vigente es `DAILY-SYSTEM-CONTEXT-HANDOFF.md` (verificación 2026-08-11 sobre `c0a3a9c`).
+> 📌 **Verdad documental vigente:** `docs/STATUS.md` + `DAILY-SYSTEM-CONTEXT-HANDOFF.md`.
+> El handoff operativo vigente es `DAILY-SYSTEM-CONTEXT-HANDOFF.md` (verificación 2026-08-15 sobre `bbb3e102`).
 
 ---
 

@@ -1,5 +1,15 @@
 # Daily System — UX/UI Premium Audit
 
+> ## ⚠️ ARCHIVADO — DOCUMENTO HISTÓRICO
+>
+> Este documento describe la **auditoría UX/UI Premium (Phase 2)** ya cerrada. El producto
+> avanzó: hardening B1-B7/S0-S5 y Web Premium. Se conserva **in-place** como parte del
+> paquete de evidencia de `docs/ui-audit/` (incluye 68 capturas + manifest SHA-256 +
+> script autovalidado). El estado canónico de UI es: **mobile 177/177 · 14 infos/0 nuevos**
+> y **web E2E 107 mock + 26 real (incl. a11y axe)**. Ver [docs/STATUS.md](../STATUS.md) y
+> [docs/TESTING.md](../TESTING.md). Reconciliación documental 2026-08-15 — rama
+> `product/web-premium-v1`, HEAD `bbb3e102`.
+
 **Fecha:** 2026-07-31
 **BASE_SHA:** 3a1a566ce68ad01be1050583575061c17d7a39b7
 **CODE_SHA:** 8cfe225 (código de la app auditado — UI, tests, goldens)

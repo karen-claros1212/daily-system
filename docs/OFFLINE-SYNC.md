@@ -1,8 +1,8 @@
 # Offline Sync — Daily System
 
 **Documento:** Normativo
-**Última actualización:** 2026-08-11
-**Base verificada:** `c0a3a9c` (baseline código S0-S2)
+**Última actualización:** 2026-08-15
+**Base verificada:** `product/web-premium-v1` @ `bbb3e102`
 **HEAD (repositorio):** dinámico — `git rev-parse HEAD`
 **Ver también:** [Security](SECURITY.md), [Architecture](ARCHITECTURE.md)
 
@@ -10,14 +10,14 @@
 
 ## Separación de bloques (NO ambiguo)
 
-> **S3 no es "S2.5". S3 no es "S4". S3 es el bloque actual.**
-
 | Bloque | Alcance | Dirección | Estado |
 |---|---|---|---|
-| **S0** | Session maintenance | Móvil → Backend | ✅ Implementado |
-| **S1** | Route isolation (server-derived scope) | Backend | ✅ Implementado |
-| **S2** | Pull dataset + local persistence | Backend → Móvil | ✅ Implementado |
-| **S3** | Outbox: push → ACK → retry → conflictos | Móvil → Backend | ✅ Implementado |
+| **S0** | Session maintenance | Móvil → Backend | ✅ PASS |
+| **S1** | Route isolation (server-derived scope) | Backend | ✅ PASS |
+| **S2** | Pull dataset + local persistence | Backend → Móvil | ✅ PASS |
+| **S3** | Outbox: push → ACK → retry → conflictos | Móvil → Backend | ✅ PASS |
+| **S4** | Reasignación de ruta R1→R2 + orquestación sync | Backend + Móvil | ✅ PASS |
+| **S5** | Conflict detection server-authoritative | Backend | ✅ PASS |
 
 ---
 
@@ -145,6 +145,42 @@ El pull preserva `reversal_of_payment_id` en `Pago` y bloquea un doble reverso l
 - Que existe endpoint batch.
 - Que existe PowerSync.
 - Que PG pasó si no se ejecutó.
+
+---
+
+## S4 — Reasignación de ruta R1→R2 ✅ PASS
+
+**Objetivo:** permitir que un cobrador cambie de ruta (reasignación) sin corrupción de datos ni
+envío cruzado de filas offline.
+
+**Implementación:**
+- `ruta_id_origen` inmutable en `sync_queue` — la fila conserva la ruta en la que se originó.
+- R1→R2 estricto: una fila originada en R1 **no** se transmite bajo R2 → estado `CONFLICTO`, 0 requests HTTP.
+- Ciclo completo de reasignación: push cuando el cobrador coincide (b4da7ca) → endurecimiento R1→R2 (327c7fd).
+- Orquestación de sync: `b75f2c4`.
+- Tests: `test/sync/push_orchestrator_test.dart` (R1→R2 0 HTTP requests) y backend `test_m6_sync.py`.
+
+---
+
+## S5 — Conflict detection server-authoritative ✅ PASS
+
+**Objetivo:** detección de conflictos **antes** de aplicar la operación (PRE-CHECK layer), no
+reemplazo completo; preserva las validaciones inline existentes en `payment_service.py`,
+`movimiento_service.py` y `jornada_service.py`.
+
+**`apps/api/src/services/conflict_service.py` — 6 verificadores:**
+
+| Verificador | Qué valida |
+|---|---|
+| `verificar_conflicto_pago` | tipo, credito_id, monto, jornada_id |
+| `verificar_conflicto_movimiento` | 8 campos (jornada_id, tipo, naturaleza, monto, nota, credito_id, renovacion_id, ajuste_de_movimiento_id) |
+| `verificar_conflicto_jornada` | hash + IDs financieros + renovaciones_ids + server-caja + consistency |
+| `verificar_conflicto_jornada_abrir` | ruta_id, opening_base, fecha, cobrador_id |
+| `verificar_conflicto_reversal` | tipo, reversal_of_payment_id, monto |
+| `verificar_conflicto_ruta` | R1→R2 mismatch |
+
+- Tests: `test_s5_conflict_service.py` (48 tests unitarios).
+- Métrica S5: API 367 passed/8 skipped · Mobile 177/177 · flutter analyze 14 preexistentes/0 nuevos.
 
 ---
 

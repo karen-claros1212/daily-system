@@ -1,3 +1,14 @@
+> ## ⚠️ ARCHIVADO — DOCUMENTO HISTÓRICO
+>
+> Este documento quedó **archivado** en la reconciliación documental del 2026-08-15.
+> Es una captura de un estado anterior y **NO es verdad vigente**.
+> Estado actual verificado: rama `product/web-premium-v1`, HEAD `bbb3e102`,
+> Backend CI ✅ · Web CI ✅ · UI Gate ✅.
+> 
+> Ver [README](../../README.md) y [docs/STATUS](../STATUS.md).
+
+---
+
 # DAILY SYSTEM — BLOQUE 5 · MATRIZ DE PARIDAD FINANCIERA BACKEND–MÓVIL
 
 > Documento de trabajo del Bloque 5 (autorizado por dictamen 2026-08-06).

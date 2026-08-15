@@ -9,19 +9,18 @@ Eres un ingeniero senior trabajando en **Daily System**, plataforma de cobro dia
 ```
 Este es el checkout operativo canónico. Confirmar siempre con `pwd` y `git rev-parse --show-toplevel` antes de cualquier operación.
 
-## Estado del repositorio (2026-08-11)
+## Estado del repositorio (2026-08-15)
 
 | Concepto | Valor |
 |---|---|
-| Rama de trabajo verificada | `hardening/b1-b7-audit` |
+| Rama de trabajo | `product/web-premium-v1` |
 | HEAD (repositorio) | **Dinámico** — `git rev-parse HEAD` (Git es autoridad; SHA no se hardcodea en docs) |
-| HEAD (código S0-S2 baseline) | `c0a3a9c1646358fea4badc45bc9cdf5d6e2a1216` |
-| HEAD (checkpoint DOC-SYNC inicial) | `35adf24576a44c9843b73a4d047c0623f7f9d345` (histórico, no autoridad actual) |
-| origin/master | `486d08b` (no contiene el hardening B1-B7) |
+| Baseline canónico (docs) | `bbb3e102` — reconciliación documental y evidencia |
+| origin/master | `486d08b` (no contiene hardening ni Web Premium) |
 
-> **Importante:** el hardening B1-B7 vive en `hardening/b1-b7-audit`, NO en `master`.
-> Cualquier trabajo debe basarse en esta rama o su descendiente.
-> Ver `docs/STATUS.md` para estado productivo en tiempo real.
+> **Importante:** el trabajo activo vive en `product/web-premium-v1` (o descendiente).
+> `master` no contiene hardening B1-B7, sync S0-S5 ni la Web Premium.
+> Ver `docs/STATUS.md` para estado canónico en tiempo real.
 
 ---
 
@@ -29,8 +28,9 @@ Este es el checkout operativo canónico. Confirmar siempre con `pwd` y `git rev-
 
 | Capa | Responsable | Propósito |
 |---|---|---|
-| **Documento maestro** | Requisitos | Especificaciones, arquitectura, decisiones |
+| **Código + tests** | Evidencia | Estado real verificable; prevalece sobre docs históricas |
 | **Git** | Historial | Evidencia verificable, diffs, commits |
+| **docs/** | Especificación | Estado canónico, arquitectura, decisiones, testing |
 | **Engram** | Memoria | Decisiones, avances, continuidad entre sesiones |
 | **Graphify** | Estructura | Relaciones entre archivos, grafo de conocimiento |
 | **OpenCode** | Ejecución | Herramienta de trabajo principal |
@@ -59,6 +59,7 @@ architecture/backend
 architecture/sync
 architecture/mobile
 architecture/web-mock
+architecture/web-premium
 database/schema
 security/auth
 security/device-binding
@@ -69,6 +70,8 @@ finance/renewal
 milestone/M0
 milestone/M1
 milestone/B1-B7
+milestone/S0-S5
+milestone/web-premium
 testing/current-status
 blockers/current
 next-step/current
@@ -87,7 +90,7 @@ Después de compactación: `mem_context` → `AGENTS.md` → `docs/ENGRAM-PROTOC
 
 ### No guardar
 
-tokens, API keys, contraseñas, secretos硬coded, datos sensibles.
+tokens, API keys, contraseñas, secretos hardcodeados, datos sensibles.
 
 ---
 
@@ -136,11 +139,11 @@ graphify-out/
 
 - Backend: Python, FastAPI, SQLAlchemy, Alembic
 - Mobile: Flutter (primary client — Android offline collector)
-- Web: Next.js, TypeScript, Tailwind CSS (PLANNED — apps/web/ is empty; design/prototypes/ is a static MOCK)
+- Web: Next.js 16, React 19, TypeScript, Tailwind CSS (**productiva** — panel administrativo `apps/web/`)
 - DB: PostgreSQL (prod) + SQLite (mobile local / backend test default)
 - Sync: SQLite + sync_queue + custom offline layer (NOT PowerSync)
-- Auth: JWT ES256 + AndroidKeyStore + challenge-response (daily-auth-v1)
-- Tests: pytest (backend) + flutter test (mobile) + UI Gate CI
+- Auth: JWT ES256 + AndroidKeyStore + challenge-response (daily-auth-v1) + sesión web httpOnly (`/api/auth/me`)
+- Tests: pytest (backend) + flutter test (mobile) + Playwright E2E (web) + CI 3 workflows
 
 ## Reglas de oro
 
@@ -149,6 +152,25 @@ graphify-out/
 3. Filtrar por `negocio_id` en toda query operativa
 4. Decimal para montos, float prohibido en finanzas
 5. Commit messages: Conventional Commits (feat:, fix:, chore:, refactor:, test:, docs:)
+6. Bot en móvil: PROHIBIDO. Cualquier bot futuro es exclusivamente administrativo.
+7. No tocar los componentes de `docs/SECURITY.md` §7 (auth, activación, sync, finanzas) sin instrucción explícita + pruebas de contrato.
+
+## Gates de verificación (estado canónico 2026-08-15)
+
+| Gate | Comando | Esperado |
+|---|---|---|
+| Backend | `cd apps/api && python3 -m pytest src/tests/ -q` | 367 passed, 8 skipped |
+| Alembic head | `cd apps/api && python3 -m alembic heads` | `m8_negocio_nit` |
+| Mobile | `cd apps/mobile && flutter test` | 177/177 passing |
+| Analyzer | `cd apps/mobile && flutter analyze` | 14 infos preexistentes, 0 nuevos |
+| Web API check | `cd apps/web && npm run api:check` | PASS (contrato OpenAPI) |
+| Web lint | `cd apps/web && npm run lint` | PASS |
+| Web typecheck | `cd apps/web && npm run typecheck` | PASS |
+| Web build | `cd apps/web && npm run build` | PASS |
+| Web E2E mock | `cd apps/web && npm run test` | 107 passing |
+| Web E2E real | `cd apps/web && npm run test:real` | 26 passing |
+| Audit | `cd apps/web && npm audit` | 0 vulnerabilities |
+| CI | GitHub Actions | backend-ci · web-ci · ui-gate = PASS |
 
 ## Workflow
 

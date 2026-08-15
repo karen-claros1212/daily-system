@@ -1,8 +1,8 @@
 # Seguridad — Daily System
 
 **Documento:** Normativo
-**Última actualización:** 2026-08-11
-**Base verificada:** `c0a3a9c` (baseline código S0-S2)
+**Última actualización:** 2026-08-15
+**Base verificada:** `product/web-premium-v1` @ `bbb3e102`
 **HEAD (repositorio):** dinámico — `git rev-parse HEAD`
 **Ver también:** [ARCHITECTURE.md](ARCHITECTURE.md), [OFFLINE-SYNC.md](OFFLINE-SYNC.md)
 
@@ -21,6 +21,8 @@
 | Scope | Server-derived (negocio + cobrador + dispositivo + ruta) | ✅ Implementado |
 | Idempotency | clave_idempotencia + full-payload comparison; 409 on mismatch | ✅ Implementado |
 | Revocation | Dispositivo revocado bloqueado; version_asignacion bump | ✅ Implementado |
+| Conflict detection (S5) | `conflict_service.py` — pre-check server-authoritative (pago, movimiento, jornada, apertura, reversal, ruta) | ✅ Implementado |
+| Web session | Cookie httpOnly `daily_admin_token`; identidad solo vía `/api/auth/me`; RBAC por capacidades server-side | ✅ Implementado |
 
 ---
 
@@ -102,10 +104,10 @@ POST /api/auth/device/canjear     → nuevo access JWT (version_asignacion ACTUA
 - Listados de rutas/clientes/cobradores siempre scoped por `negocio_id` + (si cobrador) `route_id`
 
 ### Mobile client-side gaps (documentados, no resueltos)
-- `pago_screen.dart:37-45` — créditos sin filtro de ruta (backend rechaza 403)
-- `caja_main_screen.dart:34-36`, `inicio_screen.dart:59-66` — jornada abierta sin filtro de ruta
-- `cobros_shell.dart:207-211` — rutas activas sin `cobrador_id`
-- Estos son client-side; el backend los rechaza. No son una brecha financiera.
+- Créditos sin filtro de ruta en pantallas de pago (backend rechaza 403)
+- Jornada abierta sin filtro de ruta en caja/inicio
+- Rutas activas listadas sin `cobrador_id` en cobros shell
+- Son client-side; el backend los rechaza. No son una brecha financiera.
 
 ---
 
@@ -123,6 +125,16 @@ POST /api/auth/device/canjear     → nuevo access JWT (version_asignacion ACTUA
 
 ---
 
+## 5.5 Sesión del panel web (Web Premium)
+
+- **Cookie `daily_admin_token`**: `httpOnly` (no accesible desde JS), usada como Bearer hacia el backend.
+- **Única fuente de identidad:** `GET /api/auth/me` del backend consultado con esa cookie en cada request (`fetchSession` en `apps/web/src/lib/session.ts`). El frontend **nunca** deduce rol del JWT ni del método de login.
+- **RBAC por capacidades** (`apps/web/src/lib/rbac.ts`): roles `COBRADOR`, `INVERSIONISTA`, `ADMINISTRADOR`. Permisos resueltos server-side (`hasCapability`, `canViewFinancial`, `isCobrador`); la navegación se construye a partir de capabilities, no de `if (role === ...)` sueltos.
+- **BFF (`src/app/api/*`)**: route handlers que llaman al backend; sin credenciales del backend expuestas al cliente.
+- **Drift de contrato:** cliente TS generado con `openapi-typescript` desde `openapi.json`; `npm run api:check` falla si el contrato deriva.
+
+---
+
 ## 6. HTTP status codes
 
 | Code | Uso |
@@ -137,14 +149,17 @@ POST /api/auth/device/canjear     → nuevo access JWT (version_asignacion ACTUA
 
 ## 7. Prohibido tocar
 
-Ver `DAILY-SYSTEM-ARCHIVO-MAESTRO-CONTINUIDAD-OPENCODE.md` §invariantes. Hasta nuevo aviso (requiere instrucción explícita):
+Ver `docs/historical/DAILY-SYSTEM-ARCHIVO-MAESTRO-CONTINUIDAD-OPENCODE.md` §invariantes. Hasta nuevo aviso (requiere instrucción explícita):
 
 - Migraciones de activación, `CodigoActivacion`, `IntentoActivacion`, `public_key`
 - Challenge-response, JWT, OAuth/PKCE, Keystore
 - Bootstrap, dependencias Flutter de auth, módulo productivo de activación web
-- Renombrar S3 → S4
+- Migraciones SQLite móviles congeladas `migration_v5.dart` / `migration_v7.dart` (fuente de las 14 infos de analyzer)
+- Reglas financieras verificadas por `conflict_service.py` (S5) y por las suites de paridad
 
-> **S3 es el bloque actual autorizado.** El outbox (sync_queue, push, ACK, retry, conflictos) puede evolucionarse conforme a `docs/OFFLINE-SYNC.md`, reutilizando servicios y endpoints financieros existentes (`POST /api/pagos`, `POST /api/movimientos`, `POST /api/jornadas/{id}/cerrar`, `POST /api/jornadas/{id}/sincronizar`). No reconstruir auth, Hoja Viva ni el modelo financiero.
+> **Estado:** S0-S5 completos y Web Premium productiva. Los componentes de auth/sync/finanzas
+> documentados arriba pueden evolucionarse únicamente con instrucción explícita y pruebas que
+> preserven los contratos (idempotencia, JCS byte-exacto, paridad 14/14, 409 on mismatch).
 
 ---
 

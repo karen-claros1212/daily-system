@@ -1,3 +1,14 @@
+> ## ⚠️ ARCHIVADO — DOCUMENTO HISTÓRICO
+>
+> Este documento quedó **archivado** en la reconciliación documental del 2026-08-15.
+> Es una captura de un estado anterior y **NO es verdad vigente**.
+> Estado actual verificado: rama `product/web-premium-v1`, HEAD `bbb3e102`,
+> Backend CI ✅ · Web CI ✅ · UI Gate ✅.
+> 
+> Ver [README](../../README.md) y [docs/STATUS](../STATUS.md).
+
+---
+
 # AUDITORÍA DEL SISTEMA DISPOSITIVO + CONTRATO DE ACTIVACIÓN
 
 > **Entregable previo a código — dictamen de auditoría externa 2026-08-06.**

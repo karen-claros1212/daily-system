@@ -2,20 +2,24 @@
 
 **Proyecto:** daily-system
 **Versión:** 1.3
-**Fecha:** 2026-07-31
-**Estado:** M0-M3 completos, B1-B7 hardening completado, S0-S3 sync completo · M3.6.6-F
+**Fecha:** 2026-07-31 (actualizado 2026-08-15)
+**Estado:** M0-M3 completos · B1-B7 hardening ✅ · S0-S5 sync ✅ · Web Premium (panel web productivo) ✅ · M4-M6 pendientes
 
-> ## ⚠️ NOTA DE RECONCILIACIÓN (2026-08-06) — estados históricos desactualizados
+> ## ⚠️ NOTA DE RECONCILIACIÓN (2026-08-15) — estados históricos
 >
-> Este documento se conserva como **historia**. Las siguientes afirmaciones están **DESACTUALIZADAS** y NO se presentan como evidencia de implementación real:
+> Este documento conserva la historia de ejecución. Las afirmaciones antiguas
+> (nota 2026-08-06) están **SUPERADAS** por la reconciliación documental:
 >
-> - **`apps/web` productiva: NO EXISTE.** El árbol real del repositorio (`apps/`) contiene únicamente `api` y `mobile`. `apps/web` es una carpeta vacía.
-> - **Panel inversionista productivo: NO EXISTE.** El material web actual es un prototipo estático HTML/CSS en `design/prototypes/web/` (datos hardcodeados, sin JS/API/auth/build), declarado en `docs/web/WEB-UI-BLUEPRINT.md` como "Prototipo visual (no aplicación productiva)".
-> - **Bot Telegram productivo: NO EXISTE.** No hay `apps/telegram-bot/` en el árbol real.
-> - **La aplicación móvil del cobrador NO contiene bot.** Un bot, si se desarrolla, pertenece exclusivamente al entorno administrativo posterior. Bot en móvil: PROHIBIDO.
+> - **`apps/web` productiva: EXISTE.** Es el panel web administrativo Web Premium
+>   (Next.js 16 · React 19 · TypeScript · Tailwind). El prototipo estático HTML/CSS
+>   de `design/prototypes/web/` es **histórico** (no productivo).
+> - **Panel inversionista: EXISTE** como parte de la Web Premium (`/dashboard`,
+>   `/suscripcion`, `/reportes`, RBAC por capacidades).
+> - **Bot Telegram productivo: NO EXISTE.** No hay `apps/telegram-bot/` en el árbol.
+> - **Bot en móvil: PROHIBIDO.** Un bot futuro es exclusivamente administrativo.
 >
 > **La evidencia real del repositorio y las pruebas prevalece sobre estados históricos incorrectos.**
-> Ver estado oficial en `docs/STATUS.md`, `DAILY-SYSTEM-CONTEXT-HANDOFF.md` y `DAILY-SYSTEM-ARCHIVO-MAESTRO-CONTINUIDAD-OPENCODE.md`.
+> Ver estado oficial en `docs/STATUS.md` y `DAILY-SYSTEM-CONTEXT-HANDOFF.md`.
 
 ---
 
@@ -127,10 +131,10 @@
 | # | Requisito | Estado | Archivos | Pruebas | Commit |
 |---|---|---|---|---|---|
 | M3.1 | Planes y suscripciones | ✅ | `suscripcion.py` | 4 tests | 871d1de |
-| M3.2 | Bot Telegram (cobrador) | ⚠️ DESACTUALIZADO — no existe | `apps/telegram-bot/` no existe en árbol | — | 871d1de |
-| M3.3 | Bot Telegram (inversionista) | ⚠️ DESACTUALIZADO — no existe | `apps/telegram-bot/` no existe en árbol | — | 871d1de |
-| M3.4 | Panel inversionista (web) | ⚠️ DESACTUALIZADO — no existe | `apps/web/` está vacío | — | 871d1de |
-| M3.5 | Reporte diario automático | ⚠️ DESACTUALIZADO — no existe | `telegram_bot.py` no está en árbol | — | 871d1de |
+| M3.2 | Bot Telegram (cobrador) | ⚠️ no implementado (histórico) | `apps/telegram-bot/` no existe | — | 871d1de |
+| M3.3 | Bot Telegram (inversionista) | ⚠️ no implementado (histórico) | `apps/telegram-bot/` no existe | — | 871d1de |
+| M3.4 | Panel inversionista (web) | ✅ **reimplementado — Web Premium productiva** | `apps/web/` (Next.js 16) | e2e mock/real | Web Premium block |
+| M3.5 | Reporte diario automático | ⚠️ no implementado | `telegram_bot.py` no está en árbol | — | 871d1de |
 | M3.6 | Límite de rutas por plan | ✅ | `negocio.py` route | 2 tests | e44b09e |
 
 ### Notas M3
@@ -141,7 +145,8 @@
 - M3.6.6: Domain model unification — JornadaGuard, atomic payments, typed exceptions
 - M3.6.6-F: Migration V4, JornadaSnapshot único, idempotencia obligatoria
 
-> ⚠️ M3.2-M3.5: los ítems de Bot Telegram y Panel inversionista están **DESACTUALIZADOS**. `apps/telegram-bot/` no existe en el árbol real; `apps/web/` está vacío. Estos elementos NO son parte del producto actual. Cualquier bot futuro es exclusivamente administrativo; bot en móvil: **PROHIBIDO**.
+> ⚠️ M3.2/M3.3/M3.5 (Bot Telegram, reporte automático): **históricos, no implementados.** `apps/telegram-bot/` no existe. Cualquier bot futuro es exclusivamente administrativo; bot en móvil: **PROHIBIDO**.
+> M3.4 (Panel inversionista) quedó **cubierto por la Web Premium productiva** (ver bloque más abajo).
 
 ---
 
@@ -208,10 +213,10 @@ Bloque de endurecimiento de autenticación y sincronización offline. No es M4-M
 
 | Gate | Resultado | Comando |
 |---|---|---|
-| Backend (SQLite) | 262 passed, 7 skipped | `pytest src/tests/ -q` |
-| Mobile | 163 passing | `flutter test` |
-| Alembic | m7_desafio_auth (head), clean | `alembic check` |
-| Analyzer | No issues found | `flutter analyze` |
+| Backend (SQLite) | 262 passed, 7 skipped (en ese momento) | `pytest src/tests/ -q` |
+| Mobile | 163 passing (en ese momento) | `flutter test` |
+| Alembic | m7_desafio_auth (head en ese momento) | `alembic check` |
+| Analyzer | 14 infos preexistentes / 0 nuevos | `flutter analyze` |
 
 ---
 
@@ -240,6 +245,47 @@ Outbox push, ACK, retry con backoff, resolución de conflictos. Ver [OFFLINE-SYN
 - **Tests:** 163 mobile passing, 262 backend passing, 7 skipped, flutter analyze clean
 
 **S3 ya está implementado.** NO enviar `negocio_id`/`cobrador_id`/`ruta_id` como autoridad desde el móvil.
+
+---
+
+## Bloques S4-S5 — Reasignación de ruta + conflictos server-authoritative ✅
+
+> **Estado:** ✅ PASS
+> **Dependencias:** B1-B7 + S0-S3 completos
+> **Commits:** S4 `b75f2c4`…`327c7fd` · S5 `877f24d`
+
+- **S4:** reasignación R1→R2 con `ruta_id_origen` inmutable + orquestación de sync. Ciclo completo (b4da7ca) → endurecimiento estricto (327c7fd).
+- **S5:** `conflict_service.py` — 6 verificadores server-authoritative (pago, movimiento, jornada, apertura, reversal, ruta) + 48 tests (`test_s5_conflict_service.py`).
+- **Arquitectura:** PRE-CHECK layer — no reemplaza las validaciones inline; el servidor detecta conflicto antes de aplicar.
+- Ver [OFFLINE-SYNC.md](OFFLINE-SYNC.md) §S4/S5.
+
+---
+
+## Bloque Web Premium — Panel web administrativo productivo ✅
+
+> **Estado:** ✅ CERRADO
+> **Rama:** `product/web-premium-v1`
+> **Ver:** [ARCHITECTURE.md](ARCHITECTURE.md) §Web
+
+Reimplementación productiva del panel web (cubre el histórico M3.4).
+
+### Entregables
+
+- `apps/web/` — Next.js 16 · React 19 · TypeScript · Tailwind CSS
+- Login con sesión httpOnly (`daily_admin_token`) + identidad vía `GET /api/auth/me`
+- RBAC por capacidades server-side (COBRADOR / INVERSIONISTA / ADMINISTRADOR)
+- Superficies: dashboard, rutas, caja, reportes, dispositivos, suscripción, onboarding (`/registro`)
+- BFF con route handlers (`src/app/api/*`) + cliente TS generado (`openapi-typescript`)
+- Backend: routers `onboarding`, `auth/me`, `inversionista` (resumen, suscripción)
+- E2E Playwright: mock 107 (incl. axe a11y) + real 26 (FastAPI + PostgreSQL)
+- `backend-ci.yml` + `web-ci.yml` añadidos (con `ui-gate.yml` son 3 workflows)
+
+### Migración Next.js 16 (security baseline)
+
+- `next` 16.3.1 · `eslint-config-next` 16.3.1 · React 19.2.8 · TypeScript 5.9.3
+- `npm audit` = 0 vulnerabilidades (postcss 8.5.26, sharp 0.35.3)
+- Fix: `devIndicators: { position: 'top-right' }` en `next.config.mjs`
+- CI Web 3/3 PASS (web-static · web-e2e-mock · web-real-integration)
 
 ---
 
@@ -272,12 +318,14 @@ Outbox push, ACK, retry con backoff, resolución de conflictos. Ver [OFFLINE-SYN
 | **M0** | ✅ COMPLETADO | 22/22 (100%) | 28/28 |
 | **M1** | ✅ COMPLETADO | 8/8 (100%) | 38/38 |
 | **M2** | ✅ COMPLETADO | 6/6 (100%) | 47/47 |
-| **M3** | ✅ COMPLETADO | 6/6 (100%) | 27/27 |
+| **M3 base** | ✅ COMPLETADO | 6/6 (100%) | 27/27 |
+| **B1-B7 hardening** | ✅ COMPLETADO | — | backend 367/8 · mobile 177 |
+| **S0-S5 sync** | ✅ COMPLETADO | 6/6 | backend 367/8 · mobile 177 |
+| **Web Premium** | ✅ COMPLETADO | productivo | web e2e 107 mock + 26 real |
 | **M4** | ⬜ PENDIENTE | 0/3 (0%) | — |
 | **M5** | ⬜ PENDIENTE | 0/4 (0%) | — |
 | **M6** | ⬜ PENDIENTE | 0/7 (0%) | — |
-| **B1-B7 hardening** | ✅ COMPLETADO | — | 262 passed + 7 skip (backend) / 163 (mobile) |
-| **TOTAL** | M0-M3 + B1-B7 ✅ | **78% base + hardening** | **255+147** |
+| **TOTAL** | M0-M3 + B1-B7 + S0-S5 + Web Premium ✅ | base + hardening + sync + web | 367+8 backend · 177 mobile · 107+26 web |
 
 ---
 

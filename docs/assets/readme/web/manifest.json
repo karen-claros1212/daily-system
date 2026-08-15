@@ -1,0 +1,97 @@
+{
+  "generated": "2026-08-15-19-56-39",
+  "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
+  "engine": "nextjs-16 + react-19 + tailwind",
+  "mode": "mock-api (contrato real del backend)",
+  "base_url": "http://localhost:3000",
+  "captures": [
+    {
+      "screen": "login",
+      "path": "01-login.png",
+      "size_bytes": 35597,
+      "sha256": "c04bd6712c4756c3039c58deaa1d422ccfccd1bbb5cb975e0a3859617fe936bf",
+      "url": "http://localhost:3000/",
+      "role": "publico",
+      "viewport": "1440x900",
+      "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
+      "timestamp": "2026-08-15-19-56-39"
+    },
+    {
+      "screen": "dashboard",
+      "path": "02-dashboard.png",
+      "size_bytes": 53546,
+      "sha256": "b1e800efecf93cc593f4d6acd4533df461dd305bdaecf5b6adc8ef8375369999",
+      "url": "http://localhost:3000/dashboard",
+      "role": "admin",
+      "viewport": "1440x900",
+      "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
+      "timestamp": "2026-08-15-19-56-39"
+    },
+    {
+      "screen": "suscripcion",
+      "path": "03-suscripcion.png",
+      "size_bytes": 51599,
+      "sha256": "fb12ea799ef47c8c44c4c07ba65803ad5073cf62ae21f52acf4f8cb6482ba65f",
+      "url": "http://localhost:3000/suscripcion",
+      "role": "admin",
+      "viewport": "1440x900",
+      "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
+      "timestamp": "2026-08-15-19-56-39"
+    },
+    {
+      "screen": "rutas",
+      "path": "04-rutas.png",
+      "size_bytes": 44373,
+      "sha256": "fda0e7e0a5868ab480a7ece799f766f56ad2352239d93c7a93458811b3c0e911",
+      "url": "http://localhost:3000/routes",
+      "role": "admin",
+      "viewport": "1440x900",
+      "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
+      "timestamp": "2026-08-15-19-56-39"
+    },
+    {
+      "screen": "caja",
+      "path": "05-caja.png",
+      "size_bytes": 50450,
+      "sha256": "fa1e7743c549cbee19c54fd5605e60bf7d7d90ac0478b774649a146a392da7fd",
+      "url": "http://localhost:3000/caja",
+      "role": "cob",
+      "viewport": "1440x900",
+      "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
+      "timestamp": "2026-08-15-19-56-39"
+    },
+    {
+      "screen": "reportes",
+      "path": "06-reportes.png",
+      "size_bytes": 45762,
+      "sha256": "d93f13b9a85f60afb084d85fedc34727dbfe849e30811dbee91b2aee5a28a66c",
+      "url": "http://localhost:3000/reportes",
+      "role": "admin",
+      "viewport": "1440x900",
+      "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
+      "timestamp": "2026-08-15-19-56-39"
+    },
+    {
+      "screen": "dispositivos",
+      "path": "07-dispositivos.png",
+      "size_bytes": 114045,
+      "sha256": "00bc6e5c2f712eb6cf53ab7395f5482f5f5690874145c68e019e55c91e37ff46",
+      "url": "http://localhost:3000/dispositivos",
+      "role": "admin",
+      "viewport": "1440x900",
+      "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
+      "timestamp": "2026-08-15-19-56-39"
+    },
+    {
+      "screen": "registro",
+      "path": "08-registro.png",
+      "size_bytes": 50079,
+      "sha256": "b35d899bf1cc691db695407d3a313552b6894fa61d1de6b3bd588eeb45aef14d",
+      "url": "http://localhost:3000/registro",
+      "role": "publico",
+      "viewport": "1440x900",
+      "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
+      "timestamp": "2026-08-15-19-56-39"
+    }
+  ]
+}

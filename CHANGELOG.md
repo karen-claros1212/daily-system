@@ -1,8 +1,48 @@
 # Changelog
 
-## [Unreleased] — Hardening B1–B7 + Mobile Auth/Sync (código S0-S2: c0a3a9c)
+## [Unreleased] — Reconciliación documental (2026-08-15)
 
-Rama de trabajo: `hardening/b1-b7-audit`. `master` (`486d08b`) no contiene estos cambios.
+Rama: `product/web-premium-v1` @ `bbb3e102`. Reconciliación del repositorio con el estado
+canónico verificado (sin cambios funcionales; actualización de docs + evidencia).
+
+### Docs
+- Inventario documental clasificado A–E; 8 documentos históricos archivados en `docs/historical/` con banner.
+- README.md, docs/STATUS.md, docs/README.md, docs/TESTING.md, docs/ARCHITECTURE.md reescritos al estado canónico 2026-08-15.
+- docs/SECURITY.md, docs/OFFLINE-SYNC.md, docs/IMPLEMENTATION-PLAN.md actualizados (Web Premium, S4/S5, capa web security).
+- docs/web/WEB-UI-BLUEPRINT.md marcado histórico (prototipo MOCK); el panel productivo vive en `apps/web/`.
+
+### Current (canónico 2026-08-15)
+- Backend pytest: **367 passed, 8 skipped** (SQLite)
+- alembic head: `m8_negocio_nit` (invariante NIT por BD)
+- Mobile flutter test: **177/177 passing** · flutter analyze: 14 infos preexistentes / 0 nuevos
+- Web E2E Playwright: mock **107** + real **26** · `npm audit` = 0
+- ruff: 127 errores en src/ (deuda conocida)
+- CI: 3 workflows PASS (backend-ci · web-ci · ui-gate)
+
+---
+
+## [WEB-PREMIUM] — Panel web administrativo productivo (rama `product/web-premium-v1`, HEAD `bbb3e102`)
+
+### Web (apps/web — Next.js 16 · React 19 · TypeScript · Tailwind)
+- Login + sesión httpOnly `daily_admin_token`; identidad única vía `GET /api/auth/me`
+- RBAC por capacidades server-side (`src/lib/rbac.ts`): COBRADOR / INVERSIONISTA / ADMINISTRADOR
+- Superficies: dashboard, rutas, caja, reportes, dispositivos, suscripción, onboarding (`/registro`)
+- BFF con route handlers (`src/app/api/*`) + cliente TS generado (`openapi-typescript`)
+- E2E Playwright: mock 107 (incl. a11y axe) + real 26 (FastAPI + PostgreSQL)
+- `next` 16.3.1 · `eslint-config-next` 16.3.1 · React 19.2.8 · TS 5.9.3 · `npm audit` = 0
+- Fix `devIndicators: { position: 'top-right' }` en `next.config.mjs`
+- CI: `web-ci.yml` (web-static · web-e2e-mock · web-real-integration) + `ui-gate.yml`
+
+### Backend (apps/api)
+- Routers `onboarding` (/api/onboarding), `auth/me`, `inversionista` (resumen, suscripción)
+- Gate PG: `test_onboarding.py::TestNitConcurrentePostgres::test_13_dos_transacciones_concurrentes_mismo_nit_201_y_409`
+- `backend-ci.yml` certifica alembic upgrade head + current + pytest en PostgreSQL 16
+
+---
+
+## [Unreleased] — Hardening B1–B7 + S0–S5 (histórico: rama `hardening/b1-b7-audit`)
+
+> Nota: este bloque fue superado por los bloques S4/S5 y Web Premium. Se conserva como historia.
 
 ### Security
 - Tenant isolation y route isolation endurecidos (server-side scope, `0 y >1 rutas → 401`)
@@ -23,7 +63,6 @@ Rama de trabajo: `hardening/b1-b7-audit`. `master` (`486d08b`) no contiene estos
 - AuthTokenStore (persistencia segura)
 - JCS Dart (RFC 8785) con vector de prueba byte-exacto contra backend
 - GET /api/mobile/sync — pull dataset ruta activa única
-- DTOs y persistencia sobre SQLite existente (reutiliza tablas lib/database/tables.dart)
 - UPSERT por PK con ON CONFLICT(id) DO UPDATE (nunca INSERT OR REPLACE)
 - Protección de trabajo local pendiente durante pull (sync_queue + CLOSED_LOCAL_PENDING_SYNC)
 - Preservación de reversal_of_payment_id en pull (S2-H2)
@@ -46,40 +85,33 @@ Rama de trabajo: `hardening/b1-b7-audit`. `master` (`486d08b`) no contiene estos
   - CLOSED_LOCAL_PENDING_SYNC → CLOSED_SYNCED solo tras ACK válido de /sincronizar
   - Push→pull reconciliation: pagos/movimientos/reversales empujados aparecen en GET /sync
   - reversal_of_payment_id reconciliado en pull
-  - Tests: 163 mobile passing, 262 backend passing, 7 skipped, flutter analyze clean
 
 ### Backend
 - 409 idempotent en pago/movimiento/jornada; comparación full-payload
 - Estado de jornada: OPEN → CLOSING → CLOSED_LOCAL_PENDING_SYNC → CLOSED_SYNCED (guards)
 - `JornadaSyncException` (409) con validación de snapshot hash
 - Revalidación de efectivo_esperado / efectivo_contado / diferencia en sincronizar_cierre
-- `mobile_sync_service.py` con fail-closed (fail-closed: 0 y >1 rutas activas → 401 en deps.py)
+- `mobile_sync_service.py` con fail-closed (0 y >1 rutas activas → 401 en deps.py)
 - `activacion.py` con bootstrap + auth + sync routes
-- `m7_desafio_auth` alembic (head)
-
-### Current
-- S0 session maintenance: PASS
-- S1 route isolation: PASS
-- S2 server→mobile pull/persistence: PASS
-- S3 outbox (mobile→server push/ACK/retry/conflictos): ✅ IMPLEMENTADO
-- Backend pytest: 262 passed, 7 skipped (269 funciones)
-- Mobile flutter test: 163 passing
-- flutter analyze: No issues found
-- alembic: m7_desafio_auth (head), clean
-- ruff: 97 errors en src/ (deuda conocida — no fue limpiado en hardening)
-
-### Repository
-- `hardening/b1-b7-audit` contiene todos los cambios B1–B7
-- `master` (`486d08b`) no fusionado; hardening diverge de master (ver con `git rev-list --count master..HEAD`)
-
-### Historias no implementadas (arqueología del CHANGELOG)
-- [M3.5] Bot Telegram (cobrador/inversionista): **NO EXISTE** en el árbol (`apps/telegram-bot/` no existe)
-- [M3.4] Panel inversionista (web): **NO EXISTE** (`apps/web/` vacío; solo prototipo MOCK `design/prototypes/web/`)
-- [M3.3] Reporte diario automático: pendiente
+- `m7_desafio_auth` alembic
 
 ---
 
-## [HARDENING-B1-B7] - Auth productivo + sync offline (c0a3a9c)
+## [S4-S5] — Reasignación de ruta + conflictos server-authoritative
+
+### S4 — Reasignación R1→R2 (commits `b4da7ca`, `327c7fd`, `b75f2c4`)
+- `ruta_id_origen` inmutable en `sync_queue`; fila de R1 no se transmite bajo R2 → CONFLICTO, 0 requests HTTP
+- Ciclo completo de reasignación + endurecimiento estricto + orquestación de sync
+
+### S5 — Conflict detection (`877f24d`)
+- `apps/api/src/services/conflict_service.py` — PRE-CHECK layer server-authoritative
+- 6 verificadores: pago, movimiento, jornada, apertura de jornada, reversal, ruta
+- No reemplaza las validaciones inline (payment/movimiento/jornada service)
+- Tests: `test_s5_conflict_service.py` (48 tests)
+
+---
+
+## [HARDENING-B1-B7] — Auth productivo + sync offline (c0a3a9c)
 
 ### Security
 - Tenant isolation y route isolation endurecidos.
@@ -100,15 +132,13 @@ Rama de trabajo: `hardening/b1-b7-audit`. `master` (`486d08b`) no contiene estos
 - Protección de trabajo local pendiente durante pull.
 - Preservación de reversal_of_payment_id.
 
-### Current
+### Current (histórico)
 - S0 session maintenance: PASS.
 - S1 aislamiento ruta: PASS.
 - S2 pull servidor→móvil: PASS.
 - S3 outbox móvil→servidor: ✅ IMPLEMENTADO.
 
-### Repository
-- `hardening/b1-b7-audit` contiene estos cambios.
-- `master` todavía no contiene este hardening.
+---
 
 ## [M3.6.6-F] - Migration V4
 - JornadaSnapshot único, idempotencia obligatoria
@@ -138,8 +168,8 @@ Rama de trabajo: `hardening/b1-b7-audit`. `master` (`486d08b`) no contiene estos
 
 ## [M3] - Suscripcion, Telegram, inversionista
 - Planes y suscripciones
-- Bot Telegram (cobrador/inversionista) — ⚠️ DESACTUALIZADO: `apps/telegram-bot/` no existe en el árbol real. No es parte del producto. Cualquier bot futuro es exclusivamente administrativo; bot en móvil: PROHIBIDO.
-- Panel inversionista — ⚠️ DESACTUALIZADO: `apps/web/` está vacío. Solo prototipo estático `design/prototypes/web/` (MOCK).
+- Bot Telegram (cobrador/inversionista) — ⚠️ HISTÓRICO: no existe en el árbol. Cualquier bot futuro es exclusivamente administrativo; bot en móvil: PROHIBIDO.
+- Panel inversionista — ⚠️ HISTÓRICO: hoy está cubierto por la Web Premium productiva (`apps/web/`); el prototipo MOCK `design/prototypes/web/` es referencia de diseño.
 - Reporte diario automático — pendiente (no implementado)
 - Límite de rutas por plan
 

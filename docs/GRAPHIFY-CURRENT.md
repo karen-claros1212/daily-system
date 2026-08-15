@@ -1,5 +1,12 @@
 # Graphify Status — Daily System
 
+> ## Nota (2026-08-15)
+>
+> Documento **regenerable** (clase E): el grafo describe un snapshot histórico
+> (737371d). `graphify-out/` se regenera con `graphify .` tras cambios estructurales;
+> ver [AGENTS.md](../AGENTS.md) §Graphify. Reconciliación documental 2026-08-15 —
+> rama `product/web-premium-v1`, HEAD `bbb3e102`.
+
 **Fecha:** 2026-07-31
 **SHA:** 737371dbb89cdc49ef7961ef43347ca416edbf54d
 **Graphify version:** 0.9.29 (skill 0.9.26)

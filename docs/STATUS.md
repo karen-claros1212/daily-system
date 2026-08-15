@@ -1,46 +1,27 @@
 # STATUS — Daily System
 
 **Proyecto:** daily-system
-**Última actualización:** 2026-08-12
+**Última actualización:** 2026-08-15
 **Ruta de trabajo verificada (local):** `/home/jesus/proyectos/daily-system`
-**Rama de trabajo:** `hardening/b1-b7-audit`
-**HEAD (repositorio):** dinámico — `git rev-parse HEAD` (Git es autoridad; SHA no se hardcodea en docs)
-**HEAD (código S0-S2 baseline):** `c0a3a9c1646358fea4badc45bc9cdf5d6e2a1216`
-**master:** `486d08b1584684a4328825142209776fce477670` (no contiene el hardening B1-B7)
+**Rama de trabajo:** `product/web-premium-v1`
+**HEAD (baseline certificado):** `bbb3e1024cd0380cf48288c486565a4411c602c3`
 **Repo:** https://github.com/karen-claros1212/daily-system
 
-> ## ⚠️ NOTA DE RECONCILIACIÓN (2026-08-06 → 2026-08-11)
+> ## ⚠️ NOTA DE RECONCILIACIÓN (2026-08-15)
 >
-> Las secciones históricas de este archivo (abajo) se conservan como historia. Los estados que NO se corresponden con el árbol real del repositorio están **DESACTUALIZADOS** y NO son evidencia de implementación:
->
-> - **`apps/web` productiva: NO EXISTE** (carpeta vacía; `apps/` solo tiene `api` y `mobile`). El material web es un prototipo estático HTML/CSS en `design/prototypes/web/` (MOCK visual, sin JS/API/auth/build).
-> - **Panel inversionista productivo: NO EXISTE.** El material web actual es un prototipo estático HTML/CSS en `design/prototypes/web/`.
-> - **Bot Telegram (cobrador/inversionista): NO EXISTE** (`apps/telegram-bot/` no está en el árbol).
+> Reconciliación documental: el repositorio refleja ahora el estado real del producto.
+> - **Panel web administrativo: PRODUCTIVO** — `apps/web/` es una aplicación Next.js 16
+>   (onboarding, dispositivos, suscripción, dashboard, rutas, caja, reportes). El prototipo
+>   estático MOCK vive en `design/prototypes/web/` como **histórico**.
+> - **Backend CI: EXISTE** (`backend-ci.yml`) — alembic upgrade/current + pytest + gate de
+>   concurrencia NIT sobre PostgreSQL.
+> - **Web CI: EXISTE** (`web-ci.yml`) — 3 jobs: static (api:check/lint/typecheck/build),
+>   E2E mock (Playwright + axe), E2E real (FastAPI + PostgreSQL).
+> - **UI Gate: EXISTE** (`ui-gate.yml`) — flutter analyze + flutter test estrictos.
+> - **S0-S5: PASS** — session, ruta, pull, outbox, reasignación R1→R2, conflictos.
 > - **Bot en móvil: PROHIBIDO.** Cualquier bot futuro es exclusivamente administrativo.
-> - **PowerSync: NO EXISTE.** La sincronización offline usa SQLite + sync_queue + capa propia. `flutter pub deps` confirma cero dependencia de PowerSync.
-> - **Autenticación por sesión: NO EXISTEN** en el hardening. La auth productiva es JWT ES256 + AndroidKeyStore + challenge-response.
-> - **master (486d08b) NO contiene el hardening B1-B7.** Todo el trabajo de auth/sync productivo vive en `hardening/b1-b7-audit`.
->
-> **Estado oficial al 2026-08-12:**
-> - S0-S2 baseline de código: `c0a3a9c`
-> - S3 cerrado en `hardening/b1-b7-audit` (HEAD remoto: `git rev-parse HEAD`)
-> - Git es autoridad para el HEAD actual
-> - Backend financiero: **PASS / implementado**
-> - Hoja Viva: **implementada y preservada**
-> - B1-B7 hardening: **PASS**
-> - Auth productivo (JWT ES256 + AndroidKeyStore + challenge-response): **PASS**
-> - Bootstrap single-route: **PASS**
-> - Mobile auth bridge: **PASS**
-> - S0 session maintenance: **PASS**
-> - S1 route isolation: **PASS**
-> - S2 pull servidor→móvil: **PASS**
-> - S3 outbox móvil→servidor: **✅ PASS / IMPLEMENTADO**
-> - Web productiva: **PENDIENTE** (`apps/web/` vacío)
-> - Prototipo web: **existente, NO productivo**
-> - Bot administrativo: **FUTURO**
-> - Bot en móvil: **NO FORMA PARTE DEL PRODUCTO**
->
-> > **Ejecución local de esta reconciliación (2026-08-11):** no equivale a GitHub Actions salvo el workflow `ui-gate.yml` que existe explícitamente. Ver [TESTING.md](TESTING.md) para comandos reproducibles.
+> - **PowerSync: NO EXISTE** — la sincronización offline usa SQLite + sync_queue + capa propia.
+> - `master` (`486d08b`) es una rama legacy sin hardening; todo el trabajo vive en `product/web-premium-v1`.
 
 ---
 
@@ -48,19 +29,19 @@
 
 | Campo | Valor |
 |---|---|
-| **Estado general** | M0-M3 completos · M3.2-M3.5 históricas no implementadas · B1-B7 hardening PASS · S0-S3 sync completo |
-| **Hito actual** | S3 outbox push/ACK/retry/conflictos (IMPLEMENTADO)
-| **Progreso total** | M0: 22/22 ✅ · M1: 8/8 ✅ · M2: 6/6 ✅ · M3 base: 1/1 ✅ (M3.2-M3.5 históricas, no implementadas en árbol actual) · B1-B7: ✅ |
-| **Tests pasando (backend, SQLite)** | 262 passed, 7 skipped (269 funciones) |
-| **Tests pasando (mobile)** | 175 passing |
-| **Tests PG concurrency** | Pendientes (requieren scratch DB: `cobro_scratch_b6_pg` + `ALLOW_PG_TRUNCATE=1`) |
-| **PostgreSQL** | Corriendo (cobro-postgres, Docker, puerto 7103) |
-| **Alembic** | `m7_desafio_auth` (head); `alembic check` limpio |
-| **ruff** | 97 errores en `src/` (deuda conocida — no limpiado en hardening) |
-| **flutter analyze** | 14 infos preexistentes (migration_v5/v7) / 0 nuevos |
-| **UI Gate CI** | PASS (GitHub Actions `ui-gate.yml`) |
-| **Backend CI** | ⛔ NO EXISTE |
-| **Documento maestro** | `docs/DOCUMENTO-MAESTRO-Plataforma-Cobro-Colombia-v1.3-CERRADO.md` + `DAILY-SYSTEM-ARCHIVO-MAESTRO-CONTINUIDAD-OPENCODE.md` |
+| **Estado general** | M0-M3 base ✅ · B1-B7 hardening ✅ · S0-S5 sync ✅ · Web Premium productivo ✅ · M4-M6 pendientes |
+| **Hito actual** | Web Premium (panel administrativo productivo) + Migración Next.js 16 — CERRADOS |
+| **Tests backend (SQLite)** | 367 passed, 8 skipped |
+| **Tests mobile** | 177/177 passing |
+| **Web E2E (local, Next 16)** | mock 107 passing (incl. a11y axe) + real 26 passing |
+| **flutter analyze** | 14 infos preexistentes (migraciones congeladas v5/v7) / 0 nuevos |
+| **ruff (deuda conocida)** | 127 errores en `src/` — no limpiado en hardening |
+| **Alembic** | `m8_negocio_nit` (head) · upgrade + current verificados en Backend CI (PG) |
+| **npm audit (web)** | 0 vulnerabilidades |
+| **Backend CI** | ✅ PASS |
+| **Web CI** | ✅ PASS (3/3 jobs) |
+| **UI Gate CI** | ✅ PASS |
+| **PostgreSQL** | Docker (`postgres` servicio CI; local `cobro-postgres`, puerto 7103) |
 
 ### Estado de bloques
 
@@ -77,162 +58,143 @@
 | ✅ PASS | S1 — route isolation (scope server-side; cliente no elige ruta) |
 | ✅ PASS | S2 — pull servidor→móvil + persistencia SQLite (UPSERT por PK) |
 | ✅ PASS | S3 — outbox móvil→servidor (push / ACK / retry / conflictos) |
+| ✅ PASS | S4 — reasignación de ruta R1→R2 (ruta_id_origen inmutable) + orquestación sync |
+| ✅ PASS | S5 — `conflict_service.py` (verificadores server-authoritative de conflicto) |
+| ✅ PASS | Web Premium — panel administrativo productivo (Next.js 16) |
+| ✅ PASS | Migración Next.js 16 security baseline (CI 3/3) |
 | ⏳ PENDING | Verificado en dispositivo físico |
 | ⏳ PENDIENTE | M4: Importación OCR (`ocr_service.py` no existe) |
 | ⏳ PENDIENTE | M5: Score, chatbot, inteligencia |
 | ⏳ PENDIENTE | M6: Producción y despliegue |
-| ⛔ NO EXISTE | Bot Telegram (histórico, no implementado) |
-| ⛔ NO EXISTE | Panel inversionista productivo (solo MOCK web) |
+| ⏳ FUTURO | Bot administrativo (exclusivamente administrativo) |
+| ⛔ NO EXISTE | Bot Telegram (histórico, no implementado como bloque original) |
 | ⛔ PROHIBIDO | Bot en móvil |
 | ⛔ NO EXISTE | PowerSync (no es la arquitectura de sync) |
-| ⛔ NO EXISTE | Auth por sesión (es JWT ES256) |
 
 ---
 
-## Hito M0 — Fundación ejecutable ✅
+## Estado canónico del producto
 
-**Estado:** COMPLETADO
-**Progreso:** 22/22 (100%)
+### Aplicación cobrador — Android/Flutter (offline-first)
 
-### Entregables
+| Área | Estado |
+|---|---|
+| Aplicación cobrador offline-first | ✅ Implementada (SQLite local, operaciones offline) |
+| Auth AndroidKeyStore P-256 + JWT ES256 | ✅ Implementado (clave no exportable, SHA256withECDSA) |
+| Flujo challenge / canje / bootstrap | ✅ Implementado (daily-v1 / daily-auth-v1, JCS RFC 8785) |
+| Una única ruta activa derivada por servidor | ✅ Implementada (el cliente no elige ruta) |
+| Hoja Viva | ✅ Implementada y preservada |
+| Pagos y reversiones | ✅ Implementados (idempotencia + 409 on mismatch) |
+| Jornada y caja | ✅ Implementadas (apertura, movimientos, cierre, hash reproducible) |
+| Movimientos e historial | ✅ Implementados |
+| PDF de cierre de jornada | ✅ Implementado |
+| SQLite (migraciones versionadas v2..v7) | ✅ Implementado (v5/v7 congeladas — fuente de las 14 infos de analyzer) |
+| Sync S0-S5 | ✅ PASS |
+| Suite de tests | ✅ 177/177 (último baseline aceptado) |
+| Analyzer | ✅ 14 infos históricos en migraciones congeladas / 0 nuevos |
+| Bot en móvil | ⛔ PROHIBIDO — no forma parte del producto |
 
-| # | Requisito | Estado | Commit |
-|---|---|---|---|
-| M0.1 | Repo público creado | ✅ | 90493db |
-| M0.2 | AGENTS.md configurado | ✅ | 90493db |
-| M0.3 | Protocolo Engram | ✅ | 90493db |
-| M0.4 | Protocolo Graphify | ✅ | 61c2b9a |
-| M0.5 | Infraestructura Docker | ✅ | e5af682 |
-| M0.6 | Backend FastAPI | ✅ | e5af682 |
-| M0.7 | Database layer | ✅ | e5af682 |
-| M0.8 | Modelos SQLAlchemy (9 tablas) | ✅ | e5af682 |
-| M0.9 | Schemas Pydantic | ✅ | e5af682 |
-| M0.10 | Migration Alembic init | ✅ | e5af682 |
-| M0.11-16 | Routes (6 módulos) | ✅ | e5af682 |
-| M0.17 | Services: calculation_service | ✅ | e5af682 |
-| M0.18 | Tests: calculaciones (12/12) | ✅ | e5af682 |
-| M0.19 | Tests: API (16/16) | ✅ | 65c90f8 |
-| M0.20 | Health endpoint | ✅ | 65c90f8 |
-| M0.21 | Nombre normalizado | ✅ | f1ece01 |
-| M0.22 | Documento maestro cerrado | ✅ | 724a644 |
+### Panel web administrativo — Web Premium (Next.js 16)
+
+| Área | Estado |
+|---|---|
+| Login (sesión httpOnly `daily_admin_token`) | ✅ Implementado (identidad solo vía `/api/auth/me`) |
+| Onboarding (registro de negocio) | ✅ Implementado (`/registro`) |
+| Dashboard financiero | ✅ Implementado (`/dashboard`, despacha superficie por rol) |
+| Rutas | ✅ Implementado (`/routes`) |
+| Caja | ✅ Implementado (`/caja`) |
+| Reportes | ✅ Implementado (`/reportes`) |
+| Dispositivos | ✅ Implementado (`/dispositivos`) |
+| Suscripción | ✅ Implementado (`/suscripcion`) |
+| RBAC por capacidades (COBRADOR / INVERSIONISTA / ADMINISTRADOR) | ✅ Implementado (server-side) |
+| E2E Playwright (mock + real) + a11y axe | ✅ PASS (mock 107 / real 26) |
+| `openapi-typescript` cliente generado | ✅ Implementado (`src/lib/api/generated/`, `npm run api:check`) |
+
+### Backend — FastAPI
+
+| Área | Estado |
+|---|---|
+| Modelos, schemas, rutas, servicios | ✅ Implementado |
+| Alembic | ✅ head `m8_negocio_nit` (init → m2..m8) |
+| Invariante NIT por negocio | ✅ En BD (`m8_negocio_nit`, 2026-08-14) + gate concurrencia 201/409 en CI |
+| `conflict_service.py` (S5) | ✅ 6 verificadores server-authoritative |
+| Tests | ✅ 367 passed, 8 skipped (SQLite) |
+| ruff | ⚠️ 127 errores deuda conocida (no limpiado en hardening) |
+
+### CI/CD (GitHub Actions)
+
+| Workflow | Jobs | Estado |
+|---|---|---|
+| `backend-ci.yml` | API tests + Alembic check (PG) + NIT concurrency gate | ✅ PASS |
+| `web-ci.yml` | `web-static` · `web-e2e-mock` · `web-real-integration` | ✅ PASS 3/3 |
+| `ui-gate.yml` | flutter analyze + flutter test (estricto) | ✅ PASS |
 
 ---
 
-## Hito M1 — Hoja viva y pagos ✅
+## Hitos M0-M3 (históricos — completados)
 
-**Estado:** COMPLETADO
-**Progreso:** 8/8 (100%)
+Las secciones siguientes se conservan como historia de ejecución. El estado vigente está en
+"Estado canónico del producto" arriba.
 
-### Entregables
+### Hito M0 — Fundación ejecutable ✅ (22/22)
 
-| # | Requisito | Estado | Commit |
-|---|---|---|---|
-| M1.1 | Calcular crédito (cuota × días) | ✅ | e2d8e37 |
-| M1.2 | Calcular caja (asignar pagos) | ✅ | e2d8e37 |
-| M1.3 | Hoja viva del día | ✅ | e2d8e37 |
-| M1.4 | Registrar pago parcial | ✅ | e2d8e37 |
-| M1.5 | Reversar pago | ✅ | e2d8e37 |
-| M1.6 | Historial de pagos | ✅ | e2d8e37 |
-| M1.7 | Cálculo de pico y residuo | ✅ | 965e0da |
-| M1.8 | Renegociación básica | ✅ | 965e0da |
+| # | Requisito | Commit |
+|---|---|---|
+| M0.1-M0.22 | Repo, AGENTS.md, protocolos, infraestructura, backend FastAPI, modelos, migraciones, routes, services, tests, health, naming, documento maestro | `90493db` … `724a644` |
 
----
+### Hito M1 — Hoja viva y pagos ✅ (8/8)
 
-## Hito M2 — Jornada, caja y TERMINAR JORNADA ✅ (GATE FINAL)
+| # | Requisito | Commit |
+|---|---|---|
+| M1.1-M1.8 | Crédito, caja, hoja viva, pago parcial, reversión, historial, pico/residuo, renegociación | `e2d8e37` / `965e0da` |
 
-**Estado:** COMPLETADO
-**Progreso:** 6/6 (100%)
+### Hito M2 — Jornada, caja y TERMINAR JORNADA ✅ (6/6, GATE FINAL)
 
-### Entregables
+| # | Requisito | Commit |
+|---|---|---|
+| M2.1-M2.6 | Iniciar/cerrar jornada, total recaudado, movimientos, reporte, anular | `485671e` / `3f59bd3` / `86779e8` / `2826590` |
 
-| # | Requisito | Estado | Commit |
-|---|---|---|---|
-| M2.1 | Iniciar jornada | ✅ | 485671e |
-| M2.2 | Cerrar jornada | ✅ | 485671e |
-| M2.3 | Total recaudado por jornada | ✅ | 3f59bd3 |
-| M2.4 | Movimientos de caja | ✅ | 3f59bd3 |
-| M2.5 | Reporte de jornada | ✅ | 86779e8 |
-| M2.6 | Anular jornada | ✅ | 2826590 |
-
-### Notas M2
-- Una jornada solo puede cerrar si todas las cuotas del día están cubiertas o marcadas como impagas
-- El pico (abono % cuota) se registra como abono a la siguiente cuota
-- Idempotencia obligatoria en apertura de jornada
-- Hash reproducible de snapshot de jornada
-- Migrations: init → m2_apertura_idempotency → m2_jornada_caja → head
+- Jornada solo cierra si todas las cuotas del día están cubiertas o marcadas impagas
+- Pico (abono % cuota) se registra como abono a la siguiente cuota
+- Idempotencia obligatoria en apertura; hash reproducible de snapshot
 - **M2 Gate Final:** 138 tests passing, alembic head = m3_dispositivo, PostgreSQL applied
 
----
+### Hito M3 — Suscripción / límites por plan ✅ · M3.2-M3.5 históricos
 
-## Hito M3 — Suscripción / límites por plan ✅ · M3.2-M3.5 históricos no implementados
+| # | Requisito | Estado |
+|---|---|---|
+| M3.1 | Planes y suscripciones | ✅ (`871d1de`) |
+| M3.2-M3.3 | Bot Telegram (cobrador/inversionista) | ⚠️ no implementado como bloque original |
+| M3.4 | Panel inversionista (web) | ✅ **reimplementado como Web Premium productiva** |
+| M3.5 | Reporte diario automático | ⚠️ no implementado |
+| M3.6 | Límite de rutas por plan | ✅ (`e44b09e`) |
 
-**Estado:** COMPLETADO (suscripciones) · **DESACTUALIZADO** (telegram/panel web — ver nota de reconciliación arriba)
-
-### Entregables
-
-| # | Requisito | Estado | Commit |
-|---|---|---|---|
-| M3.1 | Planes y suscripciones | ✅ | 871d1de |
-| M3.2 | Bot Telegram (cobrador) | ⚠️ DESACTUALIZADO — no existe en el árbol real | 871d1de |
-| M3.3 | Bot Telegram (inversionista) | ⚠️ DESACTUALIZADO — no existe en el árbol real | 871d1de |
-| M3.4 | Panel inversionista (web) | ⚠️ DESACTUALIZADO — `apps/web` vacía; solo prototipo estático | 871d1de |
-| M3.5 | Reporte diario automático | ⚠️ DESACTUALIZADO — no existe en el árbol real | 871d1de |
-| M3.6 | Límite de rutas por plan | ✅ | e44b09e |
-
-### Notas M3
-- Plan free: 1 ruta, 100 clientes
-- Plan básico: 5 rutas, 500 clientes
-- Plan pro: rutas ilimitadas, clientes ilimitados
-- M3.6.x: Flutter Offline Alpha + Visual Alpha Premium
-- M3.6.6: Domain model unification — JornadaGuard, atomic payments, typed exceptions
+- Plan free: 1 ruta / 100 clientes · básico: 5 / 500 · pro: ilimitado
 
 ---
 
 ## Historial de Sesiones
 
-### Sesión 2026-07-28 (1) — Configuración inicial
-- Init repo, AGENTS.md, Engram protocol
-- Commit: 90493db
-
-### Sesión 2026-07-28 (2) — Graphify setup
-- Graphify audit, protocol, opencode.json
-- Commit: 61c2b9a
-
-### Sesión 2026-07-28 (3) — Documentación de plan
-- Master doc, IMPLEMENTATION-PLAN.md, STATUS.md
-- Commit: ff889a8
-
-### Sesión 2026-07-28 (4) — Recuperación de código
-- Import M0 backend from cobro-colombia (30 files, 18/28 passing)
-- Commit: e5af682
-
-### Sesión 2026-07-28 (5) — Corrección de tests
-- 10 API test fixes → 28/28 passing
-- Commit: 65c90f8
-
-### Sesión 2026-07-28 (6) — Documento maestro cerrado
-- DOCUMENTO-MAESTRO-Plataforma-Cobro-Colombia-v1.3-CERRADO.md guardado
-- Commit: 724a644
+### Sesiones 2026-07-28 — Configuración inicial (1-6)
+- Init repo, AGENTS.md, protocolos Engram/Graphify, plan, import M0 backend, corrección de tests (28/28), documento maestro cerrado
+- Commits: `90493db`, `61c2b9a`, `ff889a8`, `e5af682`, `65c90f8`, `724a644`
 
 ### Sesión 2026-07-31 — M2 gate final + ruff linting
-- 138 tests passing (M0-M3 all complete)
-- Alembic migrations applied to PostgreSQL (head = m3_dispositivo)
-- ruff --fix: 130 UP045 auto-fixed, 0 errors
-- STATUS.md updated with M2 gate final evidence
-- Commit: b6d48bb
+- 138 tests passing (M0-M3), migraciones aplicadas (head m3_dispositivo), ruff --fix 130 UP045
+- Commit: `b6d48bb`
 
----
+### Bloques B1-B7 / S0-S5 — hardening y sync (2026-08-06 → 2026-08-14)
+- B1-B7: JWT ES256, AndroidKeyStore, challenge-response, bootstrap productivo
+- S0-S2: session, route isolation, pull+persist (baseline `c0a3a9c`)
+- S3: outbox push/ACK/retry/conflictos
+- S4: reasignación R1→R2 (`b75f2c4` … `327c7fd`)
+- S5: `conflict_service.py` + 48 tests (`877f24d`)
+- HARDENING FINAL ONBOARDING: invariante NIT `m8_negocio_nit` (2026-08-14)
 
-## Archivos por tipo
-
-| Tipo | Cantidad | Estado |
-|---|---|---|
-| Código Python | 34 | Normalizado (ruff clean) |
-| Tests | 269 funciones backend (262 passed + 7 skip SQLite) / 175 mobile | Normalizado |
-| Migraciones | 4 | init → m2_apertura → m2_jornada → m3_dispositivo |
-| Infraestructura | 3 | docker-compose + init.sql + .env.example |
-| Documentación | 8 | AGENTS.md, README, docs/*.md, ADR |
-| Configuración | 3 | .gitignore, opencode.json, requirements.txt |
+### Bloques Web Premium + Migración Next.js 16 (2026-08-14 → 2026-08-15)
+- Web Premium: panel administrativo productivo (Next.js 16, RBAC, onboarding, dispositivos, suscripción, dashboard, rutas, caja, reportes)
+- Migración Next.js 16 security baseline: `5d1205b` + `bbb3e102` (fix devIndicators) — CI 3/3 PASS
+- Reconciliación documental 2026-08-15: este documento + archivo de históricos en `docs/historical/`
 
 ---
 
@@ -241,24 +203,17 @@
 | # | Desviación | Impacto | Estado |
 |---|---|---|---|
 | 1 | Nombres heredados en infraestructura (cobro-postgres) | Bajo | ADR creado, migración pendiente |
-| 2 | CORS restrictivo listo para desarrollo | Bajo | Corregido |
-| 3 | Password en docker-compose (ya removido) | Resuelto | Usa variables de entorno |
-| 4 | Rama master (no main) | Bajo | Mantener |
+| 2 | Rama master (no main) | Bajo | Mantener (legacy) |
+| 3 | ruff: 127 errores en `src/` | Bajo (deuda) | No limpiado en hardening |
+| 4 | flutter analyze: 14 infos en migraciones congeladas | Nulo | Preexistentes, no tocar |
 
 ---
 
 ## Próximos pasos
 
-1. **S4** — Reasignación de ruta/dispositivo
-2. **S5** — Conflictos y resolución server-authoritative
-3. **Web administrativa productiva**
-4. **Bot administrativo futuro**
-
-### Históricos M4-M6 (no inmediatos)
-
-1. **M4** — Importación OCR: `ocr_service.py` no existe aún (pendiente).
-2. **M5** — Score, chatbot, inteligencia: pendiente.
-3. **M6** — Producción y despliegue: pendiente.
-4. **Verificado en dispositivo físico**: PENDING (solo emulador API 35).
-5. **CI backend**: crear workflow de GitHub Actions para pytest + alembic check.
-6. **ruff**: limpiar 97 errores en `src/` (deuda conocida en hardening).
+1. **M4** — Importación OCR (`ocr_service.py` no existe aún; pendiente)
+2. **M5** — Score, chatbot, inteligencia (pendiente)
+3. **M6** — Producción y despliegue (pendiente)
+4. **Verificado en dispositivo físico** — PENDING (solo emulador API 35)
+5. **Bot administrativo futuro** — exclusivamente administrativo; NO bot en móvil
+6. **ruff** — limpiar 127 errores en `src/` (deuda conocida)

@@ -1,7 +1,16 @@
 # Web UI Blueprint — Daily System
 
 **Fecha:** 2026-07-31
-**Estado:** Prototipo visual (no aplicación productiva)
+**Estado:** ⚠️ **HISTÓRICO** — describe el prototipo estático MOCK (`design/prototypes/web/`), ya **no** es la fuente del panel web.
+
+> ## ⚠️ ARCHIVADO — DOCUMENTO HISTÓRICO
+>
+> Este documento describe el **prototipo web visual (MOCK)** que precedió a la Web Premium.
+> El panel web administrativo **productivo** vive en `apps/web/` (Next.js 16 · React 19 ·
+> TypeScript · Tailwind) y tiene su propia documentación en [docs/ARCHITECTURE.md](../ARCHITECTURE.md)
+> y [docs/STATUS.md](../STATUS.md). El prototipo MOCK de `design/prototypes/web/` se conserva
+> como referencia de diseño (histórica), no como producto.
+> Reconciliación documental 2026-08-15 — rama `product/web-premium-v1`.
 
 ---
 
@@ -48,10 +57,11 @@
 
 ## Diferencia prototipo vs productivo
 
-| Aspecto | Prototipo | Productivo |
+| Aspecto | Prototipo (MOCK, histórico) | Productivo (`apps/web/`) |
 |---|---|---|
-| Datos | Estáticos en HTML | API backend |
-| Auth | Ninguna | JWT + session |
-| Routing | Links estáticos | React Router / Next.js |
-| Estado | Ninguno | Zustand / Redux |
-| Build | HTML + CSS puro | Vite / Next.js |
+| Datos | Estáticos en HTML | API backend (FastAPI) |
+| Auth | Ninguna | Sesión httpOnly `daily_admin_token` → `/api/auth/me` |
+| Routing | Links estáticos | Next.js App Router |
+| Estado | Ninguno | React Server Components + server-side RBAC |
+| Build | HTML + CSS puro | Next.js 16 + TypeScript + Tailwind |
+| Tests | Ninguno | Playwright E2E (mock 107 + real 26) + a11y axe |

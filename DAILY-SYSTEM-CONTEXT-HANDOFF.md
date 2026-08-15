@@ -1,40 +1,49 @@
 # Daily System — Context Handoff
 
-## Estado Canónico Actual
+## Estado Canónico Actual (2026-08-15)
 
 ```
-S0–S5: PASS
-BASELINE: 877f24d70dc43246f968e32e50e1bcc8e450191b
-RAMA: hardening/b1-b7-audit
-WORKTREE: CLEAN
-MASTER: INTACTO (remote: 486d08b, sin push)
+S0–S5: PASS · Web Premium: PRODUCTIVO
+BASELINE: bbb3e1024cd0380cf48288c486565a4411c602c3
+RAMA: product/web-premium-v1
+WORKTREE: DIRTY (reconciliación documental en curso — sin commit aún)
+MASTER: INTACTO (remote: 486d08b)
+CI: 3 workflows PASS (backend-ci · web-ci · ui-gate)
 ```
 
-## S5 Cerrado
+## Bloque activo — Reconciliación documental (docs + evidencia visual)
 
-**Baseline S5:** `877f24d70dc43246f968e32e50e1bcc8e450191b`
+- Estado verificado: Backend **367 passed/8 skipped** (SQLite) · alembic head `m8_negocio_nit`
+- Mobile **177/177** · flutter analyze 14 infos preexistentes/0 nuevos
+- Web E2E: mock **107** + real **26** · `npm audit` 0 · ruff 127 (deuda conocida)
+- 8 docs históricos archivados en `docs/historical/` (banner ARCHIVADO)
+- README, docs/STATUS, docs/README, docs/TESTING, docs/ARCHITECTURE, docs/SECURITY,
+  docs/OFFLINE-SYNC, docs/IMPLEMENTATION-PLAN, docs/web/WEB-UI-BLUEPRINT, CHANGELOG, AGENTS actualizados
 
-**Deliverables:**
-- `apps/api/src/services/conflict_service.py` — 6 verificadores de conflicto
-- `apps/api/src/tests/test_s5_conflict_service.py` — 48 tests unitarios
+## Backend — Baseline certificado
 
-**Funciones conflict_service.py:**
-1. `verificar_conflicto_pago` — tipo, credito_id, monto, jornada_id
-2. `verificar_conflicto_movimiento` — 8 campos (jornada_id, tipo, naturaleza, monto, nota, credito_id, renovacion_id, ajuste_de_movimiento_id)
-3. `verificar_conflicto_jornada` — hash + IDs financieros + renovaciones_ids + server-caja + consistency
-4. `verificar_conflicto_jornada_abrir` — ruta_id, opening_base, fecha, cobrador_id
-5. `verificar_conflicto_reversal` — tipo, reversal_of_payment_id, monto
-6. `verificar_conflicto_ruta` — R1→R2 mismatch
+**Baseline:** `bbb3e1024cd0380cf48288c486565a4411c602c3`
 
-**Arquitectura:** PRE-CHECK layer — no Full Replacement. Preserva validaciones inline en payment_service.py, movimiento_service.py, jornada_service.py.
+**Alembic head:** `m8_negocio_nit` — invariante NIT garantizada por BD (ONBOARDING FINAL).
+Cadena: init → m2_apertura_idempotency → m2_jornada_caja → m3_dispositivo → m4_ruta_cobrador_fk →
+m5_dispositivo_activacion → m6_dispositivo_version → m7_desafio_auth → m8_negocio_nit.
 
-**Metrics:**
-- API: 323 passed, 7 skipped
-- Mobile: 177/177 passed
-- Flutter analyze: 14 preexistentes, 0 nuevos
+**Routers (15):** negocio, onboarding, ruta, cliente, credito, pago, hoja_viva, jornada,
+movimiento, dispositivo, activacion, mobile, device, auth, inversionista.
 
-## S4 Baseline (anterior)
-`b75f2c482d5b3f42d60cdbb0f384195c1df73ffc`
+**S5:** `conflict_service.py` — 6 verificadores (pago, movimiento, jornada, apertura, reversal,
+ruta) · 48 tests. PRE-CHECK layer (no reemplaza validaciones inline).
+
+## Web Premium — Productivo
+
+- `apps/web/` — Next.js 16.3.1 · React 19.2.8 · TS 5.9.3 · Tailwind
+- Login en `src/app/page.tsx`; sesión httpOnly `daily_admin_token` → `GET /api/auth/me`
+- RBAC server-side (`src/lib/rbac.ts`): COBRADOR / INVERSIONISTA / ADMINISTRADOR
+- Superficies: dashboard, rutas, caja, reportes, dispositivos, suscripción, onboarding
+- E2E Playwright: 19 specs (14 mock + 5 real)
+
+## S4 Baseline (histórico)
+`b75f2c482d5b3f42d60cdbb0f384195c1df73ffc` · S5 `877f24d70dc43246f968e32e50e1bcc8e450191b`
 
 ## Protocolo de Recuperación de Sesión
 
@@ -46,20 +55,20 @@ Antes de iniciar cualquier trabajo nuevo:
 4. **Git:**
    ```
    cd /home/jesus/proyectos/daily-system
-   git branch --show-current   # → hardening/b1-b7-audit
-   git rev-parse HEAD          # → 877f24d70dc43246f968e32e50e1bcc8e450191b
-   git status --short          # → limpio
+   git branch --show-current   # → product/web-premium-v1
+   git rev-parse HEAD          # → bbb3e1024cd0380cf48288c486565a4411c602c3
+   git status --short          # → reconciliación documental pendiente de commit
    ```
-5. **Determinar S6:** leer plan/handoff, NO inventar
-6. **Regresión:** reabrir S0-S5 solo si regresión demostrable
+5. **Estado canónico:** leer `docs/STATUS.md` (fuente oficial)
+6. **Regresión:** reabrir S0-S5 o Web Premium solo si regresión demostrable
 
-## Restricciones
-- NO PUSH
-- NO MERGE
-- NO REBASE
-- NO TAG
-- NO TOCAR MASTER
+## Restricciones (bloque actual)
+- NO push sin verificar todos los gates locales
+- NO merge · NO rebase · NO tag
+- NO tocar `master` · NO force push
+- NO nuevo vertical funcional · NO reglas de negocio · NO auth · NO DB/migrations
 
 ## Historial de Baselines
 - S4: b75f2c482d5b3f42d60cdbb0f384195c1df73ffc
 - S5: 877f24d70dc43246f968e32e50e1bcc8e450191b
+- Web Premium baseline: bbb3e1024cd0380cf48288c486565a4411c602c3
