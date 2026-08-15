@@ -122,7 +122,7 @@ test.describe('A11y', () => {
           },
           codigo_activacion: {
             codigo_id: '33333333-3333-4333-8333-333333333333',
-            token: 'Xz8R4pQ2mVu9wC1dN7kTfL3aB6hY5sE0',
+            token: 'mock-activation-token',
             prefijo: 'Xz8R4pQ2',
             expira_el: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
           },
