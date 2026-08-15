@@ -78,4 +78,25 @@ test.describe('Onboarding real (Etapa 3): /registro → BFF → FastAPI → Post
     await page.goto('/dashboard');
     await expect(page.locator('h1')).toContainText('Dashboard financiero', { timeout: 15000 });
   });
+
+  test('concurrencia HTTP real: dos POST mismo NIT -> [201, 409] (uq_negocio_nit en PG)', async ({ request }) => {
+    const nit = `9${Date.now().toString().slice(-8)}`; // NIT unico por corrida
+    const payload = {
+      nombre: `E2E Concurso ${nit}`,
+      nit,
+      administrador: { nombre: 'Admin' },
+    };
+
+    // Dos POST concurrentes contra FastAPI + PostgreSQL reales (sin mock),
+    // como si vinieran de dos clientes distintos. La cadena certificada:
+    // HTTP route -> service -> uq_negocio_nit -> IntegrityError -> 409.
+    const [r1, r2] = await Promise.all([
+      request.post(`${API_BASE}/api/onboarding/negocios`, { data: payload }),
+      request.post(`${API_BASE}/api/onboarding/negocios`, { data: payload }),
+    ]);
+
+    const statuses = [r1.status(), r2.status()].sort((a, b) => a - b);
+    expect(statuses, 'una POST debe ganar la carrera (201) y la otra chocar con el indice unico (409)').toEqual([201, 409]);
+    // Nunca [201, 201] ni 500: la invariante la garantiza uq_negocio_nit en PG.
+  });
 });

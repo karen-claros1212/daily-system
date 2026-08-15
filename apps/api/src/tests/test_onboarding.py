@@ -297,11 +297,15 @@ class TestAltaSegura:
 
 
 class TestNitConcurrentePostgres:
-    """HARDENING: dos POST con el MISMO NIT en paralelo (PostgreSQL real).
+    """HARDENING: concurrencia de transacciones/servicio con el MISMO NIT.
 
-    Resultado obligatorio: exactamente un 201 y exactamente un 409. Nunca
-    201+201 (lo impide el indice unico uq_negocio_nit) y nunca 500 (la
-    colision real se mapea a 409 en el route). Requiere Postgres: las sesiones
+    Dos transacciones llaman a crear_negocio_con_admin() en paralelo sobre
+    PostgreSQL real (este test NO dispara HTTP: es concurrencia a nivel de
+    transacciones/servicio). Resultado obligatorio: exactamente un 201 y
+    exactamente un 409. Nunca 201+201 (lo impide el indice unico
+    uq_negocio_nit) y nunca 500 (la colision real se mapea a 409 en el route).
+    La carrera HTTP (dos POST) se certifica por separado en
+    apps/web/e2e/real-onboarding.spec.ts. Requiere Postgres: las sesiones
     concurrentes usan SessionLocal con transacciones reales.
     """
 
@@ -310,7 +314,7 @@ class TestNitConcurrentePostgres:
         reason="concurrencia real de NIT exige PostgreSQL (indice unico)",
     )
 
-    def test_13_dos_alta_concurrentes_mismo_nit_201_y_409(self):
+    def test_13_dos_transacciones_concurrentes_mismo_nit_201_y_409(self):
         nit = f"9{uuid4().int % 100_000_000:08d}"
         barrier = threading.Barrier(2)
         resultados = []

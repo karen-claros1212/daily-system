@@ -51,3 +51,13 @@ jobs:
         working-directory: apps/api
         run: |
           pytest src/tests/ -q --tb=short
+
+      - name: PostgreSQL NIT concurrency gate
+        working-directory: apps/api
+        env:
+          API_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/daily_backend_ci_test
+          DAILY_ENV: test
+        run: |
+          pytest \
+            src/tests/test_onboarding.py::TestNitConcurrentePostgres::test_13_dos_transacciones_concurrentes_mismo_nit_201_y_409 \
+            -q --tb=short
