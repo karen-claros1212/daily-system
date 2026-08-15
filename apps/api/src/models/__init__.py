@@ -32,7 +32,9 @@ class Negocio(Base):
         # Invariante de NIT (hardening onboarding): un negocio con NIT es unico;
         # los NULLs multiples conviven. Autoridad final = indice unico en DB
         # (migracion m8_negocio_nit), no solo el fast-path del servicio.
-        UniqueConstraint("nit", name="uq_negocio_nit"),
+        # El modelo replica EXACTAMENTE la estructura que creo M8 (unique INDEX,
+        # no UNIQUE constraint) para evitar drift de autogenerate en Alembic.
+        Index("uq_negocio_nit", "nit", unique=True),
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

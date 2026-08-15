@@ -188,10 +188,21 @@ def client_atomico(db_session):
 
     Este fixture ejecuta el boundary transaccional dentro de un SAVEPOINT del
     fixture db_session: ante una excepcion del request revierte al SAVEPOINT
-    (todo-o-nada real), y en exito deja los cambios en la transaccion del
-    fixture (visibles al test) que revierte su teardown (aislamiento). NO hace
-    commit del SAVEPOINT en exito: commitearlo persiste mas alla del rollback
-    del fixture, rompiendo el aislamiento entre tests.
+    (todo-o-nada real), y en exito deja los cambios DENTRO del SAVEPOINT, bajo
+    la transaccion exterior del fixture (visibles al test; el rollback del
+    teardown aísla cada corrida).
+
+    Por que NO se libera el SAVEPOINT en exito (savepoint.commit()): la sesion
+    esta ligada a un Connection (no a un Engine) para que todos los overrides
+    compartan la MISMA transaccion, y en ese binding liberar el SAVEPOINT via
+    el Session COMMITEA la transaccion exterior en SQLite. Verificado
+    empiricamente (repro con echo y conteo paso a paso): una fila insertada en
+    el SAVEPOINT y liberada con commit() sobrevive al transaction.rollback()
+    del teardown y contamina el test siguiente. En la bibliografia el commit de
+    una transaccion NESTED solo libera el SAVEPOINT, pero eso vale para
+    sesiones ligadas a un Engine con transaccion propia; aqui no. Dejar el
+    SAVEPOINT abierto no afecta visibilidad (los datos estan en la transaccion
+    del fixture) ni aislamiento (el teardown lo deshace junto con todo).
     """
     from fastapi.testclient import TestClient
 
@@ -211,9 +222,21 @@ def client_atomico(db_session):
         try:
             yield db_session
         except Exception:
+            # NOTA: el rollback NO se condiciona a savepoint.is_active. Tras un
+            # flush fallido (p.ej. IntegrityError de uq_negocio_nit) SQLAlchemy
+            # marca el SAVEPOINT como inactivo (is_active=False) pero la sesion
+            # queda en pending-rollback: sin este rollback el estado se contagia
+            # al resto del test. rollback() solo deshace hasta el SAVEPOINT.
             savepoint.rollback()
             raise
-        finally:
+        else:
+            # EXITO: los cambios quedan DENTRO del SAVEPOINT, bajo la
+            # transaccion exterior del fixture (visibles al test; su teardown
+            # los revierte). NO se libera con savepoint.commit(): la sesion
+            # ligada a un Connection hace que el commit del SAVEPOINT sea un
+            # commit de la transaccion exterior en SQLite (verificado
+            # empiricamente: la fila sobrevive al rollback del teardown y
+            # contamina el test siguiente). Detalle en el docstring.
             pass
 
     app.dependency_overrides[get_db] = override_get_db
