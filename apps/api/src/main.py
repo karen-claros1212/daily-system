@@ -14,6 +14,7 @@ from src.routes.activacion import (
 )
 from src.routes.activacion import router as activacion_router
 from src.routes.auth import router as auth_router
+from src.routes.audit import router as audit_router
 from src.routes.cliente import router as cliente_router
 from src.routes.credito import router as credito_router
 from src.routes.dispositivo import router as dispositivo_router
@@ -25,6 +26,7 @@ from src.routes.negocio import router as negocio_router
 from src.routes.onboarding import router as onboarding_router
 from src.routes.pago import router as pago_router
 from src.routes.ruta import router as ruta_router
+from src.routes.usuario import router as usuario_router
 from src.time_utils import as_utc
 
 
@@ -170,6 +172,8 @@ app.include_router(mobile_router)
 app.include_router(device_router)
 app.include_router(auth_router)
 app.include_router(inversionista_router)
+app.include_router(usuario_router)
+app.include_router(audit_router)
 
 
 @app.get("/api/health")

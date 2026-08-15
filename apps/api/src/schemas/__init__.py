@@ -2,7 +2,7 @@ from datetime import date, datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # --- Negocio ---
 
@@ -728,3 +728,49 @@ class SyncResponse(BaseModel):
     pagos: list[PagoSyncResponse]
     movimientos: list[MovimientoResponse]
     jornadas: list[JornadaResponse]
+
+
+# === Usuario (W1 — Usuarios/Roles) ===
+
+class UsuarioUpdate(BaseModel):
+    nombre: str | None = Field(None, min_length=1, max_length=255)
+    documento: str | None = Field(None, max_length=50)
+    activo: int | None = Field(None, ge=0, le=1)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class UsuarioListResponse(BaseModel):
+    id: UUID
+    rol: str
+    nombre: str
+    documento: str | None
+    activo: int
+    creado_el: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# === Audit Log (W1 — Audit Trail) ===
+
+class AuditLogResponse(BaseModel):
+    id: UUID
+    negocio_id: UUID
+    actor_id: UUID
+    action: str
+    entity_type: str
+    entity_id: UUID | None
+    metadata: dict | None
+    ip_address: str | None
+    user_agent: str | None
+    creado_el: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AuditLogQuery(BaseModel):
+    action: str | None = None
+    entity_type: str | None = None
+    actor_id: UUID | None = None
+    since: datetime | None = None
+    limit: int = Field(default=50, ge=1, le=200)

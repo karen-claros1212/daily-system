@@ -23,6 +23,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from src.database import Base
+from src.models.audit_log import AuditLog
 
 
 class Negocio(Base):
