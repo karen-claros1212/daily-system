@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // En Next 16 los dev-tools (botón flotante + badge de issues) se montan por
+  // defecto en bottom-left y quedan sobre la sidebar de la app (interceptando
+  // clicks en E2E). Se reposicionan fuera del área de navegación.
+  devIndicators: { position: 'top-right' },
   async headers() {
     return [
       {
