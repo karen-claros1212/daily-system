@@ -12,7 +12,94 @@
           "negocios"
         ],
         "summary": "Crear Negocio",
+        "description": "Crea un negocio. SOLO ADMINISTRADOR (autoridad en el servidor).\n\nCon la Etapa 3 (onboarding seguro), esta ruta deja de ser el bypass publico\nde creacion de tenants: la frontera de registro es POST /api/onboarding/\nnegocios (atomica, crea tambien el admin inicial + codigo bootstrap). Este\nalta administrativa se conserva para consumidores admin/seed/tests con la\nmisma politica de NIT (conflicto -> 409).",
         "operationId": "crear_negocio_api_negocios_post",
+        "parameters": [
+          {
+            "name": "negocio_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Negocio Id"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            }
+          },
+          {
+            "name": "route_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Route Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Id"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -278,6 +365,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/NegocioResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/onboarding/negocios": {
+      "post": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "Crear Negocio Onboarding",
+        "description": "Alta segura y atomica de un negocio nuevo + su ADMINISTRADOR inicial.\n\nTodo (negocio, usuario admin, codigo de activacion) se crea en la misma\ntransaccion: un fallo en cualquier paso revierte la operacion completa.\nConflicto de NIT -> 409 controlado dentro de la transaccion.",
+        "operationId": "crear_negocio_onboarding_api_onboarding_negocios_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingNegocioCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingNegocioResponse"
                 }
               }
             }
@@ -5048,6 +5177,33 @@
   },
   "components": {
     "schemas": {
+      "AdministradorOnboarding": {
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Nombre"
+          },
+          "documento": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Documento"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre"
+        ],
+        "title": "AdministradorOnboarding"
+      },
       "BootstrapResponse": {
         "properties": {
           "negocio_id": {
@@ -7329,6 +7485,63 @@
         ],
         "title": "NegocioResponse"
       },
+      "OnboardingNegocioCreate": {
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Nombre"
+          },
+          "nit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nit"
+          },
+          "administrador": {
+            "$ref": "#/components/schemas/AdministradorOnboarding"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre",
+          "administrador"
+        ],
+        "title": "OnboardingNegocioCreate"
+      },
+      "OnboardingNegocioResponse": {
+        "properties": {
+          "negocio": {
+            "$ref": "#/components/schemas/NegocioResponse"
+          },
+          "administrador": {
+            "$ref": "#/components/schemas/UsuarioResponse"
+          },
+          "codigo_activacion": {
+            "$ref": "#/components/schemas/CodigoActivacionResponse"
+          },
+          "siguiente_paso": {
+            "type": "string",
+            "title": "Siguiente Paso"
+          }
+        },
+        "type": "object",
+        "required": [
+          "negocio",
+          "administrador",
+          "codigo_activacion",
+          "siguiente_paso"
+        ],
+        "title": "OnboardingNegocioResponse",
+        "description": "Respuesta tipada del alta segura. El `token` del codigo de activacion\nse entrega UNA vez: es la identidad bootstrap con la que el admin inicial\nusa el login Web ya existente (siguiente_paso=\"activar_codigo\"). Nunca se\nexponen secretos del servidor ni datos de tenancy de terceros."
+      },
       "PagoCreate": {
         "properties": {
           "credito_id": {
@@ -7866,6 +8079,59 @@
         ],
         "title": "SyncResponse",
         "description": "Dataset completo de la ruta activa del cobrador, para el primer sync.\n\nEl scope sale del RequestContext (JWT -> base), nunca de query/body:\nclientes, creditos/cuotas, pagos, movimientos y jornadas quedan limitados\na la ruta activa unica del cobrador autenticado. ruta_version permite al\nmovil detectar una reasignacion (R1->R2) como resultado de un bootstrap\nposterior; aqui es solo eco del servidor."
+      },
+      "UsuarioResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "negocio_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Negocio Id"
+          },
+          "rol": {
+            "type": "string",
+            "title": "Rol"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "documento": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Documento"
+          },
+          "activo": {
+            "type": "integer",
+            "title": "Activo"
+          },
+          "creado_el": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creado El"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "negocio_id",
+          "rol",
+          "nombre",
+          "documento",
+          "activo",
+          "creado_el"
+        ],
+        "title": "UsuarioResponse"
       },
       "ValidationError": {
         "properties": {

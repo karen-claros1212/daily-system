@@ -22,6 +22,7 @@ from src.routes.inversionista import router as inversionista_router
 from src.routes.jornada import router as jornada_router
 from src.routes.movimiento import router as movimiento_router
 from src.routes.negocio import router as negocio_router
+from src.routes.onboarding import router as onboarding_router
 from src.routes.pago import router as pago_router
 from src.routes.ruta import router as ruta_router
 from src.time_utils import as_utc
@@ -73,6 +74,7 @@ async def suscripcion_middleware(request: Request, call_next):
         "/api/health",
         "/api/inversionista/suscripcion",
         "/api/negocios",
+        "/api/onboarding/negocios",
     }
 
     if request.url.path in skip_paths:
@@ -155,6 +157,7 @@ async def suscripcion_middleware(request: Request, call_next):
 
 
 app.include_router(negocio_router)
+app.include_router(onboarding_router)
 app.include_router(ruta_router)
 app.include_router(cliente_router)
 app.include_router(credito_router)

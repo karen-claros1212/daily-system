@@ -9,6 +9,10 @@ from src.auth.deps import get_request_context
 from src.database import get_db, get_db_transaction
 from src.models import Negocio
 from src.schemas import NegocioCreate, NegocioResponse
+from src.services.onboarding_service import (
+    OnboardingError,
+    verificar_nit_disponible,
+)
 
 
 def _uuid_eq(column, val: str | UUID):
@@ -29,7 +33,25 @@ WriteSession = Annotated[
 def crear_negocio(
     data: NegocioCreate,
     db: WriteSession,
+    ctx: RequestContext = Depends(get_request_context),
 ):
+    """Crea un negocio. SOLO ADMINISTRADOR (autoridad en el servidor).
+
+    Con la Etapa 3 (onboarding seguro), esta ruta deja de ser el bypass publico
+    de creacion de tenants: la frontera de registro es POST /api/onboarding/
+    negocios (atomica, crea tambien el admin inicial + codigo bootstrap). Este
+    alta administrativa se conserva para consumidores admin/seed/tests con la
+    misma politica de NIT (conflicto -> 409).
+    """
+    if not ctx.is_admin():
+        raise HTTPException(
+            status_code=403,
+            detail="Solo ADMINISTRADOR puede crear un negocio",
+        )
+    try:
+        verificar_nit_disponible(db, data.nit)
+    except OnboardingError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     negocio = Negocio(nombre=data.nombre, nit=data.nit)
     db.add(negocio)
     db.flush()

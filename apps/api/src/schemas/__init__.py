@@ -505,6 +505,58 @@ class CodigoActivacionResponse(BaseModel):
     expira_el: datetime
 
 
+# --- Onboarding (Alta de negocios / onboarding seguro, Etapa 3) ---
+#
+# POST /api/onboarding/negocios es la frontera de registro EXPLICITA y
+# transaccional: crea Negocio + Usuario ADMINISTRADOR inicial + relacion tenant
+# + defaults comerciales reales + codigo de activacion bootstrap en UNA
+# transaccion (todo o nada). El body publico NO acepta negocio_id / rol / plan /
+# estado_suscripcion: el servidor deriva todo (aislamiento de tenancy).
+
+class AdministradorOnboarding(BaseModel):
+    nombre: str = Field(..., min_length=1, max_length=255)
+    documento: str | None = None
+
+    @field_validator("documento", mode="before")
+    @classmethod
+    def _strip_documento(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+        return v or None
+
+    model_config = {"extra": "forbid"}
+
+
+class OnboardingNegocioCreate(BaseModel):
+    nombre: str = Field(..., min_length=1, max_length=255)
+    nit: str | None = None
+    administrador: AdministradorOnboarding
+
+    @field_validator("nit", mode="before")
+    @classmethod
+    def _normalizar_nit(cls, v):
+        """Normalizacion minima (sin algoritmos DIAN inventados): trim de
+        espacios; string vacio -> None. El conflicto se resuelve server-side
+        con 409 dentro de la transaccion."""
+        if isinstance(v, str):
+            v = v.strip()
+        return v or None
+
+    model_config = {"extra": "forbid"}
+
+
+class OnboardingNegocioResponse(BaseModel):
+    """Respuesta tipada del alta segura. El `token` del codigo de activacion
+    se entrega UNA vez: es la identidad bootstrap con la que el admin inicial
+    usa el login Web ya existente (siguiente_paso="activar_codigo"). Nunca se
+    exponen secretos del servidor ni datos de tenancy de terceros."""
+
+    negocio: NegocioResponse
+    administrador: UsuarioResponse
+    codigo_activacion: CodigoActivacionResponse
+    siguiente_paso: str
+
+
 class DispositivoReemplazoResponse(BaseModel):
     """Respuesta tipada de POST /dispositivos/{id}/reemplazar (ADMIN).
 
