@@ -277,7 +277,7 @@ class TestToken:
 class TestDerivacionContexto:
     def test_cobrador_con_ruta_deriva_ruta_activa(self, client, escenario, dispositivo_activo):
         token = _token(escenario, dispositivo_activo)
-        r = client.get("/api/dispositivos", headers=_auth_header(token))
+        r = client.get("/api/auth/me", headers=_auth_header(token))
         assert r.status_code == 200, r.text
 
     def test_cobrador_sin_ruta_activa_401(self, client, db_session, escenario, dispositivo_activo):
@@ -286,7 +286,7 @@ class TestDerivacionContexto:
         ruta.activa = 0
         db_session.flush()
         token = _token(escenario, dispositivo_activo)
-        r = client.get("/api/dispositivos", headers=_auth_header(token))
+        r = client.get("/api/auth/me", headers=_auth_header(token))
         assert r.status_code == 401, r.text
 
     def test_dispositivo_revocado_401_inmediato(self, client, db_session, escenario, dispositivo_activo):
@@ -296,22 +296,22 @@ class TestDerivacionContexto:
         disp.estado = "REVOKED"
         disp.version_asignacion = 2
         db_session.flush()
-        r = client.get("/api/dispositivos", headers=_auth_header(token))
+        r = client.get("/api/auth/me", headers=_auth_header(token))
         assert r.status_code == 401, r.text
 
     def test_bump_version_solo_mata_el_token_viejo(self, client, escenario, dispositivo_activo):
         """Token con version antigua -> 401; token nuevo con la version vigente -> ok."""
         token_viejo = _token(escenario, dispositivo_activo, version=1)
         token_nuevo = _token(escenario, dispositivo_activo, version=1)
-        r = client.get("/api/dispositivos", headers=_auth_header(token_viejo))
+        r = client.get("/api/auth/me", headers=_auth_header(token_viejo))
         assert r.status_code == 200, r.text
-        r = client.get("/api/dispositivos", headers=_auth_header(token_nuevo))
+        r = client.get("/api/auth/me", headers=_auth_header(token_nuevo))
         assert r.status_code == 200, r.text
 
     def test_token_sin_header_401(self, client, monkeypatch):
         """En produccion, request sin Bearer JWT -> 401 (query-param auth desactivado)."""
         monkeypatch.setenv("DAILY_ENV", "production")
-        r = client.get("/api/dispositivos")
+        r = client.get("/api/auth/me")
         assert r.status_code == 401, r.text
 
     def test_token_dispositivo_de_otro_usuario_401(self, client, escenario, dispositivo_activo):
@@ -323,7 +323,7 @@ class TestDerivacionContexto:
             public_key_hash=dispositivo_activo["public_key_hash"],
             version_asignacion=1,
         )
-        r = client.get("/api/dispositivos", headers=_auth_header(token))
+        r = client.get("/api/auth/me", headers=_auth_header(token))
         assert r.status_code == 401, r.text
 
     def test_token_public_key_hash_no_coincide_401(self, client, escenario, dispositivo_activo):
@@ -336,7 +336,7 @@ class TestDerivacionContexto:
             public_key_hash=otra_hash,
             version_asignacion=1,
         )
-        r = client.get("/api/dispositivos", headers=_auth_header(token))
+        r = client.get("/api/auth/me", headers=_auth_header(token))
         assert r.status_code == 401, r.text
 
 

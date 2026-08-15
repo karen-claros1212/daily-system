@@ -361,22 +361,45 @@ class TestDispositivo:
         )
         assert resp.status_code == 404
 
-    def test_listar_dispositivos_cualquier_role(
+    def test_listar_dispositivos_requiere_admin(
         self, client, db_session, negocio_con_suscripcion, route_id
     ):
-        """Listar dispositivos funciona con cualquier rol."""
+        """Listar dispositivos es SOLO ADMINISTRADOR (RBAC review, fail-closed)."""
         # Register as admin
         client.post(
             f"/api/dispositivos?negocio_id={negocio_con_suscripcion.id}&role=ADMINISTRADOR",
             json={"huella": "device_admin"},
         )
 
-        # List as COBRADOR — should work
+        # Admin puede listar
+        resp_admin = client.get(
+            f"/api/dispositivos?negocio_id={negocio_con_suscripcion.id}&role=ADMINISTRADOR",
+        )
+        assert resp_admin.status_code == 200
+        assert len(resp_admin.json()) == 1
+
+        # COBRADOR -> 403 (el listado administrativo no es de celular)
         resp = client.get(
             f"/api/dispositivos?negocio_id={negocio_con_suscripcion.id}&role=COBRADOR&route_id={route_id}",
         )
-        assert resp.status_code == 200
-        assert len(resp.json()) == 1
+        assert resp.status_code == 403, resp.text
+
+    def test_listar_no_expone_secretos(self, client, db_session, negocio_con_suscripcion):
+        """La UI web recibe el DTO admin minimizado, nunca secretos ni tenancy."""
+        client.post(
+            f"/api/dispositivos?negocio_id={negocio_con_suscripcion.id}&role=ADMINISTRADOR",
+            json={"huella": "secret_check", "modelo": "Pixel", "plataforma": "android"},
+        )
+        lst = client.get(
+            f"/api/dispositivos?negocio_id={negocio_con_suscripcion.id}&role=ADMINISTRADOR",
+        ).json()
+        assert len(lst) == 1
+        for campo in ("huella", "public_key_hash", "algoritmo_clave", "negocio_id", "autorizado_por"):
+            assert campo not in lst[0], f"campo {campo} filtrado a la UI"
+        for campo in ("id", "usuario_id", "estado", "modelo", "plataforma",
+                      "autorizado_el", "revocado_el", "ultima_validacion_servidor",
+                      "activo", "creado_el"):
+            assert campo in lst[0], f"campo {campo} presente en el DTO admin"
 
     def test_dispositivo_huella_unica_por_negocio(
         self, client, db_session, negocio_con_suscripcion

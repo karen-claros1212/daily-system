@@ -337,7 +337,7 @@ class TestJWTInvalidacionPostReasignacion:
 
         # Token valido antes de reasignacion
         r_before = client.get(
-            "/api/dispositivos",
+            "/api/auth/me",
             headers=_auth_header(token_cob),
         )
         assert r_before.status_code == 200
@@ -359,7 +359,7 @@ class TestJWTInvalidacionPostReasignacion:
 
         # Mismo token del cobrador despues de reasignacion -> 401
         r_after = client.get(
-            "/api/dispositivos",
+            "/api/auth/me",
             headers=_auth_header(token_cob),
         )
         assert r_after.status_code == 401
@@ -396,7 +396,7 @@ class TestJWTInvalidacionPostReasignacion:
             version=1,
         )
         r_401 = client.get(
-            "/api/dispositivos",
+            "/api/auth/me",
             headers=_auth_header(token_cob_v1),
         )
         assert r_401.status_code == 401

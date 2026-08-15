@@ -2,10 +2,11 @@
 
 Endpoints:
 - POST /api/dispositivos — register device (ADMINISTRADOR only)
-- GET /api/dispositivos — list devices (any role, scoped to ctx.negocio_id)
+- GET /api/dispositivos — list devices (ADMINISTRADOR only, DTO minimizado)
 - POST /api/dispositivos/{dispositivo_id}/validar — validate device
 - POST /api/dispositivos/{dispositivo_id}/revocar — revoke device (ADMINISTRADOR only)
 - POST /api/dispositivos/{dispositivo_id}/reactivar — reactivate device (ADMINISTRADOR only)
+- POST /api/dispositivos/{dispositivo_id}/reemplazar — replace device (ADMINISTRADOR only)
 """
 
 from typing import Annotated
@@ -17,7 +18,13 @@ from sqlalchemy.orm import Session
 from src.auth.context import RequestContext
 from src.auth.deps import get_request_context
 from src.database import get_db, get_db_transaction
-from src.schemas import DispositivoCreate, DispositivoResponse
+from src.schemas import (
+    CodigoActivacionResponse,
+    DispositivoAdminResponse,
+    DispositivoCreate,
+    DispositivoReemplazoResponse,
+    DispositivoResponse,
+)
 from src.services.dispositivo_service import (
     DispositivoError,
     listar_dispositivos,
@@ -68,14 +75,24 @@ def registrar(
         raise HTTPException(status_code=409, detail=e.detail)
 
 
-@router.get("", response_model=list[DispositivoResponse])
+@router.get("", response_model=list[DispositivoAdminResponse])
 def listar(
     db: Session = Depends(get_db),
     ctx: RequestContext = Depends(get_request_context),
 ):
-    """List all devices for the negocio (from ctx)."""
+    """List devices (ADMINISTRADOR only, DTO minimizado sin secretos).
+
+    RBAC review: el listado administrativo NO es visible para COBRADOR ni
+    INVERSIONISTA (403 fail-closed) — un celular no necesita enumerar
+    dispositivos del negocio.
+    """
+    if not ctx.is_admin():
+        raise HTTPException(
+            status_code=403,
+            detail="Solo ADMINISTRADOR puede listar dispositivos",
+        )
     dispositivos = listar_dispositivos(db, ctx.negocio_id)
-    return [DispositivoResponse.model_validate(d) for d in dispositivos]
+    return [DispositivoAdminResponse.model_validate(d) for d in dispositivos]
 
 
 @router.post("/{dispositivo_id}/validar", response_model=DispositivoResponse)
@@ -92,7 +109,7 @@ def validar(
         raise HTTPException(status_code=404, detail=e.detail)
 
 
-@router.post("/{dispositivo_id}/revocar", response_model=DispositivoResponse)
+@router.post("/{dispositivo_id}/revocar", response_model=DispositivoAdminResponse)
 def revocar(
     dispositivo_id: UUID,
     db: WriteSession,
@@ -103,28 +120,33 @@ def revocar(
         raise HTTPException(status_code=403, detail="Solo ADMINISTRADOR puede revocar dispositivos")
     try:
         dispositivo = revocar_dispositivo(db, dispositivo_id, ctx.negocio_id)
-        return DispositivoResponse.model_validate(dispositivo)
+        return DispositivoAdminResponse.model_validate(dispositivo)
     except DispositivoError as e:
         raise HTTPException(status_code=404, detail=e.detail)
 
 
-@router.post("/{dispositivo_id}/reactivar", response_model=DispositivoResponse)
+@router.post("/{dispositivo_id}/reactivar", response_model=DispositivoAdminResponse)
 def reactivar(
     dispositivo_id: UUID,
     db: WriteSession,
     ctx: RequestContext = Depends(get_request_context),
 ):
-    """Reactivate a revoked device (ADMINISTRADOR only, audited)."""
+    """Reactivate a revoked device (ADMINISTRADOR only, audited).
+
+    409 si el cobrador ya tiene otro dispositivo ACTIVE (invariante explicita,
+    no 500 por indice unico parcial); el camino canonico es Reemplazar.
+    """
     if not ctx.is_admin():
         raise HTTPException(status_code=403, detail="Solo ADMINISTRADOR puede reactivar dispositivos")
     try:
         dispositivo = reactivar_dispositivo(db, dispositivo_id, ctx.negocio_id, ctx.user_id)
-        return DispositivoResponse.model_validate(dispositivo)
+        return DispositivoAdminResponse.model_validate(dispositivo)
     except DispositivoError as e:
-        raise HTTPException(status_code=404, detail=e.detail)
+        status = 409 if e.code == "DISPOSITIVO_ACTIVO_EXISTENTE" else 404
+        raise HTTPException(status_code=status, detail=e.detail)
 
 
-@router.post("/{dispositivo_id}/reemplazar")
+@router.post("/{dispositivo_id}/reemplazar", response_model=DispositivoReemplazoResponse)
 def reemplazar(
     dispositivo_id: UUID,
     db: WriteSession,
@@ -137,14 +159,14 @@ def reemplazar(
         dispositivo, codigo, token = reemplazar_dispositivo(
             db, dispositivo_id, ctx.negocio_id, ctx.user_id
         )
-        return {
-            "dispositivo": DispositivoResponse.model_validate(dispositivo).model_dump(),
-            "nuevo_codigo": {
-                "codigo_id": codigo.id,
-                "token": token,
-                "prefijo": codigo.prefijo,
-                "expira_el": codigo.expira_el,
-            },
-        }
+        return DispositivoReemplazoResponse(
+            dispositivo=DispositivoAdminResponse.model_validate(dispositivo),
+            nuevo_codigo=CodigoActivacionResponse(
+                codigo_id=codigo.id,
+                token=token,
+                prefijo=codigo.prefijo,
+                expira_el=codigo.expira_el,
+            ),
+        )
     except DispositivoError as e:
         raise HTTPException(status_code=404, detail=e.detail)

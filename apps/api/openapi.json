@@ -3777,7 +3777,7 @@
           "dispositivos"
         ],
         "summary": "Listar",
-        "description": "List all devices for the negocio (from ctx).",
+        "description": "List devices (ADMINISTRADOR only, DTO minimizado sin secretos).\n\nRBAC review: el listado administrativo NO es visible para COBRADOR ni\nINVERSIONISTA (403 fail-closed) — un celular no necesita enumerar\ndispositivos del negocio.",
         "operationId": "listar_api_dispositivos_get",
         "parameters": [
           {
@@ -3873,7 +3873,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/DispositivoResponse"
+                    "$ref": "#/components/schemas/DispositivoAdminResponse"
                   },
                   "title": "Response Listar Api Dispositivos Get"
                 }
@@ -4131,7 +4131,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DispositivoResponse"
+                  "$ref": "#/components/schemas/DispositivoAdminResponse"
                 }
               }
             }
@@ -4155,7 +4155,7 @@
           "dispositivos"
         ],
         "summary": "Reactivar",
-        "description": "Reactivate a revoked device (ADMINISTRADOR only, audited).",
+        "description": "Reactivate a revoked device (ADMINISTRADOR only, audited).\n\n409 si el cobrador ya tiene otro dispositivo ACTIVE (invariante explicita,\nno 500 por indice unico parcial); el camino canonico es Reemplazar.",
         "operationId": "reactivar_api_dispositivos__dispositivo_id__reactivar_post",
         "parameters": [
           {
@@ -4259,7 +4259,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DispositivoResponse"
+                  "$ref": "#/components/schemas/DispositivoAdminResponse"
                 }
               }
             }
@@ -4386,7 +4386,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/DispositivoReemplazoResponse"
+                }
               }
             }
           },
@@ -5964,6 +5966,113 @@
         ],
         "title": "DesafioResponse"
       },
+      "DispositivoAdminResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "usuario_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usuario Id"
+          },
+          "estado": {
+            "type": "string",
+            "title": "Estado"
+          },
+          "modelo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modelo"
+          },
+          "plataforma": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plataforma"
+          },
+          "autorizado_el": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Autorizado El"
+          },
+          "revocado_el": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revocado El"
+          },
+          "ultima_validacion_servidor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ultima Validacion Servidor"
+          },
+          "activo": {
+            "type": "integer",
+            "title": "Activo"
+          },
+          "creado_el": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creado El"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "usuario_id",
+          "estado",
+          "modelo",
+          "plataforma",
+          "autorizado_el",
+          "revocado_el",
+          "ultima_validacion_servidor",
+          "activo",
+          "creado_el"
+        ],
+        "title": "DispositivoAdminResponse",
+        "description": "DTO administrativo minimizado (superficie web).\n\nLa UI web NO recibe secretos (huella, public_key_hash, algoritmo_clave)\nni ids internos de tenancy (negocio_id, autorizado_por): solo lo que la\nsuperficie admin necesita para listar/revocar/reactivar/reemplazar."
+      },
       "DispositivoCreate": {
         "properties": {
           "huella": {
@@ -6000,6 +6109,23 @@
           "huella"
         ],
         "title": "DispositivoCreate"
+      },
+      "DispositivoReemplazoResponse": {
+        "properties": {
+          "dispositivo": {
+            "$ref": "#/components/schemas/DispositivoAdminResponse"
+          },
+          "nuevo_codigo": {
+            "$ref": "#/components/schemas/CodigoActivacionResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dispositivo",
+          "nuevo_codigo"
+        ],
+        "title": "DispositivoReemplazoResponse",
+        "description": "Respuesta tipada de POST /dispositivos/{id}/reemplazar (ADMIN).\n\nDispositivo viejo en DTO admin minimizado (REPLACED) + nuevo codigo de\nactivacion para el celular de reemplazo."
       },
       "DispositivoResponse": {
         "properties": {

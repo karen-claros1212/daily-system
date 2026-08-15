@@ -485,6 +485,8 @@ class TestFlujoActivacion:
         data = resp.json()
         assert data["dispositivo"]["estado"] == "REPLACED"
         nuevo_token = data["nuevo_codigo"]["token"]
+        for campo in ("huella", "public_key_hash", "algoritmo_clave", "negocio_id", "autorizado_por"):
+            assert campo not in data["dispositivo"], f"reemplazo no filtra {campo}"
 
         d1 = db_session.query(Dispositivo).filter(Dispositivo.id == uuid.UUID(d1_id)).first()
         assert d1.estado == "REPLACED"
@@ -510,9 +512,51 @@ class TestFlujoActivacion:
         )
         assert activos == 1
 
+    def test_08_reactivar_conflicto_otro_activo_409(self, client, db_session, escenario):
+        """Reactivar un REVOKED cuando el cobrador ya tiene otro ACTIVE -> 409.
+
+        RBAC review: la invariante "un ACTIVE por cobrador" se verifica
+        explicitamente (409 controlado), no por crash del indice unico parcial
+        (uq_dispositivo_activo_cobrador -> 500). Camino canonico: reemplazar.
+        """
+        private_key, spki, pk_hash = _ec_keypair()
+        codigo = _emitir_codigo(client, escenario)
+        r = _flujo_completo(client, codigo["token"], private_key, spki, pk_hash)
+        assert r.status_code == 200
+        d1_id = r.json()["dispositivo_id"]
+
+        # Dispositivo REVOKED del MISMO cobrador (historia previa)
+        d2_id = uuid4()
+        db_session.add(
+            Dispositivo(
+                id=d2_id,
+                negocio_id=escenario["negocio_id"],
+                usuario_id=escenario["cobrador_id"],
+                estado="REVOKED",
+                activo=0,
+                revocado_el=datetime.now(timezone.utc),
+                version_asignacion=1,
+            )
+        )
+        db_session.flush()
+
+        params = _auth(escenario["negocio_id"], role="ADMINISTRADOR", user_id=escenario["admin_id"])
+
+        # D1 sigue ACTIVE -> reactivar D2 colisiona -> 409 (no 500)
+        resp = client.post(f"/api/dispositivos/{d2_id}/reactivar", params=params)
+        assert resp.status_code == 409, resp.text
+        assert "ACTIVE" in resp.json()["detail"]
+
+        # Revocar D1 libera el slot -> reactivar D2 ahora SI procede
+        r_revoke = client.post(f"/api/dispositivos/{d1_id}/revocar", params=params)
+        assert r_revoke.status_code == 200, r_revoke.text
+        resp2 = client.post(f"/api/dispositivos/{d2_id}/reactivar", params=params)
+        assert resp2.status_code == 200, resp2.text
+        assert resp2.json()["estado"] == "ACTIVE"
+        assert resp2.json()["id"] == str(d2_id)
+
 
 # === regla del body publico (contrato 8.13) ===
-
 
 class TestBodyPublico:
     def test_13_desafio_rechaza_campos_privados(self, client, escenario):

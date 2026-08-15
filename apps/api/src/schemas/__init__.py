@@ -451,6 +451,28 @@ class DispositivoResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class DispositivoAdminResponse(BaseModel):
+    """DTO administrativo minimizado (superficie web).
+
+    La UI web NO recibe secretos (huella, public_key_hash, algoritmo_clave)
+    ni ids internos de tenancy (negocio_id, autorizado_por): solo lo que la
+    superficie admin necesita para listar/revocar/reactivar/reemplazar.
+    """
+
+    id: UUID
+    usuario_id: UUID | None
+    estado: str
+    modelo: str | None
+    plataforma: str | None
+    autorizado_el: datetime | None
+    revocado_el: datetime | None
+    ultima_validacion_servidor: datetime | None
+    activo: int
+    creado_el: datetime
+
+    model_config = {"from_attributes": True}
+
+
 # === Activacion (contrato de activacion, revision 4) ===
 
 
@@ -481,6 +503,17 @@ class CodigoActivacionResponse(BaseModel):
     token: str
     prefijo: str
     expira_el: datetime
+
+
+class DispositivoReemplazoResponse(BaseModel):
+    """Respuesta tipada de POST /dispositivos/{id}/reemplazar (ADMIN).
+
+    Dispositivo viejo en DTO admin minimizado (REPLACED) + nuevo codigo de
+    activacion para el celular de reemplazo.
+    """
+
+    dispositivo: DispositivoAdminResponse
+    nuevo_codigo: CodigoActivacionResponse
 
 
 class DesafioRequest(BaseModel):

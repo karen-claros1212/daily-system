@@ -197,6 +197,28 @@ def reactivar_dispositivo(
             "DISPOSITIVO_NO_ENCONTRADO",
         )
 
+    # Invariante (RBAC review): un cobrador solo puede tener UN dispositivo
+    # ACTIVE (uq_dispositivo_activo_cobrador). Reactivar otro ACTIVE del mismo
+    # usuario explotaria el indice parcial -> 500; verificar la invariante
+    # explicitamente -> 409 controlado, y el camino canonico es Reemplazar.
+    if dispositivo.usuario_id:
+        otro_activo = (
+            db.query(Dispositivo)
+            .filter(
+                and_(
+                    Dispositivo.usuario_id == dispositivo.usuario_id,
+                    Dispositivo.estado == "ACTIVE",
+                    Dispositivo.id != dispositivo_id,
+                ),
+            )
+            .first()
+        )
+        if otro_activo:
+            raise DispositivoError(
+                "El cobrador ya tiene un dispositivo ACTIVE; revoque o reemplace antes",
+                "DISPOSITIVO_ACTIVO_EXISTENTE",
+            )
+
     dispositivo.revocado_el = None
     dispositivo.activo = 1
     dispositivo.estado = "ACTIVE"

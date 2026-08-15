@@ -445,3 +445,25 @@ class TestGateEscalamiento:
         )
         r = client.post("/api/auth/device/desafio", headers={"Authorization": f"Bearer {token}"})
         assert r.status_code == 401, r.text
+
+    def test_cobrador_no_lista_dispositivos_403(self, client, escenario):
+        """RBAC review: COBRADOR con JWT real NO lista dispositivos (403)."""
+        pk, spki, h = _ec_keypair()
+        jwt, _ = _jwt_para_rol(client, escenario, escenario["cobrador_id"], pk, spki, h)
+        r = client.get("/api/dispositivos", headers={"Authorization": f"Bearer {jwt}"})
+        assert r.status_code == 403, r.text
+        assert "solo administrador" in r.json()["detail"].lower()
+
+    def test_inversionista_no_lista_dispositivos_403(self, client, escenario):
+        """RBAC review: INVERSIONISTA (aun con sesion valida) NO lista -> 403."""
+        pk, spki, h = _ec_keypair()
+        jwt, _ = _jwt_para_rol(client, escenario, escenario["inv_id"], pk, spki, h)
+        r = client.get("/api/dispositivos", headers={"Authorization": f"Bearer {jwt}"})
+        assert r.status_code == 403, r.text
+
+    def test_administrador_lista_dispositivos_200(self, client, escenario):
+        """RBAC review: ADMINISTRADOR con JWT real lista dispositivos (200)."""
+        pk, spki, h = _ec_keypair()
+        jwt, _ = _jwt_para_rol(client, escenario, escenario["admin_id"], pk, spki, h)
+        r = client.get("/api/dispositivos", headers={"Authorization": f"Bearer {jwt}"})
+        assert r.status_code == 200, r.text
