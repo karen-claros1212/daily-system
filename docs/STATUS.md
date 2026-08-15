@@ -4,13 +4,14 @@
 **Última actualización:** 2026-08-15
 **Ruta de trabajo verificada (local):** `/home/jesus/proyectos/daily-system`
 **Rama de trabajo:** `product/web-premium-v1`
-**HEAD (baseline certificado):** `bbb3e1024cd0380cf48288c486565a4411c602c3`
+**HEAD documental:** `33b13428d5b9364ae6d8ed39d2875ee99b33d2f7`
+**Baseline funcional certificado:** `bbb3e1024cd0380cf48288c486565a4411c602c3`
 **Repo:** https://github.com/karen-claros1212/daily-system
 
 > ## ⚠️ NOTA DE RECONCILIACIÓN (2026-08-15)
 >
 > Reconciliación documental: el repositorio refleja ahora el estado real del producto.
-> - **Panel web administrativo: PRODUCTIVO** — `apps/web/` es una aplicación Next.js 16
+> - **Panel web administrativo: production-grade** — `apps/web/` es una aplicación Next.js 16
 >   (onboarding, dispositivos, suscripción, dashboard, rutas, caja, reportes). El prototipo
 >   estático MOCK vive en `design/prototypes/web/` como **histórico**.
 > - **Backend CI: EXISTE** (`backend-ci.yml`) — alembic upgrade/current + pytest + gate de
@@ -29,8 +30,8 @@
 
 | Campo | Valor |
 |---|---|
-| **Estado general** | M0-M3 base ✅ · B1-B7 hardening ✅ · S0-S5 sync ✅ · Web Premium productivo ✅ · M4-M6 pendientes |
-| **Hito actual** | Web Premium (panel administrativo productivo) + Migración Next.js 16 — CERRADOS |
+| **Estado general** | Etapa 1 ✅ · Etapa 2 ✅ · Etapa 3 EN PROGRESO · Etapa 4 ⏳ · Etapa 5 ⏳ |
+| **Hito actual** | Web Premium (panel administrativo production-grade) + Migración Next.js 16 — CERRADOS |
 | **Tests backend (SQLite)** | 367 passed, 8 skipped |
 | **Tests mobile** | 177/177 passing |
 | **Web E2E (local, Next 16)** | mock 107 passing (incl. a11y axe) + real 26 passing |
@@ -60,12 +61,12 @@
 | ✅ PASS | S3 — outbox móvil→servidor (push / ACK / retry / conflictos) |
 | ✅ PASS | S4 — reasignación de ruta R1→R2 (ruta_id_origen inmutable) + orquestación sync |
 | ✅ PASS | S5 — `conflict_service.py` (verificadores server-authoritative de conflicto) |
-| ✅ PASS | Web Premium — panel administrativo productivo (Next.js 16) |
+| ✅ PASS | Web Premium — panel administrativo production-grade (Next.js 16, preparada para producción, NO desplegada) |
 | ✅ PASS | Migración Next.js 16 security baseline (CI 3/3) |
 | ⏳ PENDING | Verificado en dispositivo físico |
-| ⏳ PENDIENTE | M4: Importación OCR (`ocr_service.py` no existe) |
-| ⏳ PENDIENTE | M5: Score, chatbot, inteligencia |
-| ⏳ PENDIENTE | M6: Producción y despliegue |
+| ⏳ PENDIENTE | Etapa 4: Importación OCR (`ocr_service.py` no existe) |
+| ⏳ PENDIENTE | Etapa 5: Score, chatbot, inteligencia |
+| ⏳ PENDIENTE | Producción / deploy (implementación production-grade existe; NO desplegada todavía) |
 | ⏳ FUTURO | Bot administrativo (exclusivamente administrativo) |
 | ⛔ NO EXISTE | Bot Telegram (histórico, no implementado como bloque original) |
 | ⛔ PROHIBIDO | Bot en móvil |
@@ -94,7 +95,7 @@
 | Analyzer | ✅ 14 infos históricos en migraciones congeladas / 0 nuevos |
 | Bot en móvil | ⛔ PROHIBIDO — no forma parte del producto |
 
-### Panel web administrativo — Web Premium (Next.js 16)
+### Panel web administrativo — Web Premium (Next.js 16, production-grade / preparada para producción)
 
 | Área | Estado |
 |---|---|
@@ -127,7 +128,7 @@
 |---|---|---|
 | `backend-ci.yml` | API tests + Alembic check (PG) + NIT concurrency gate | ✅ PASS |
 | `web-ci.yml` | `web-static` · `web-e2e-mock` · `web-real-integration` | ✅ PASS 3/3 |
-| `ui-gate.yml` | flutter analyze + flutter test (estricto) | ✅ PASS |
+| `ui-gate.yml` | flutter analyze + flutter test (estricto) | ✅ PASS (trigger: master; mobile baseline aceptado: 177/177, 14 infos históricos / 0 errores) |
 
 ---
 
@@ -165,7 +166,7 @@ Las secciones siguientes se conservan como historia de ejecución. El estado vig
 |---|---|---|
 | M3.1 | Planes y suscripciones | ✅ (`871d1de`) |
 | M3.2-M3.3 | Bot Telegram (cobrador/inversionista) | ⚠️ no implementado como bloque original |
-| M3.4 | Panel inversionista (web) | ✅ **reimplementado como Web Premium productiva** |
+| M3.4 | Panel inversionista (web) | ✅ **reimplementado como Web Premium production-grade** |
 | M3.5 | Reporte diario automático | ⚠️ no implementado |
 | M3.6 | Límite de rutas por plan | ✅ (`e44b09e`) |
 
@@ -192,7 +193,7 @@ Las secciones siguientes se conservan como historia de ejecución. El estado vig
 - HARDENING FINAL ONBOARDING: invariante NIT `m8_negocio_nit` (2026-08-14)
 
 ### Bloques Web Premium + Migración Next.js 16 (2026-08-14 → 2026-08-15)
-- Web Premium: panel administrativo productivo (Next.js 16, RBAC, onboarding, dispositivos, suscripción, dashboard, rutas, caja, reportes)
+- Web Premium: panel administrativo production-grade (Next.js 16, RBAC, onboarding, dispositivos, suscripción, dashboard, rutas, caja, reportes)
 - Migración Next.js 16 security baseline: `5d1205b` + `bbb3e102` (fix devIndicators) — CI 3/3 PASS
 - Reconciliación documental 2026-08-15: este documento + archivo de históricos en `docs/historical/`
 
@@ -211,9 +212,10 @@ Las secciones siguientes se conservan como historia de ejecución. El estado vig
 
 ## Próximos pasos
 
-1. **M4** — Importación OCR (`ocr_service.py` no existe aún; pendiente)
-2. **M5** — Score, chatbot, inteligencia (pendiente)
-3. **M6** — Producción y despliegue (pendiente)
-4. **Verificado en dispositivo físico** — PENDING (solo emulador API 35)
-5. **Bot administrativo futuro** — exclusivamente administrativo; NO bot en móvil
-6. **ruff** — limpiar 127 errores en `src/` (deuda conocida)
+1. **Etapa 3 — completar pendientes:** Mini App inversionista, política de exposición del onboarding, recuperación del admin principal
+2. **Etapa 4** — Importación OCR (`ocr_service.py` no existe aún; pendiente)
+3. **Etapa 5** — Score, chatbot, inteligencia (pendiente)
+4. **Producción / deploy** — pendiente (implementación production-grade ya existe, NO desplegada todavía)
+5. **Verificado en dispositivo físico** — PENDING (solo emulador API 35)
+6. **Bot administrativo futuro** — exclusivamente administrativo; NO bot en móvil
+7. **ruff** — limpiar 127 errores en `src/` (deuda conocida)

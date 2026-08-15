@@ -2,7 +2,8 @@
 
 **Documento:** Estado vivo  
 **Última actualización:** 2026-08-15  
-**Base verificada:** `product/web-premium-v1` @ `bbb3e102`
+**Base verificada:** `product/web-premium-v1` @ `33b1342`
+**Baseline funcional certificado:** `bbb3e102`
 
 ---
 
@@ -23,7 +24,7 @@ Ejecución local en `/home/jesus/proyectos/daily-system` (checkout operativo can
 | npm audit (web) | 0 vulnerabilidades | `cd apps/web && npm audit` |
 | Backend CI | ✅ PASS (GitHub Actions) | `.github/workflows/backend-ci.yml` |
 | Web CI | ✅ PASS 3/3 (GitHub Actions) | `.github/workflows/web-ci.yml` |
-| UI Gate CI | ✅ PASS (GitHub Actions) | `scripts/ci/ui_gate.sh` |
+| UI Gate CI | ✅ PASS (trigger: master; mobile baseline aceptado) | `scripts/ci/ui_gate.sh` |
 
 > **Aclaración:** los tests PG concurrency (skips en pytest) requieren una DB scratch con nombre `test`/`scratch` + `DAILY_ENV=test` + `ALLOW_PG_TRUNCATE=1`. El gate de concurrencia NIT se ejecuta en Backend CI sobre PostgreSQL (`test_onboarding.py::TestNitConcurrentePostgres`).
 
@@ -71,7 +72,7 @@ apps/mobile/
 2. `flutter analyze` — estricto, sin flags (14 infos preexistentes tolerados, 0 nuevos)
 3. `flutter test` — todos los tests (177)
 
-**CI en GitHub Actions:** `ui-gate.yml` (mobile estricto). Backend y Web tienen sus propios workflows (ver §5).
+**CI en GitHub Actions:** `ui-gate.yml` (trigger: `master`). Mobile baseline aceptado: 177/177, 14 infos históricos / 0 errores. No corrió sobre `product/web-premium-v1` (sin cambios Mobile). Backend y Web tienen sus propios workflows (ver §5).
 
 ---
 
@@ -190,7 +191,7 @@ Clientes TS tipados generados desde `openapi.json` (`src/lib/api/generated/`) �
 | `web-ci.yml` | `web-static` · `web-e2e-mock` · `web-real-integration` | api:check + lint + typecheck + build · Playwright mock + axe · Playwright real contra FastAPI+Postgres |
 | `ui-gate.yml` | — | `scripts/ci/ui_gate.sh` (tokens + flutter analyze + flutter test) |
 
-Triggers: push a `master` / `hardening/**` / `product/**` y PR a `master`.
+Triggers: push/PR a `master` (todos los workflows). `ui-gate.yml` trigger: `master` (solo master).
 
 ---
 

@@ -3,14 +3,15 @@
 **Proyecto:** daily-system
 **Versión:** 1.3
 **Fecha:** 2026-07-31 (actualizado 2026-08-15)
-**Estado:** M0-M3 completos · B1-B7 hardening ✅ · S0-S5 sync ✅ · Web Premium (panel web productivo) ✅ · M4-M6 pendientes
+**Estado:** Etapa 1 ✅ · Etapa 2 ✅ · Etapa 3 EN PROGRESO · Etapa 4 ⏳ · Etapa 5 ⏳
+**HEAD documental:** `33b1342` · **Baseline funcional certificado:** `bbb3e102`
 
 > ## ⚠️ NOTA DE RECONCILIACIÓN (2026-08-15) — estados históricos
 >
 > Este documento conserva la historia de ejecución. Las afirmaciones antiguas
 > (nota 2026-08-06) están **SUPERADAS** por la reconciliación documental:
 >
-> - **`apps/web` productiva: EXISTE.** Es el panel web administrativo Web Premium
+> - **`apps/web` production-grade: EXISTE.** Es el panel web administrativo Web Premium
 >   (Next.js 16 · React 19 · TypeScript · Tailwind). El prototipo estático HTML/CSS
 >   de `design/prototypes/web/` es **histórico** (no productivo).
 > - **Panel inversionista: EXISTE** como parte de la Web Premium (`/dashboard`,
@@ -18,7 +19,7 @@
 > - **Bot Telegram productivo: NO EXISTE.** No hay `apps/telegram-bot/` en el árbol.
 > - **Bot en móvil: PROHIBIDO.** Un bot futuro es exclusivamente administrativo.
 >
-> **La evidencia real del repositorio y las pruebas prevalece sobre estados históricos incorrectos.**
+> **La evidencia real del repositorio y las pruebas prevalecen sobre estados históricos incorrectos.**
 > Ver estado oficial en `docs/STATUS.md` y `DAILY-SYSTEM-CONTEXT-HANDOFF.md`.
 
 ---
@@ -150,10 +151,10 @@
 
 ---
 
-## Hito M4 — Importación OCR
+## Etapa 4 — Importación OCR
 
 **Estado:** PENDIENTE
-**Dependencias:** M3 completo
+**Dependencias:** Etapa 3 completa
 **Archivos:** `apps/api/src/services/ocr_service.py`
 **Pruebas:** Pendientes
 **Commit de cierre:** —
@@ -168,10 +169,10 @@
 
 ---
 
-## Hito M5 — Score, chatbot e inteligencia
+## Etapa 5 — Score, chatbot e inteligencia
 
 **Estado:** PENDIENTE
-**Dependencias:** M4 completo
+**Dependencias:** Etapa 4 completa
 **Archivos:** `apps/api/src/services/score_service.py`, `apps/api/src/services/chatbot_service.py`
 **Pruebas:** Pendientes
 **Commit de cierre:** —
@@ -187,7 +188,15 @@
 
 ---
 
-## Hito B1-B7 — Harden Auth + Bootstrap + Sync S0-S2
+## Etapa Producción — Despliegue
+
+**Estado:** PENDIENTE (implementación production-grade existe; NO desplegada todavía)
+**Dependencias:** Etapa 5 completa
+**Archivos:** `infra/docker-compose.prod.yml`, `infra/nginx/`, `.github/workflows/`
+
+---
+
+## Bloques B1-B7 — Harden Auth + Bootstrap + Sync S0-S2
 
 > **Estado:** ✅ COMPLETADO (c0a3a9c, rama `hardening/b1-b7-audit`)
 > **Commit de cierre:** c0a3a9c
@@ -261,13 +270,13 @@ Outbox push, ACK, retry con backoff, resolución de conflictos. Ver [OFFLINE-SYN
 
 ---
 
-## Bloque Web Premium — Panel web administrativo productivo ✅
+## Bloque Web Premium — Panel web administrative production-grade ✅
 
-> **Estado:** ✅ CERRADO
+> **Estado:** ✅ CERRADO (implementación production-grade / preparada para producción, NO desplegada todavía)
 > **Rama:** `product/web-premium-v1`
 > **Ver:** [ARCHITECTURE.md](ARCHITECTURE.md) §Web
 
-Reimplementación productiva del panel web (cubre el histórico M3.4).
+Reimplementación production-grade del panel web (cubre el histórico M3.4).
 
 ### Entregables
 
@@ -313,19 +322,14 @@ Reimplementación productiva del panel web (cubre el histórico M3.4).
 
 ## Resumen de Progreso
 
-| Hito | Estado | Progreso | Tests |
-|---|---|---|---|
-| **M0** | ✅ COMPLETADO | 22/22 (100%) | 28/28 |
-| **M1** | ✅ COMPLETADO | 8/8 (100%) | 38/38 |
-| **M2** | ✅ COMPLETADO | 6/6 (100%) | 47/47 |
-| **M3 base** | ✅ COMPLETADO | 6/6 (100%) | 27/27 |
-| **B1-B7 hardening** | ✅ COMPLETADO | — | backend 367/8 · mobile 177 |
-| **S0-S5 sync** | ✅ COMPLETADO | 6/6 | backend 367/8 · mobile 177 |
-| **Web Premium** | ✅ COMPLETADO | productivo | web e2e 107 mock + 26 real |
-| **M4** | ⬜ PENDIENTE | 0/3 (0%) | — |
-| **M5** | ⬜ PENDIENTE | 0/4 (0%) | — |
-| **M6** | ⬜ PENDIENTE | 0/7 (0%) | — |
-| **TOTAL** | M0-M3 + B1-B7 + S0-S5 + Web Premium ✅ | base + hardening + sync + web | 367+8 backend · 177 mobile · 107+26 web |
+| Etapa | Estado | Tests |
+|---|---|---|
+| **Etapa 1** — que funcione | ✅ COMPLETADA | 28+38+47+27 backend · 177 mobile |
+| **Etapa 2** — que cuadre | ✅ COMPLETADA | 367/8 backend · 177 mobile |
+| **Etapa 3** — que se venda | **EN PROGRESO** | web e2e 107 mock + 26 real |
+| **Etapa 4** — migración fácil / OCR | ⬜ PENDIENTE | — |
+| **Etapa 5** — inteligencia | ⬜ PENDIENTE | — |
+| **Producción / deploy** | ⬜ PENDIENTE | — |
 
 ---
 

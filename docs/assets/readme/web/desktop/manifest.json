@@ -1,8 +1,8 @@
 {
-  "generated": "2026-08-15-19-56-39",
-  "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
+  "generated": "2026-08-15-20-30-09",
+  "commit": "33b13428d5b9364ae6d8ed39d2875ee99b33d2f7",
   "engine": "nextjs-16 + react-19 + tailwind",
-  "mode": "mock-api (contrato real del backend)",
+  "mode": "mock-api (contrato contractual del backend)",
   "base_url": "http://localhost:3000",
   "captures": [
     {
@@ -13,8 +13,8 @@
       "url": "http://localhost:3000/",
       "role": "publico",
       "viewport": "1440x900",
-      "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
-      "timestamp": "2026-08-15-19-56-39"
+      "commit": "33b13428d5b9364ae6d8ed39d2875ee99b33d2f7",
+      "timestamp": "2026-08-15-20-30-09"
     },
     {
       "screen": "dashboard",
@@ -24,8 +24,8 @@
       "url": "http://localhost:3000/dashboard",
       "role": "admin",
       "viewport": "1440x900",
-      "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
-      "timestamp": "2026-08-15-19-56-39"
+      "commit": "33b13428d5b9364ae6d8ed39d2875ee99b33d2f7",
+      "timestamp": "2026-08-15-20-30-09"
     },
     {
       "screen": "suscripcion",
@@ -35,8 +35,8 @@
       "url": "http://localhost:3000/suscripcion",
       "role": "admin",
       "viewport": "1440x900",
-      "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
-      "timestamp": "2026-08-15-19-56-39"
+      "commit": "33b13428d5b9364ae6d8ed39d2875ee99b33d2f7",
+      "timestamp": "2026-08-15-20-30-09"
     },
     {
       "screen": "rutas",
@@ -46,8 +46,8 @@
       "url": "http://localhost:3000/routes",
       "role": "admin",
       "viewport": "1440x900",
-      "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
-      "timestamp": "2026-08-15-19-56-39"
+      "commit": "33b13428d5b9364ae6d8ed39d2875ee99b33d2f7",
+      "timestamp": "2026-08-15-20-30-09"
     },
     {
       "screen": "caja",
@@ -57,8 +57,8 @@
       "url": "http://localhost:3000/caja",
       "role": "cob",
       "viewport": "1440x900",
-      "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
-      "timestamp": "2026-08-15-19-56-39"
+      "commit": "33b13428d5b9364ae6d8ed39d2875ee99b33d2f7",
+      "timestamp": "2026-08-15-20-30-09"
     },
     {
       "screen": "reportes",
@@ -68,8 +68,8 @@
       "url": "http://localhost:3000/reportes",
       "role": "admin",
       "viewport": "1440x900",
-      "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
-      "timestamp": "2026-08-15-19-56-39"
+      "commit": "33b13428d5b9364ae6d8ed39d2875ee99b33d2f7",
+      "timestamp": "2026-08-15-20-30-09"
     },
     {
       "screen": "dispositivos",
@@ -79,8 +79,8 @@
       "url": "http://localhost:3000/dispositivos",
       "role": "admin",
       "viewport": "1440x900",
-      "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
-      "timestamp": "2026-08-15-19-56-39"
+      "commit": "33b13428d5b9364ae6d8ed39d2875ee99b33d2f7",
+      "timestamp": "2026-08-15-20-30-09"
     },
     {
       "screen": "registro",
@@ -90,8 +90,8 @@
       "url": "http://localhost:3000/registro",
       "role": "publico",
       "viewport": "1440x900",
-      "commit": "bbb3e1024cd0380cf48288c486565a4411c602c3",
-      "timestamp": "2026-08-15-19-56-39"
+      "commit": "33b13428d5b9364ae6d8ed39d2875ee99b33d2f7",
+      "timestamp": "2026-08-15-20-30-09"
     }
   ]
 }

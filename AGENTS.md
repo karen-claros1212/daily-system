@@ -14,8 +14,9 @@ Este es el checkout operativo canónico. Confirmar siempre con `pwd` y `git rev-
 | Concepto | Valor |
 |---|---|
 | Rama de trabajo | `product/web-premium-v1` |
+| HEAD documental | `33b1342` (reconciliación docs + evidencia visual) |
+| Baseline funcional certificado | `bbb3e102` |
 | HEAD (repositorio) | **Dinámico** — `git rev-parse HEAD` (Git es autoridad; SHA no se hardcodea en docs) |
-| Baseline canónico (docs) | `bbb3e102` — reconciliación documental y evidencia |
 | origin/master | `486d08b` (no contiene hardening ni Web Premium) |
 
 > **Importante:** el trabajo activo vive en `product/web-premium-v1` (o descendiente).
@@ -139,7 +140,7 @@ graphify-out/
 
 - Backend: Python, FastAPI, SQLAlchemy, Alembic
 - Mobile: Flutter (primary client — Android offline collector)
-- Web: Next.js 16, React 19, TypeScript, Tailwind CSS (**productiva** — panel administrativo `apps/web/`)
+- Web: Next.js 16, React 19, TypeScript, Tailwind CSS (**production-grade / preparada para producción** — panel administrativo `apps/web/`, NO desplegada)
 - DB: PostgreSQL (prod) + SQLite (mobile local / backend test default)
 - Sync: SQLite + sync_queue + custom offline layer (NOT PowerSync)
 - Auth: JWT ES256 + AndroidKeyStore + challenge-response (daily-auth-v1) + sesión web httpOnly (`/api/auth/me`)
@@ -170,7 +171,7 @@ graphify-out/
 | Web E2E mock | `cd apps/web && npm run test` | 107 passing |
 | Web E2E real | `cd apps/web && npm run test:real` | 26 passing |
 | Audit | `cd apps/web && npm audit` | 0 vulnerabilities |
-| CI | GitHub Actions | backend-ci · web-ci · ui-gate = PASS |
+| CI | GitHub Actions | backend-ci · web-ci = PASS (ui-gate trigger: master; mobile baseline aceptado: 177/177, 14 infos) |
 
 ## Workflow
 

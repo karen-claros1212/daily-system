@@ -10,13 +10,12 @@
 
 ## Estado
 
-**Productivo en desarrollo — Móvil offline + Panel web administrativo.**
-
+**Production-grade en desarrollo — Móvil offline + Panel web administrativo.**
 | Componente | Estado |
 |---|---|
 | Backend API (FastAPI) | ✅ Implementado — CI PASS |
 | Android Offline Alpha | ✅ Implementado / APK debug construido |
-| **Panel web administrativo** | ✅ **Productivo** (Next.js 16, `apps/web/`) |
+| **Panel web administrativo** | ✅ **Production-grade / preparada para producción** (Next.js 16, `apps/web/`) — NO desplegada |
 | Web — onboarding, dispositivos, suscripción, dashboard, rutas, caja, reportes | ✅ Implementado |
 | Prototipo web visual (MOCK) | Histórico — `design/prototypes/web/` (no productivo) |
 | Auth productivo (JWT ES256 + AndroidKeyStore) | ✅ Implementado |
@@ -29,23 +28,27 @@
 | Diseño tokens (JSON → Dart + CSS) | ✅ Implementado |
 | Backend CI | ✅ PASS (`backend-ci.yml`) |
 | Web CI | ✅ PASS (`web-ci.yml` — static + e2e mock + e2e real) |
-| UI Gate CI | ✅ PASS (flutter analyze + flutter test) |
+| UI Gate CI | ✅ PASS (`ui-gate.yml` — flutter analyze + flutter test, trigger: master) |
 | APK debug construido | ✅ PASS |
 | Verificado en emulador (API 35) | ✅ PASS |
 | Verificado en dispositivo físico | ⏳ PENDING |
-| Producción | ⏳ PENDIENTE |
+| Producción / deploy | ⏳ PENDIENTE — NO desplegada todavía |
 
-> **Rama de trabajo:** `product/web-premium-v1` — HEAD `bbb3e102` (baseline verificado).
+> **Rama de trabajo:** `product/web-premium-v1`
+> **HEAD documental:** `33b1342` (reconciliación docs + evidencia)
+> **Baseline funcional certificado:** `bbb3e102`
 > `master` (`486d08b`) es una rama legacy sin el hardening. Ver [Estado del proyecto](docs/STATUS.md) para detalle en vivo.
 
 ---
 
 ## Capturas
 
-Capturas reales del emulador Android (phone 412×915, light y dark) y del panel web productivo.
+Capturas reales del emulador Android (phone 412×915, light y dark) y del panel web production-grade.
 El conjunto completo de evidencia (antes/después + manifest SHA-256) está en
 [docs/ui-audit/screenshots/](docs/ui-audit/screenshots/). Las capturas web se generan con
-`scripts/web/capture_web_evidence.sh` y su manifest SHA-256 vive en [docs/assets/readme/web/](docs/assets/readme/web/manifest.json).
+`scripts/web/capture_web_evidence.sh` y su manifest SHA-256 vive en
+[docs/assets/readme/web/desktop/](docs/assets/readme/web/desktop/manifest.json) (desktop) y
+[docs/assets/readme/web/mobile/](docs/assets/readme/web/mobile/) (responsive).
 
 ### Android (claro)
 
@@ -67,19 +70,19 @@ El conjunto completo de evidencia (antes/después + manifest SHA-256) está en
 |---|---|---|
 | ![Login dark](docs/assets/readme/mobile/01-login-dark.png) | ![Inicio dark](docs/assets/readme/mobile/02-inicio-dark.png) | ![Cierre dark](docs/assets/readme/mobile/07-cierre-dark.png) |
 
-### Web — Panel administrativo
+### Web — Panel administrativo (desktop 1440×900)
 
 | Login | Dashboard | Suscripción |
 |---|---|---|
-| ![Web login](docs/assets/readme/web/01-login.png) | ![Web dashboard](docs/assets/readme/web/02-dashboard.png) | ![Web suscripción](docs/assets/readme/web/03-suscripcion.png) |
+| ![Web login](docs/assets/readme/web/desktop/01-login.png) | ![Web dashboard](docs/assets/readme/web/desktop/02-dashboard.png) | ![Web suscripción](docs/assets/readme/web/desktop/03-suscripcion.png) |
 
 | Rutas | Caja | Reportes |
 |---|---|---|
-| ![Web rutas](docs/assets/readme/web/04-rutas.png) | ![Web caja](docs/assets/readme/web/05-caja.png) | ![Web reportes](docs/assets/readme/web/06-reportes.png) |
+| ![Web rutas](docs/assets/readme/web/desktop/04-rutas.png) | ![Web caja](docs/assets/readme/web/desktop/05-caja.png) | ![Web reportes](docs/assets/readme/web/desktop/06-reportes.png) |
 
 | Dispositivos | Registro (onboarding) |
 |---|---|
-| ![Web dispositivos](docs/assets/readme/web/07-dispositivos.png) | ![Web registro](docs/assets/readme/web/08-registro.png) |
+| ![Web dispositivos](docs/assets/readme/web/desktop/07-dispositivos.png) | ![Web registro](docs/assets/readme/web/desktop/08-registro.png) |
 
 ---
 
@@ -131,6 +134,7 @@ El conjunto completo de evidencia (antes/después + manifest SHA-256) está en
 - Splash nativo Android 12+ (SplashScreen API)
 - Icono adaptable con monochrome
 - DAILY_DEMO flag para builds de producción
+- Dark mode: estructura CSS lista (`.dark` clase definida) — no habilitada (solo tema claro activo)
 
 ---
 
@@ -267,8 +271,10 @@ npm test                 # Playwright E2E (mock y real según configuración)
 
 ## Pruebas y gates
 
-> **Último baseline verificado (2026-08-15):** `product/web-premium-v1` @ `bbb3e102`.
-> Los tres workflows (`backend-ci.yml`, `web-ci.yml`, `ui-gate.yml`) corren en GitHub Actions.
+> **Último baseline verificado (2026-08-15):** `product/web-premium-v1` @ `33b1342`.
+> **Baseline funcional certificado:** `bbb3e102`.
+> Los workflows (`backend-ci.yml`, `web-ci.yml`) corren en GitHub Actions sobre `product/web-premium-v1`.
+> `ui-gate.yml` existe con trigger en `master`; no corrió sobre este push (sin cambios Mobile).
 
 ```bash
 # Gate de UI (strict — no --no-fatal flags)
@@ -306,35 +312,39 @@ npm run build
 | Web E2E real (FastAPI + Postgres) | PASS | Playwright (`web-real-integration`) |
 | Backend CI (pytest + alembic + NIT PG concurrency) | PASS | `.github/workflows/backend-ci.yml` |
 | Web CI (3 jobs) | PASS | `.github/workflows/web-ci.yml` |
-| UI Gate CI | PASS | `.github/workflows/ui-gate.yml` |
+| UI Gate CI | PASS (trigger: master; no corrió en `product/web-premium-v1`) | `.github/workflows/ui-gate.yml` |
 
 ---
 
-## Roadmap
+## Roadmap canónico
 
-- [x] M0: Fundación ejecutable
-- [x] M1: Hoja viva y pagos
-- [x] M2: Jornada, caja y Terminar Jornada
-- [x] M3 base: Suscripción / límites por plan
-- [!] M3.2-M3.5 históricos: Bot Telegram, panel inversionista, reporte diario — **no implementados** como bloques originales
-- [x] M3.6: Flutter Offline Alpha + Visual Alpha Premium
-- [x] UX/UI Premium: marca, tokens, componentes, tema
-- [x] UX/UI Phase 2: splash nativo, DAILY_DEMO, light/dark, CSS generator, gate estricto
-- [x] Splash nativo Android 12+ (SplashScreen API)
-- [x] Icono adaptable con monochrome
-- [x] Pantallas reales refactorizadas (inicio, cobros, pago, caja, cierre)
-- [x] Pruebas golden y semantics
-- [x] APK debug construido
-- [x] Verificado en emulador (API 35)
+| Etapa | Descripción | Estado |
+|---|---|---|
+| **Etapa 1** — que funcione | Backend + mobile ejecutable | ✅ COMPLETADA |
+| **Etapa 2** — que cuadre | Idempotencia, outbox, sync, S0-S5 | ✅ COMPLETADA |
+| **Etapa 3** — que se venda | Web Premium, multirol, suscripción, dispositivos, onboarding, Next 16 | **EN PROGRESO** |
+| **Etapa 4** — migración fácil / OCR | Importación OCR (`ocr_service.py` pendiente) | ⏳ PENDIENTE |
+| **Etapa 5** — inteligencia | Score, chatbot, predicción | ⏳ PENDIENTE |
+
+### Detalle Etapa 3 — EN PROGRESO
+
+- [x] Web Premium (Next.js 16) — producción-grade, NO desplegada
+- [x] Multirol (COBRADOR / INVERSIONISTA / ADMINISTRADOR)
+- [x] Suscripción / Licencia
+- [x] Dispositivos autorizados
+- [x] Alta de negocios (onboarding público)
+- [x] Next 16 security baseline (CI 3/3 PASS, npm audit 0 vulns)
+- [ ] Experiencia / Mini App inversionista (pendiente de decisión)
+- [ ] Política de exposición del onboarding (pendiente)
+- [ ] Recuperación del administrador principal (pendiente)
+
+> **Roadmap M0-M6 (legacy):** se conserva como historia en [IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md).
+> El roadmap vigente es el canónico arriba. OCR no es el siguiente paso automático — sigue Etapa 3.
+
+### Otros
+
 - [ ] Verificado en dispositivo físico
-- [x] Capturas profesionales before/after con manifest SHA-256
-- [x] **B1-B7 hardening:** JWT ES256, AndroidKeyStore, challenge-response, bootstrap productivo, S0-S2 sync
-- [x] **S0-S5 sync/hardening:** session, ruta, pull, outbox, reasignación, conflictos
-- [x] **Web Premium:** panel administrativo productivo (Next.js 16) — dashboard, rutas, caja, reportes, dispositivos, suscripción, onboarding
-- [x] **Migración Next.js 16** (security baseline) — CI Web 3/3 PASS, npm audit 0 vulns
-- [ ] M4: Importación OCR (_`ocr_service.py` no existe en árbol_)
-- [ ] M5: Score, chatbot, inteligencia
-- [ ] M6: Producción y despliegue
+- [ ] Producción / deploy
 - [ ] Bot administrativo futuro (exclusivamente administrativo; **NO bot en móvil**)
 
 ---
@@ -377,7 +387,7 @@ Ver [Security](docs/SECURITY.md), [Offline Sync](docs/OFFLINE-SYNC.md), [Archite
 | [Históricos](docs/historical/) | Archivo | Documentos archivados (no son verdad vigente) |
 
 > 📌 **Verdad documental vigente:** `docs/STATUS.md` + `DAILY-SYSTEM-CONTEXT-HANDOFF.md`.
-> El handoff operativo vigente es `DAILY-SYSTEM-CONTEXT-HANDOFF.md` (verificación 2026-08-15 sobre `bbb3e102`).
+> El handoff operativo vigente es `DAILY-SYSTEM-CONTEXT-HANDOFF.md` (HEAD documental `33b1342`, baseline funcional `bbb3e102`).
 
 ---
 

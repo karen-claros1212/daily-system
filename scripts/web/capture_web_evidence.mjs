@@ -1,7 +1,7 @@
 // capture_web_evidence.mjs — Captura de evidencia visual de la Web Premium.
 //
-//   Drivea el panel web productivo (apps/web) contra el mock-api (contrato REAL
-//   del backend) con Playwright: login real por código de activación y captura
+//   Drivea la UI real de Web Premium contra mock-api (contrato contractual
+//   del backend) con Playwright: flujo de login por código de activación y captura
 //   de cada pantalla con verificación de firma (rechaza capturas inválidas).
 //   Cada captura se registra en manifest.json con SHA-256 + commit + timestamp,
 //   espejando el patrón Android de docs/ui-audit/screenshots/manifest.json.
@@ -36,21 +36,39 @@ const BASE = process.env.CAPTURE_BASE_URL || 'http://localhost:3000';
 const OUT_DIR = process.env.CAPTURE_OUT_DIR || path.join(repoRoot, 'docs/assets/readme/web');
 const CODE_ADMIN = process.env.CAPTURE_CODE_ADMIN || 'test-admin-code';
 const CODE_COB = process.env.CAPTURE_CODE_COB || 'test-cobrador-code';
-const VIEWPORT = { width: 1440, height: 900 };
+const IS_MOBILE = process.env.CAPTURE_MOBILE === '1';
+
+// CAPTURE_VIEWPORT parsea "WxH" fail-closed (default desktop).
+function parseViewport(env) {
+  if (!env) return { width: 1440, height: 900 };
+  const m = env.match(/^(\d+)x(\d+)$/);
+  if (!m) throw new Error(`CAPTURE_VIEWPORT formato inválido: "${env}" — esperado WxH (ej: 1440x900)`);
+  const [_, w, h] = m;
+  const width = parseInt(w, 10);
+  const height = parseInt(h, 10);
+  if (width < 320 || height < 240) throw new Error(`CAPTURE_VIEWPORT dimensiones mínimas: ${width}x${height}`);
+  return { width, height };
+}
+const VIEWPORT = parseViewport(process.env.CAPTURE_VIEWPORT);
 
 // Cada paso: rol que debe estar autenticado ('admin' | 'cob' | null=logout) y
 // la firma que valida que la pantalla correcta se renderizó.
-const STEPS = [
-  { name: 'login', url: `/`, wait: '#loginTitle', verify: '#loginTitle', role: null },
-  { name: 'dashboard', url: `/dashboard`, wait: '.metric-card', verify: 'h1:has-text("Dashboard financiero")', role: 'admin' },
-  { name: 'suscripcion', url: `/suscripcion`, wait: 'h1:has-text("Suscripción")', verify: 'h1:has-text("Suscripción")', role: 'admin' },
-  { name: 'rutas', url: `/routes`, wait: 'h1:has-text("Rutas")', verify: 'h1:has-text("Rutas")', role: 'admin' },
-  { name: 'caja', url: `/caja`, wait: 'h1:has-text("Caja / Conciliación")', verify: 'h1:has-text("Caja / Conciliación")', role: 'cob' },
-  { name: 'reportes', url: `/reportes`, wait: 'h1:has-text("Reportes")', verify: 'h1:has-text("Reportes")', role: 'admin' },
-  { name: 'dispositivos', url: `/dispositivos`, wait: 'h1:has-text("Dispositivos autorizados")', verify: 'h1:has-text("Dispositivos autorizados")', role: 'admin' },
-  { name: 'registro', url: `/registro`, wait: '#registroTitle', verify: '#registroTitle', role: null },
+// mobile: true = captura en set responsive (solo superficies principales).
+const ALL_STEPS = [
+  { name: 'login', url: `/`, wait: '#loginTitle', verify: '#loginTitle', role: null, mobile: true },
+  { name: 'dashboard', url: `/dashboard`, wait: '.metric-card', verify: 'h1:has-text("Dashboard financiero")', role: 'admin', mobile: true },
+  { name: 'suscripcion', url: `/suscripcion`, wait: 'h1:has-text("Suscripción")', verify: 'h1:has-text("Suscripción")', role: 'admin', mobile: false },
+  { name: 'rutas', url: `/routes`, wait: 'h1:has-text("Rutas")', verify: 'h1:has-text("Rutas")', role: 'admin', mobile: true },
+  { name: 'caja', url: `/caja`, wait: 'h1:has-text("Caja / Conciliación")', verify: 'h1:has-text("Caja / Conciliación")', role: 'cob', mobile: false },
+  { name: 'reportes', url: `/reportes`, wait: 'h1:has-text("Reportes")', verify: 'h1:has-text("Reportes")', role: 'admin', mobile: false },
+  { name: 'dispositivos', url: `/dispositivos`, wait: 'h1:has-text("Dispositivos autorizados")', verify: 'h1:has-text("Dispositivos autorizados")', role: 'admin', mobile: true },
+  { name: 'registro', url: `/registro`, wait: '#registroTitle', verify: '#registroTitle', role: null, mobile: true },
 ];
-const PREFIX = ['01', '02', '03', '04', '05', '06', '07', '08'];
+
+// Filtrar: si IS_MOBILE, solo pasos con mobile=true; si no, todos.
+const STEPS = IS_MOBILE ? ALL_STEPS.filter((s) => s.mobile) : ALL_STEPS;
+const PREFIXES = ['01', '02', '03', '04', '05', '06', '07', '08'];
+const PREFIX = (i) => PREFIXES[i];
 
 const log = (m) => console.log(`  ${m}`);
 const die = (m) => { console.error(`ERROR: ${m}`); process.exit(1); };
@@ -102,13 +120,13 @@ async function main() {
     const sigOk = await page.locator(s.verify).count().then((n) => n > 0).catch(() => false);
     if (!sigOk) die(`'${s.name}' no contiene la firma '${s.verify}' — captura inválida`);
 
-    const file = path.join(OUT_DIR, `${PREFIX[i]}-${s.name}.png`);
+    const file = path.join(OUT_DIR, `${PREFIX(i)}-${s.name}.png`);
     await page.screenshot({ path: file, fullPage: true });
     const size = fs.statSync(file).size;
     const sha = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
     captures.push({
       screen: s.name,
-      path: `${PREFIX[i]}-${s.name}.png`,
+      path: `${PREFIX(i)}-${s.name}.png`,
       size_bytes: size,
       sha256: sha,
       url: `${BASE}${s.url}`,
@@ -131,7 +149,7 @@ async function main() {
           generated: ts,
           commit,
           engine: 'nextjs-16 + react-19 + tailwind',
-          mode: 'mock-api (contrato real del backend)',
+          mode: 'mock-api (contrato contractual del backend)',
           base_url: BASE,
           captures,
         },

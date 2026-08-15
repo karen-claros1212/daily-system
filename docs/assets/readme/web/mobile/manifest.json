@@ -1,0 +1,64 @@
+{
+  "generated": "2026-08-15-20-30-00",
+  "commit": "33b13428d5b9364ae6d8ed39d2875ee99b33d2f7",
+  "engine": "nextjs-16 + react-19 + tailwind",
+  "mode": "mock-api (contrato contractual del backend)",
+  "base_url": "http://localhost:3000",
+  "captures": [
+    {
+      "screen": "login",
+      "path": "01-login.png",
+      "size_bytes": 30167,
+      "sha256": "df2ce35e51a88cc21e915698547e9e5233f0705c57e098ba4a9ddb05720f4d76",
+      "url": "http://localhost:3000/",
+      "role": "publico",
+      "viewport": "390x844",
+      "commit": "33b13428d5b9364ae6d8ed39d2875ee99b33d2f7",
+      "timestamp": "2026-08-15-20-30-00"
+    },
+    {
+      "screen": "dashboard",
+      "path": "02-dashboard.png",
+      "size_bytes": 56144,
+      "sha256": "ce6f4c180ac41e4c06962e804a879b1c3f5742953a027fcf7cbd33cc6e41ac5f",
+      "url": "http://localhost:3000/dashboard",
+      "role": "admin",
+      "viewport": "390x844",
+      "commit": "33b13428d5b9364ae6d8ed39d2875ee99b33d2f7",
+      "timestamp": "2026-08-15-20-30-00"
+    },
+    {
+      "screen": "rutas",
+      "path": "03-rutas.png",
+      "size_bytes": 28384,
+      "sha256": "e736220a6e7c593f9f87506d39c6511acb9116033ac2156da8d56a8f2fbd1235",
+      "url": "http://localhost:3000/routes",
+      "role": "admin",
+      "viewport": "390x844",
+      "commit": "33b13428d5b9364ae6d8ed39d2875ee99b33d2f7",
+      "timestamp": "2026-08-15-20-30-00"
+    },
+    {
+      "screen": "dispositivos",
+      "path": "04-dispositivos.png",
+      "size_bytes": 117920,
+      "sha256": "be571ce4865a5312a993e9353d27e38ced6fa26d3444aeff365d4e3963f6f9f6",
+      "url": "http://localhost:3000/dispositivos",
+      "role": "admin",
+      "viewport": "390x844",
+      "commit": "33b13428d5b9364ae6d8ed39d2875ee99b33d2f7",
+      "timestamp": "2026-08-15-20-30-00"
+    },
+    {
+      "screen": "registro",
+      "path": "05-registro.png",
+      "size_bytes": 44299,
+      "sha256": "1bebc2726279724fa29e7dd0050a4fc4d3691b3b60045334fc092339845a8827",
+      "url": "http://localhost:3000/registro",
+      "role": "publico",
+      "viewport": "390x844",
+      "commit": "33b13428d5b9364ae6d8ed39d2875ee99b33d2f7",
+      "timestamp": "2026-08-15-20-30-00"
+    }
+  ]
+}

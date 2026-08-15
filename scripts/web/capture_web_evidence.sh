@@ -14,7 +14,8 @@
 #   - Libre el puerto 3000/8100 o servidores ya levantados (se reutilizan)
 #
 # USAGE
-#   ./scripts/web/capture_web_evidence.sh [--keep-servers]
+#   ./scripts/web/capture_web_evidence.sh [--keep-servers] [--mobile]
+#   --mobile: captura responsive (390x844, 5 superficies principales)
 # ────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
@@ -23,6 +24,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WEB_DIR="$REPO_ROOT/apps/web"
 OUT_DIR="$REPO_ROOT/docs/assets/readme/web"
 KEEP=false
+MOBILE=false
 
 log()  { echo "== $*"; }
 info() { echo "  $*"; }
@@ -31,6 +33,7 @@ die()  { echo "ERROR: $*" >&2; exit 1; }
 while [ $# -gt 0 ]; do
   case "$1" in
     --keep-servers) KEEP=true; shift ;;
+    --mobile) MOBILE=true; shift ;;
     -h|--help) grep '^#' "$0" | head -20; exit 0 ;;
     *) die "unknown option: $1 (see --help)" ;;
   esac
@@ -74,8 +77,18 @@ trap 'if [ "$KEEP" != true ]; then
   [ -n "$MOCK_PID" ] && kill "$MOCK_PID" 2>/dev/null || true
 fi' EXIT
 
-log "Capturando 8 pantallas de la Web Premium"
-node "$REPO_ROOT/scripts/web/capture_web_evidence.mjs"
+if [ "$MOBILE" = true ]; then
+  log "Capturando 5 pantallas mobile (390x844) — responsive"
+  CAPTURE_VIEWPORT=390x844 CAPTURE_OUT_DIR="$OUT_DIR/mobile" CAPTURE_MOBILE=1 node "$REPO_ROOT/scripts/web/capture_web_evidence.mjs"
+else
+  log "Capturando 8 pantallas desktop (1440x900) — production-grade"
+  CAPTURE_OUT_DIR="$OUT_DIR/desktop" node "$REPO_ROOT/scripts/web/capture_web_evidence.mjs"
+fi
 
 info "Evidencia → $OUT_DIR"
-ls -1 "$OUT_DIR"/*.png | sed "s|$REPO_ROOT/||"
+for d in desktop mobile; do
+  if [ -d "$OUT_DIR/$d" ]; then
+    info "  $d:"
+    ls -1 "$OUT_DIR/$d"/*.png 2>/dev/null | sed "s|$REPO_ROOT/|    |"
+  fi
+done
