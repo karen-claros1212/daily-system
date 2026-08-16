@@ -21,6 +21,7 @@ Cobertura obligatoria (H6):
 
 import base64
 import hashlib
+import os
 from uuid import UUID, uuid4
 
 import pytest
@@ -472,18 +473,15 @@ class TestMeCapabilitiesW1:
 class TestM9toM10Upgrade:
     """H2: m9->m10 migration renombra USUARIO_DESATIVADO -> USUARIO_DESACTIVADO.
 
-    Simula una base de datos existente con m9 (CHECK cerrada con el typo)
-    e inserta una fila con action='USUARIO_DESATIVADO'. Luego aplica m10
-    y verifica que la fila se actualizó correctamente.
+    Prueba real de migración: ejecuta alembic sobre una DB temporal PostgreSQL
+    con m9 (CHECK cerrada con el typo), inserta fila legacy, aplica m10 y
+    verifica renombrado + índice.
+
+    La suite normal (SQLite) conserva un test unitario portabilidad.
     """
 
-    def test_m10_rename_typo(self, db_session):
-        """m9 crea tabla con CHECK cerrada -> insertar typo -> m10 lo renombra.
-
-        La tabla audit_log ya existe (creada por test_db / Base.metadata).
-        Insertamos fila con action='USUARIO_DESATIVADO' (typo de m9),
-        ejecutamos el UPDATE de m10 directamente y verificamos el renombrado.
-        """
+    def test_m10_rename_typo_unit(self, db_session):
+        """Unit test portability: INSERT actor con activo=1, UPDATE directo."""
         from sqlalchemy import text
         from uuid import uuid4
 
@@ -494,9 +492,10 @@ class TestM9toM10Upgrade:
             db_session.flush()
 
         # Crear usuario actor (FK audit_log.actor_id → usuario.id)
+        # activo=1 es NOT NULL en el modelo
         actor_id = uuid4()
         db_session.execute(text(
-            "INSERT INTO usuario (id, negocio_id, rol, nombre) VALUES (:aid, :nid, 'ADMINISTRADOR', 'Admin Test')"
+            "INSERT INTO usuario (id, negocio_id, rol, nombre, activo) VALUES (:aid, :nid, 'ADMINISTRADOR', 'Admin Test', 1)"
         ), {'aid': str(actor_id), 'nid': str(n.id)})
         db_session.flush()
 
@@ -539,3 +538,150 @@ class TestM9toM10Upgrade:
             text("SELECT action FROM audit_log WHERE action = 'USUARIO_DESATIVADO'")
         ).fetchone()
         assert leftover is None, "No debe quedar fila con typo después de m10"
+
+
+class TestM9toM10UpgradePG:
+    """Gate de migración real: ejecuta alembic m9→m10 sobre PostgreSQL.
+
+    Crea una DB temporal (scratch), aplica m9, inserta fila legacy,
+    aplica m10, verifica renombrado + índice + head.
+    Se salta si no hay PG disponible.
+    """
+
+    @pytest.fixture
+    def pg_test_db_url(self):
+        """URL de la DB de test PG para migración aislada."""
+        url = os.getenv("API_DATABASE_URL", "")
+        if not url.startswith("postgresql"):
+            pytest.skip("No PostgreSQL available for migration gate")
+        # Usar la misma DB pero con nombre scratch para no interferir
+        return url.replace("daily_web_e2e_test", "daily_migration_gate")
+
+    @pytest.fixture
+    def migration_db(self, pg_test_db_url, request):
+        """Crea/destruye DB temporal para migración."""
+        from sqlalchemy import create_engine as sa_create_engine, text
+        from sqlalchemy.engine import Engine
+
+        # Conectar a postgres (master DB) para crear/destruir scratch
+        base_url = pg_test_db_url.rsplit("/", 1)[0] + "/postgres"
+        engine = sa_create_engine(base_url)
+        with engine.connect() as conn:
+            conn.execution_options(isolation_level="AUTOCOMMIT")
+            try:
+                conn.execute(
+                    text("DROP DATABASE IF EXISTS daily_migration_gate")
+                )
+            except Exception:
+                pass
+            conn.execute(text("COMMIT"))
+            conn.execute(text("CREATE DATABASE daily_migration_gate"))
+
+        yield pg_test_db_url.replace("daily_web_e2e_test", "daily_migration_gate")
+
+        # Cleanup: close engine first, then kill remaining connections
+        engine.dispose()
+        engine2 = sa_create_engine(base_url)
+        with engine2.connect() as conn:
+            conn.execution_options(isolation_level="AUTOCOMMIT")
+            conn.execute(text(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE datname = 'daily_migration_gate' AND pid != pg_backend_pid()"
+            ))
+            conn.execute(text("COMMIT"))
+            conn.execute(text("DROP DATABASE IF EXISTS daily_migration_gate"))
+
+    def test_m10_real_migration(self, migration_db):
+        """Alembic m9→m10 sobre PostgreSQL real con fila legacy."""
+        import os as _os
+        from sqlalchemy import create_engine as sa_create_engine, text
+        from alembic.config import Config
+        from alembic import command as alembic_cmd
+
+        # Crear engine sobre la DB scratch
+        engine = sa_create_engine(migration_db)
+
+        # Step 1: upgrade m9_audit_log (real migration, no stamp)
+        # IMPORTANT: set API_DATABASE_URL env var so env.py uses the scratch DB
+        original_db_url = _os.environ.get("API_DATABASE_URL")
+        _os.environ["API_DATABASE_URL"] = migration_db
+
+        api_dir = "/home/jesus/proyectos/daily-system/apps/api"
+        migrations_dir = _os.path.join(api_dir, "migrations")
+        alembic_cfg = Config(_os.path.join(api_dir, "alembic.ini"))
+        alembic_cfg.set_main_option("script_location", migrations_dir)
+
+        alembic_cmd.upgrade(alembic_cfg, "m9_audit_log")
+
+        # Step 2: crear Negocio + Usuario actor válidos
+        from uuid import uuid4
+        from src.models import Negocio, Usuario
+        from src.database import Base
+
+        Base.metadata.create_all(engine)
+
+        with engine.connect() as conn:
+            n_id = uuid4()
+            a_id = uuid4()
+            conn.execute(text(
+                "INSERT INTO negocio (id, nombre, nit, pais, moneda, zona_horaria, plan, estado_suscripcion) "
+                "VALUES (:nid, 'Test', '999', 'CO', 'COP', 'America/Bogota', 'basic', 'al_dia')"
+            ), {"nid": str(n_id)})
+            conn.execute(text(
+                "INSERT INTO usuario (id, negocio_id, rol, nombre, activo) "
+                "VALUES (:aid, :nid, 'ADMINISTRADOR', 'Admin Test', 1)"
+            ), {"aid": str(a_id), "nid": str(n_id)})
+            conn.commit()
+
+            # Step 3: insertar fila con typo de m9
+            audit_id = uuid4()
+            entity_id = uuid4()
+            conn.execute(text(
+                "INSERT INTO audit_log (id, negocio_id, actor_id, action, entity_type, entity_id, creado_el) "
+                "VALUES (:aid, :nid, :cid, 'USUARIO_DESATIVADO', 'USUARIO', :eid, CURRENT_TIMESTAMP)"
+            ), {
+                "aid": str(audit_id),
+                "nid": str(n_id),
+                "cid": str(a_id),
+                "eid": str(entity_id),
+            })
+            conn.commit()
+
+            # Verify typo exists
+            row = conn.execute(
+                text("SELECT action FROM audit_log WHERE action = 'USUARIO_DESATIVADO'")
+            ).fetchone()
+            assert row is not None, "Fila con typo existe antes de m10"
+
+        # Step 4: apply m10
+        alembic_cmd.upgrade(alembic_cfg, "m10_audit_documento")
+
+        # Step 5: verify rename
+        with engine.connect() as conn:
+            renamed = conn.execute(
+                text("SELECT action FROM audit_log WHERE action = 'USUARIO_DESACTIVADO'")
+            ).fetchone()
+            assert renamed is not None, "m10 renombró USUARIO_DESATIVADO → USUARIO_DESACTIVADO"
+
+            leftover = conn.execute(
+                text("SELECT action FROM audit_log WHERE action = 'USUARIO_DESATIVADO'")
+            ).fetchone()
+            assert leftover is None, "No debe quedar fila con typo después de m10"
+
+            # Verify index exists (uq_usuario_negocio_documento)
+            idx_check = conn.execute(text(
+                "SELECT indexname FROM pg_indexes WHERE indexname = 'uq_usuario_negocio_documento'"
+            )).fetchone()
+            assert idx_check is not None, "m10 creó índice uq_usuario_negocio_documento"
+
+        # Verify alembic head via env.py
+        from alembic.script import ScriptDirectory
+        script_dir = ScriptDirectory.from_config(alembic_cfg)
+        head = script_dir.get_current_head()
+        assert head == "m10_audit_documento", f"m10 es head de alembic, got {head}"
+
+        # Restore original API_DATABASE_URL
+        if original_db_url:
+            _os.environ["API_DATABASE_URL"] = original_db_url
+        else:
+            _os.environ.pop("API_DATABASE_URL", None)

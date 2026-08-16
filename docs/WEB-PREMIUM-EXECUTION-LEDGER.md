@@ -3,7 +3,7 @@
 **Proyecto:** daily-system
 **Rama:** `product/web-premium-v1`
 **Última actualización:** 2026-08-15
-**HEAD:** `869dfc1`
+**HEAD:** `98df7aa`
 
 ---
 
@@ -12,7 +12,7 @@
 | Fase | Estado | Commit | Endpoints | Pruebas | CI | Decisiones | Blockers |
 |---|---|---|---|---|---|---|---|
 | **W0** | ✅ COMPLETADO | dac558d | BFF usuarios/audit | — | ✅ | Ledger creado | Ninguno |
-| **W1** | ✅ COMPLETADO | 869dfc1 | Todos | 32/32 backend + E2E + A11Y | en espera | Git repair, BFF PATCH, m10, UI completa | Ninguno |
+| **W1** | ✅ COMPLETADO | 98df7aa | Todos | 33/33 backend + E2E + A11Y | en espera | Git repair, BFF PATCH, m10, UI completa, PG migration gate | Ninguno |
 | **W2** | PENDIENTE | — | — | — | — | — | Depende de W1 |
 | **W3** | PENDIENTE | — | — | — | — | — | Depende de W2 |
 | **W4** | PENDIENTE | — | — | — | — | — | Depende de W3 |
