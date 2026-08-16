@@ -562,8 +562,8 @@ class TestM9toM10UpgradePG:
         if not raw.startswith("postgresql"):
             pytest.skip("No PostgreSQL available for migration gate")
         url = make_url(raw)
-        url = url.set(database="daily_migration_gate")
-        return str(url)
+        scratch_url = url.set(database="daily_migration_gate")
+        return scratch_url.render_as_string(hide_password=False)
 
     @pytest.fixture
     def migration_db(self, pg_test_db_url, request):
@@ -573,7 +573,7 @@ class TestM9toM10UpgradePG:
         from sqlalchemy.engine import Engine
 
         url = make_url(pg_test_db_url)
-        base_url = str(url.set(database="postgres"))
+        base_url = url.set(database="postgres").render_as_string(hide_password=False)
 
         # Conectar a postgres (master DB) para crear/destruir scratch
         engine = sa_create_engine(base_url)
