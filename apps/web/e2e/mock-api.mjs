@@ -86,6 +86,213 @@ const USUARIOS_MOCK = [
   },
 ];
 
+// ─── W2: clientes del negocio ────────────────────────────────────────────────
+// Replica el contrato Cliente 360: lista paginada (ClienteListPage), detalle
+// (Cliente360Response) y edicion (ClienteUpdate con extra=forbid). El store es
+// mutable (crear/editar lo modifican) y el reset entre tests es EXPLICITO via
+// POST /api/_test/reset-clientes.
+const CLIENTES_FIXTURE = [
+  {
+    id: 'cli-11111111-1111-4111-8111-111111111111',
+    negocio_id: 'n1',
+    tipo_documento: 'CC',
+    documento_normalizado: '1000000001',
+    identity_status: 'VERIFIED',
+    primer_apellido: 'Torres',
+    segundo_apellido: 'Rojas',
+    nombres: 'Ana María',
+    telefono_1: '3001234567',
+    telefono_2: '3019876543',
+    direccion: 'Calle 10 # 5-20',
+    barrio: 'Palermo',
+    ciudad: 'Bogotá',
+    ocupacion: 'Independiente',
+    creado_el: new Date(Date.now() - 400 * 86400000).toISOString(),
+    creditos: [
+      {
+        id: 'cred-11111111-1111-4111-8111-111111111111',
+        estado: 'ACTIVO',
+        cuota: 100000,
+        n_cuotas: 12,
+        monto: 1000000,
+        total: 1200000,
+        periodicidad: 'DIARIA',
+        fecha_inicio: '2026-07-01',
+        saldo: 800000,
+        mora_legacy: 5,
+        pico: 1200000,
+        cuotas_pagadas: 4,
+        ruta_id: 'r1',
+        ruta_nombre: 'Ruta Centro',
+        cobrador_nombre: 'Carlos Cobrador',
+      },
+    ],
+    pagos: [
+      {
+        id: 'pag-11111111-1111-4111-8111-111111111111',
+        credito_id: 'cred-11111111-1111-4111-8111-111111111111',
+        tipo: 'PAGO',
+        monto: 100000,
+        nota: 'Abono',
+        recibido_el_servidor: new Date(Date.now() - 86400000).toISOString(),
+      },
+    ],
+  },
+  {
+    id: 'cli-22222222-2222-4222-8222-222222222222',
+    negocio_id: 'n1',
+    tipo_documento: 'CC',
+    documento_normalizado: '1000000002',
+    identity_status: 'PROVISIONAL',
+    primer_apellido: 'Gómez',
+    segundo_apellido: null,
+    nombres: 'Luis Fernando',
+    telefono_1: '3002223344',
+    telefono_2: null,
+    direccion: 'Carrera 8 # 15-40',
+    barrio: 'Teusaquillo',
+    ciudad: 'Bogotá',
+    ocupacion: 'Empleado',
+    creado_el: new Date(Date.now() - 30 * 86400000).toISOString(),
+    creditos: [
+      {
+        id: 'cred-22222222-2222-4222-8222-222222222222',
+        estado: 'ACTIVO',
+        cuota: 50000,
+        n_cuotas: 10,
+        monto: 500000,
+        total: 500000,
+        periodicidad: 'SEMANAL',
+        fecha_inicio: '2026-08-01',
+        saldo: 500000,
+        mora_legacy: 0,
+        pico: 500000,
+        cuotas_pagadas: 0,
+        ruta_id: 'r1',
+        ruta_nombre: 'Ruta Centro',
+        cobrador_nombre: 'Carlos Cobrador',
+      },
+    ],
+    pagos: [],
+  },
+  {
+    id: 'cli-33333333-3333-4333-8333-333333333333',
+    negocio_id: 'n1',
+    tipo_documento: 'CE',
+    documento_normalizado: '2000000001',
+    identity_status: 'POSSIBLE_DUPLICATE',
+    primer_apellido: 'Ruiz',
+    segundo_apellido: 'Pérez',
+    nombres: 'Marta Elena',
+    telefono_1: '3105556677',
+    telefono_2: null,
+    direccion: 'Av 30 # 12-88',
+    barrio: 'Villa Nueva',
+    ciudad: 'Medellín',
+    ocupacion: null,
+    creado_el: new Date(Date.now() - 10 * 86400000).toISOString(),
+    creditos: [
+      {
+        id: 'cred-33333333-3333-4333-8333-333333333333',
+        estado: 'ACTIVO',
+        cuota: 80000,
+        n_cuotas: 8,
+        monto: 640000,
+        total: 640000,
+        periodicidad: 'DIARIA',
+        fecha_inicio: '2026-07-15',
+        saldo: 640000,
+        mora_legacy: 0,
+        pico: 640000,
+        cuotas_pagadas: 0,
+        ruta_id: 'r2',
+        ruta_nombre: 'Ruta Sur',
+        cobrador_nombre: 'Pedro Surero',
+      },
+    ],
+    pagos: [],
+  },
+  {
+    id: 'cli-44444444-4444-4444-8444-444444444444',
+    negocio_id: 'n1',
+    tipo_documento: 'CC',
+    documento_normalizado: '1000000003',
+    identity_status: 'VERIFIED',
+    primer_apellido: 'Vargas',
+    segundo_apellido: null,
+    nombres: 'Sofía Isabel',
+    telefono_1: '3009998877',
+    telefono_2: null,
+    direccion: null,
+    barrio: null,
+    ciudad: 'Bogotá',
+    ocupacion: 'Estudiante',
+    creado_el: new Date(Date.now() - 5 * 86400000).toISOString(),
+    creditos: [],
+    pagos: [],
+  },
+];
+
+const CLIENTES_MOCK = CLIENTES_FIXTURE.map((c) => JSON.parse(JSON.stringify(c)));
+
+function clienteListDTO(c) {
+  return {
+    id: c.id,
+    tipo_documento: c.tipo_documento,
+    documento_normalizado: c.documento_normalizado,
+    identity_status: c.identity_status,
+    primer_apellido: c.primer_apellido,
+    segundo_apellido: c.segundo_apellido,
+    nombres: c.nombres,
+    telefono_1: c.telefono_1,
+    ciudad: c.ciudad,
+    creditos_activos: c.creditos.filter((cr) => cr.estado === 'ACTIVO').length,
+    creado_el: c.creado_el,
+  };
+}
+
+function clienteResponseDTO(c) {
+  return {
+    id: c.id,
+    negocio_id: c.negocio_id,
+    tipo_documento: c.tipo_documento,
+    documento_normalizado: c.documento_normalizado,
+    identity_status: c.identity_status,
+    primer_apellido: c.primer_apellido,
+    segundo_apellido: c.segundo_apellido,
+    nombres: c.nombres,
+    telefono_1: c.telefono_1,
+    telefono_2: c.telefono_2,
+    direccion: c.direccion,
+    barrio: c.barrio,
+    ciudad: c.ciudad,
+    ocupacion: c.ocupacion,
+    creado_el: c.creado_el,
+  };
+}
+
+function cliente360DTO(c) {
+  return {
+    ...clienteResponseDTO(c),
+    creditos: c.creditos,
+    pagos_recientes: c.pagos.slice(0, 10),
+    saldo_total: c.creditos
+      .filter((cr) => cr.estado === 'ACTIVO')
+      .reduce((acc, cr) => acc + cr.saldo, 0),
+  };
+}
+
+function clienteEnRuta(c, routeId) {
+  return c.creditos.some((cr) => cr.ruta_id === routeId);
+}
+
+function resetClientes() {
+  // Re-seed desde el fixture inicial (deep clone): nada mutable sobrevive.
+  const seed = CLIENTES_FIXTURE.map((c) => JSON.parse(JSON.stringify(c)));
+  CLIENTES_MOCK.length = 0;
+  CLIENTES_MOCK.push(...seed);
+}
+
 // ─── W1: audit logs ──────────────────────────────────────────────────────────
 const AUDIT_MOCK = [
   {
@@ -256,6 +463,7 @@ const ROL_CAPABILITIES = {
   COBRADOR: [
     'jornada:ver', 'jornada:abrir', 'jornada:cerrar',
     'ruta:ver', 'movimientos:registrar', 'pagos:registrar', 'sync:ver',
+    'clientes:ver',
   ],
   INVERSIONISTA: [
     'inversionista:resumen', 'inversionista:suscripcion',
@@ -266,6 +474,7 @@ const ROL_CAPABILITIES = {
     'jornadas:ver', 'rutas:ver', 'rutas:crear', 'rutas:reasignar',
     'creditos:ver', 'codigos:crear', 'dispositivos:registrar',
     'usuarios:ver', 'usuarios:gestionar', 'audit:ver',
+    'clientes:ver', 'clientes:gestionar',
   ],
 };
 
@@ -578,6 +787,10 @@ const server = http.createServer(async (req, res) => {
   }
   if (req.method === 'POST' && path === '/api/_test/reset-onboarding') {
     seedOnboarding();
+    return json(res, 200, { ok: true });
+  }
+  if (req.method === 'POST' && path === '/api/_test/reset-clientes') {
+    resetClientes();
     return json(res, 200, { ok: true });
   }
 
@@ -1072,6 +1285,154 @@ const server = http.createServer(async (req, res) => {
 
   // ── POST /api/activaciones/codigos (generar codigo de activacion) ────────────
   // (ya existe en mock-api.mjs desde linea ~595, verificar que no duplique)
+
+  // ── W2: GET /api/clientes (listar clientes del negocio, paginado) ──────────
+  if (req.method === 'GET' && path === '/api/clientes') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('clientes:ver')) {
+      return json(res, 403, { detail: 'No autorizado para clientes:ver' });
+    }
+
+    const query = new URL(req.url, 'http://localhost').searchParams;
+    const q = query.get('q');
+    const tipo_documento = query.get('tipo_documento');
+    const identity_status = query.get('identity_status');
+    const limit = Math.min(parseInt(query.get('limit') || '50', 10) || 50, 100);
+    const offset = parseInt(query.get('offset') || '0', 10) || 0;
+
+    // COBRADOR: scoped a su ruta (aislamiento derivado via Credito, como el backend).
+    const esCobrador = ses.rol === 'COBRADOR';
+
+    const norm = (s) => (s || '').toLowerCase();
+    let items = CLIENTES_MOCK.filter((c) => {
+      if (c.negocio_id !== 'n1') return false;
+      if (esCobrador && !clienteEnRuta(c, ses.route_id)) return false;
+      if (tipo_documento && c.tipo_documento !== tipo_documento) return false;
+      if (identity_status && c.identity_status !== identity_status) return false;
+      if (q) {
+        const doc = `${c.tipo_documento ?? ''} ${c.documento_normalizado ?? ''}`.toLowerCase();
+        const nombre = norm([c.nombres, c.primer_apellido, c.segundo_apellido].filter(Boolean).join(' '));
+        const tel = norm(c.telefono_1);
+        if (!nombre.includes(norm(q)) && !doc.includes(norm(q)) && !tel.includes(norm(q))) return false;
+      }
+      return true;
+    });
+
+    const total = items.length;
+    items = items.slice(offset, offset + limit);
+    return json(res, 200, {
+      items: items.map(clienteListDTO),
+      total,
+      limit,
+      offset,
+    });
+  }
+
+  // ── W2: POST /api/clientes (crear cliente, clientes:gestionar) ─────────────
+  if (req.method === 'POST' && path === '/api/clientes') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('clientes:gestionar')) {
+      return json(res, 403, { detail: 'No autorizado para clientes:gestionar' });
+    }
+
+    const trim = (v) => (typeof v === 'string' ? v.trim() || null : null);
+    if (!body.primer_apellido || typeof body.primer_apellido !== 'string' || !body.primer_apellido.trim()) {
+      return json(res, 422, { detail: 'primer_apellido es requerido' });
+    }
+    if (!body.nombres || typeof body.nombres !== 'string' || !body.nombres.trim()) {
+      return json(res, 422, { detail: 'nombres es requerido' });
+    }
+    // extra=forbid: la identidad no se define por el cliente.
+    const permitidos = new Set([
+      'primer_apellido', 'segundo_apellido', 'nombres', 'tipo_documento',
+      'documento_normalizado', 'telefono_1', 'telefono_2', 'direccion',
+      'barrio', 'ciudad', 'ocupacion',
+    ]);
+    for (const k of Object.keys(body)) if (!permitidos.has(k)) {
+      return json(res, 422, { detail: `Campo no permitido: ${k}` });
+    }
+
+    const nuevo = {
+      id: uuid(),
+      negocio_id: 'n1',
+      tipo_documento: trim(body.tipo_documento),
+      documento_normalizado: trim(body.documento_normalizado),
+      identity_status: 'PROVISIONAL',
+      primer_apellido: body.primer_apellido.trim(),
+      segundo_apellido: trim(body.segundo_apellido),
+      nombres: body.nombres.trim(),
+      telefono_1: trim(body.telefono_1),
+      telefono_2: trim(body.telefono_2),
+      direccion: trim(body.direccion),
+      barrio: trim(body.barrio),
+      ciudad: trim(body.ciudad),
+      ocupacion: trim(body.ocupacion),
+      creado_el: new Date().toISOString(),
+      creditos: [],
+      pagos: [],
+    };
+    CLIENTES_MOCK.push(nuevo);
+    return json(res, 201, clienteResponseDTO(nuevo));
+  }
+
+  // ── W2: GET /api/clientes/:id (Cliente 360, clientes:ver) ──────────────────
+  if (req.method === 'GET' && path.startsWith('/api/clientes/')) {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('clientes:ver')) {
+      return json(res, 403, { detail: 'No autorizado para clientes:ver' });
+    }
+
+    const id = path.split('/').pop();
+    const c = CLIENTES_MOCK.find((x) => x.id === id && x.negocio_id === 'n1');
+    if (!c) return json(res, 404, { detail: 'Cliente no encontrado' });
+    // COBRADOR: 404 si el cliente no esta en su ruta (mismo contrato que el backend).
+    if (ses.rol === 'COBRADOR' && !clienteEnRuta(c, ses.route_id)) {
+      return json(res, 404, { detail: 'Cliente no encontrado' });
+    }
+    return json(res, 200, cliente360DTO(c));
+  }
+
+  // ── W2: PATCH /api/clientes/:id (editar cliente, clientes:gestionar) ───────
+  if (req.method === 'PATCH' && path.startsWith('/api/clientes/')) {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('clientes:gestionar')) {
+      return json(res, 403, { detail: 'No autorizado para clientes:gestionar' });
+    }
+
+    const id = path.split('/').pop();
+    const c = CLIENTES_MOCK.find((x) => x.id === id && x.negocio_id === 'n1');
+    if (!c) return json(res, 404, { detail: 'Cliente no encontrado' });
+
+    // extra=forbid: identidad (tipo_documento/documento_normalizado/identity_status) NO es editable.
+    const editables = new Set([
+      'primer_apellido', 'segundo_apellido', 'nombres', 'telefono_1',
+      'telefono_2', 'direccion', 'barrio', 'ciudad', 'ocupacion',
+    ]);
+    for (const k of Object.keys(body)) if (!editables.has(k)) {
+      return json(res, 422, { detail: `Campo no editable: ${k}` });
+    }
+
+    const trim = (v) => (typeof v === 'string' ? v.trim() || null : null);
+    if (body.primer_apellido !== undefined) c.primer_apellido = trim(body.primer_apellido);
+    if (body.segundo_apellido !== undefined) c.segundo_apellido = trim(body.segundo_apellido);
+    if (body.nombres !== undefined) c.nombres = trim(body.nombres);
+    if (body.telefono_1 !== undefined) c.telefono_1 = trim(body.telefono_1);
+    if (body.telefono_2 !== undefined) c.telefono_2 = trim(body.telefono_2);
+    if (body.direccion !== undefined) c.direccion = trim(body.direccion);
+    if (body.barrio !== undefined) c.barrio = trim(body.barrio);
+    if (body.ciudad !== undefined) c.ciudad = trim(body.ciudad);
+    if (body.ocupacion !== undefined) c.ocupacion = trim(body.ocupacion);
+
+    return json(res, 200, clienteResponseDTO(c));
+  }
 
   return json(res, 404, { detail: 'Not found in mock API' });
 });

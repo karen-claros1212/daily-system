@@ -46,6 +46,8 @@ const CAPS_ADMINISTRADOR = [
   'usuarios:ver',
   'usuarios:gestionar',
   'audit:ver',
+  'clientes:ver',
+  'clientes:gestionar',
 ];
 const CAPS_COBRADOR = [
   'jornada:ver',
@@ -55,6 +57,7 @@ const CAPS_COBRADOR = [
   'movimientos:registrar',
   'pagos:registrar',
   'sync:ver',
+  'clientes:ver',
 ];
 
 interface MeBody {

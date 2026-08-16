@@ -309,6 +309,127 @@ test.describe('A11y', () => {
     expect(results.violations).toEqual([]);
   });
 
+  // ─── W2: a11y /clientes y /clientes/[id] ──────────────────────────────────
+  test('clientes a11y scan', async ({ page }) => {
+    await page.route(/\/api\/clientes(\?.*)?$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        json: {
+          items: [
+            {
+              id: 'cli-1111',
+              tipo_documento: 'CC',
+              documento_normalizado: '1000000001',
+              identity_status: 'VERIFIED',
+              primer_apellido: 'Torres',
+              segundo_apellido: null,
+              nombres: 'Ana María',
+              telefono_1: '3001234567',
+              ciudad: 'Bogotá',
+              creditos_activos: 1,
+              creado_el: '2025-07-12T16:52:14.950Z',
+            },
+            {
+              id: 'cli-2222',
+              tipo_documento: 'CE',
+              documento_normalizado: '2000000001',
+              identity_status: 'POSSIBLE_DUPLICATE',
+              primer_apellido: 'Ruiz',
+              segundo_apellido: null,
+              nombres: 'Marta Elena',
+              telefono_1: '3105556677',
+              ciudad: 'Medellín',
+              creditos_activos: 1,
+              creado_el: '2026-08-06T16:52:14.950Z',
+            },
+          ],
+          total: 2,
+          limit: 25,
+          offset: 0,
+        },
+      });
+    });
+    await setSessionToken(page, 'mock-admin');
+    await page.goto('/clientes');
+    await expect(page.getByText('Clientes (2)')).toBeVisible();
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('cliente detalle a11y scan', async ({ page }) => {
+    await page.route(/\/api\/clientes\/[^/]+(\?.*)?$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        json: {
+          id: 'cli-1111',
+          negocio_id: 'n1',
+          tipo_documento: 'CC',
+          documento_normalizado: '1000000001',
+          identity_status: 'VERIFIED',
+          primer_apellido: 'Torres',
+          segundo_apellido: null,
+          nombres: 'Ana María',
+          telefono_1: '3001234567',
+          telefono_2: null,
+          direccion: 'Calle 10 # 5-20',
+          barrio: 'Palermo',
+          ciudad: 'Bogotá',
+          ocupacion: 'Independiente',
+          creado_el: '2025-07-12T16:52:14.950Z',
+          saldo_total: 800000,
+          creditos: [
+            {
+              id: 'cred-1111',
+              estado: 'ACTIVO',
+              cuota: 100000,
+              n_cuotas: 12,
+              monto: 1000000,
+              total: 1200000,
+              saldo: 800000,
+              cuotas_pagadas: 4,
+              mora_legacy: 5,
+              ruta_nombre: 'Ruta Centro',
+              cobrador_nombre: 'Carlos Cobrador',
+            },
+          ],
+          pagos_recientes: [
+            {
+              id: 'pag-1111',
+              tipo: 'PAGO',
+              monto: 100000,
+              nota: 'Abono',
+              recibido_el_servidor: '2026-08-15T10:00:00Z',
+            },
+          ],
+        },
+      });
+    });
+    await setSessionToken(page, 'mock-admin');
+    await page.goto('/clientes/cli-1111');
+    await expect(page.locator('h1')).toContainText('Ana María');
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('clientes crear form a11y', async ({ page }) => {
+    await page.route(/\/api\/clientes(\?.*)?$/, async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({ status: 200, json: { items: [], total: 0, limit: 25, offset: 0 } });
+      } else if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 201,
+          json: { id: 'cli-nuevo', negocio_id: 'n1', identity_status: 'PROVISIONAL', primer_apellido: 'X', nombres: 'Y', creado_el: '2026-08-16T00:00:00Z' },
+        });
+      }
+    });
+    await setSessionToken(page, 'mock-admin');
+    await page.goto('/clientes');
+    await page.getByRole('button', { name: 'Nuevo Cliente' }).click();
+    await expect(page.getByText('Nuevo Cliente')).toBeVisible();
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
   // ─── W1: keyboard nav en tabla ───────────────────────────────────────────
   test('keyboard nav en tabla usuarios', async ({ page }) => {
     await page.route('**/api/usuarios', async (route) => {
