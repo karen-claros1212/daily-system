@@ -265,6 +265,7 @@ const ROL_CAPABILITIES = {
     'inversionista:resumen', 'inversionista:suscripcion',
     'jornadas:ver', 'rutas:ver', 'rutas:crear', 'rutas:reasignar',
     'creditos:ver', 'codigos:crear', 'dispositivos:registrar',
+    'usuarios:ver', 'usuarios:gestionar', 'audit:ver',
   ],
 };
 

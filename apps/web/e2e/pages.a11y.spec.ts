@@ -85,7 +85,9 @@ test.describe('A11y', () => {
       });
     });
     await setSessionToken(page, 'mock-admin');
-    await page.goto('/dispositivos');
+    await page.goto('/usuarios');
+    await expect(page.getByText('Carlos Cobrador')).toBeVisible();
+    await expect(page.getByText('Cargando usuarios...')).toBeHidden();
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
     expect(results.violations).toEqual([]);
   });
@@ -213,13 +215,14 @@ test.describe('A11y', () => {
     });
     await setSessionToken(page, 'mock-admin');
     await page.goto('/usuarios');
+    await expect(page.getByText('Cargando usuarios...')).toBeHidden();
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
     expect(results.violations).toEqual([]);
   });
 
   // ─── W1: a11y /auditoria ─────────────────────────────────────────────────
   test('auditoria a11y scan', async ({ page }) => {
-    await page.route('**/api/audit', async (route) => {
+    await page.route(/\/api\/audit(\?.*)?$/, async (route) => {
       await route.fulfill({
         status: 200,
         json: [
@@ -241,12 +244,14 @@ test.describe('A11y', () => {
     });
     await setSessionToken(page, 'mock-admin');
     await page.goto('/auditoria');
+    await expect(page.getByText('Admin Principal')).toBeVisible();
+    await expect(page.getByText('Cargando logs de auditoría...')).toBeHidden();
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
     expect(results.violations).toEqual([]);
   });
 
   test('auditoria expandible a11y', async ({ page }) => {
-    await page.route('**/api/audit', async (route) => {
+    await page.route(/\/api\/audit(\?.*)?$/, async (route) => {
       await route.fulfill({
         status: 200,
         json: [
@@ -286,7 +291,7 @@ test.describe('A11y', () => {
       }];
       await route.fulfill({ status: 200, json: usuariosList});
     });
-    await page.route('**/api/usuarios/**/estado', async (route) => {
+    await page.route(/\/api\/usuarios\/([^/]+)\/estado(\?.*)?$/, async (route) => {
       await route.fulfill({ status: 200, json: {
         id: 'cob-2222',
         negocio_id: 'n1',

@@ -46,31 +46,44 @@ export function AuditoriaPage({ session }: { session: import("@/lib/rbac").Sessi
   });
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const hasAudit = hasCapability(session, 'audit:ver');
 
-  async function loadAudit() {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await fetchAudit({
-        action: filters.action || undefined,
-        entity_type: filters.entity_type || undefined,
-        limit: filters.limit,
-      });
-      setLogs(data);
-      setPage(1);
-      setExpandedId(null);
-    } catch {
-      setError('Error al cargar logs de auditoría');
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    loadAudit();
-  }, [filters.action, filters.entity_type, filters.limit]);
+    let ignore = false;
+
+    async function loadAudit() {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await fetchAudit({
+          action: filters.action || undefined,
+          entity_type: filters.entity_type || undefined,
+          limit: filters.limit,
+        });
+        if (!ignore) {
+          setLogs(data);
+          setPage(1);
+          setExpandedId(null);
+        }
+      } catch {
+        if (!ignore) {
+          setError('Error al cargar logs de auditoría');
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadAudit();
+
+    return () => {
+      ignore = true;
+    };
+  }, [filters.action, filters.entity_type, filters.limit, refreshKey]);
 
   function getAccionLabel(action: string): string {
     return ACCION_LABELS[action] || action;
@@ -128,7 +141,7 @@ export function AuditoriaPage({ session }: { session: import("@/lib/rbac").Sessi
             />
           </div>
           <div className="flex items-end">
-            <Button onClick={loadAudit} variant="primary">Filtrar</Button>
+            <Button onClick={() => setRefreshKey(k => k + 1)} variant="primary">Filtrar</Button>
           </div>
         </div>
       </Card>

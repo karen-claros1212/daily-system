@@ -6,6 +6,11 @@ const nextConfig = {
   // clicks en E2E). Se reposicionan fuera del área de navegación.
   devIndicators: { position: 'top-right' },
   async headers() {
+    // React en modo desarrollo requiere unsafe-eval; el CSP estricto de
+    // producción lo bloquea y dispara el overlay de errores de Next.js (un
+    // segundo [role="dialog"]) que rompe los E2E. Solo se afloja en dev.
+    const isDev = process.env.NODE_ENV !== 'production';
+    const scriptSrc = ["script-src 'self' 'unsafe-inline'", ...(isDev ? ["'unsafe-eval'"] : [])].join(' ');
     return [
       {
         source: '/:path*',
@@ -14,7 +19,7 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline'",
+              scriptSrc,
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob:",
               "font-src 'self' data:",

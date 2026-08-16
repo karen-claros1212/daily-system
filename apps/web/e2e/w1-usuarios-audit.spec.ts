@@ -48,26 +48,26 @@ test.describe('W1 E2E: ADMIN - Usuarios', () => {
 
   test('ADMIN crea nuevo cobrador', async ({ page }) => {
     let creado = false;
-    await page.route('**/api/usuarios', async (route) => {
+    const usuarios: Record<string, unknown>[] = [];
+    await page.route(/\/api\/usuarios(\?.*)?$/, async (route) => {
       if (route.request().method() === 'GET') {
-        await route.fulfill({ status: 200, json: [] });
+        await route.fulfill({ status: 200, json: usuarios });
       } else if (route.request().method() === 'POST') {
         creado = true;
-        const body = route.request().json();
+        const body = route.request().postDataJSON();
         expect(body.nombre).toBe('Nuevo Cobrador');
         expect(body.rol).toBe('COBRADOR');
-        await route.fulfill({
-          status: 201,
-          json: {
-            id: 'cob-new-uuid',
-            negocio_id: 'n1',
-            rol: 'COBRADOR',
-            nombre: 'Nuevo Cobrador',
-            documento: null,
-            activo: 1,
-            creado_el: new Date().toISOString(),
-          },
-        });
+        const nuevo = {
+          id: 'cob-new-uuid',
+          negocio_id: 'n1',
+          rol: 'COBRADOR',
+          nombre: 'Nuevo Cobrador',
+          documento: null,
+          activo: 1,
+          creado_el: new Date().toISOString(),
+        };
+        usuarios.push(nuevo);
+        await route.fulfill({ status: 201, json: nuevo });
       }
     });
     await page.goto('/usuarios');
@@ -81,25 +81,25 @@ test.describe('W1 E2E: ADMIN - Usuarios', () => {
 
   test('ADMIN crea inversionista', async ({ page }) => {
     let creado = false;
-    await page.route('**/api/usuarios', async (route) => {
+    const usuarios: Record<string, unknown>[] = [];
+    await page.route(/\/api\/usuarios(\?.*)?$/, async (route) => {
       if (route.request().method() === 'GET') {
-        await route.fulfill({ status: 200, json: [] });
+        await route.fulfill({ status: 200, json: usuarios });
       } else if (route.request().method() === 'POST') {
         creado = true;
-        const body = route.request().json();
+        const body = route.request().postDataJSON();
         expect(body.rol).toBe('INVERSIONISTA');
-        await route.fulfill({
-          status: 201,
-          json: {
-            id: 'inv-new-uuid',
-            negocio_id: 'n1',
-            rol: 'INVERSIONISTA',
-            nombre: body.nombre,
-            documento: null,
-            activo: 1,
-            creado_el: new Date().toISOString(),
-          },
-        });
+        const nuevo = {
+          id: 'inv-new-uuid',
+          negocio_id: 'n1',
+          rol: 'INVERSIONISTA',
+          nombre: body.nombre,
+          documento: null,
+          activo: 1,
+          creado_el: new Date().toISOString(),
+        };
+        usuarios.push(nuevo);
+        await route.fulfill({ status: 201, json: nuevo });
       }
     });
     await page.goto('/usuarios');
@@ -113,33 +113,36 @@ test.describe('W1 E2E: ADMIN - Usuarios', () => {
 
   test('ADMIN edita usuario', async ({ page }) => {
     let editado = false;
-    await page.route('**/api/usuarios', async (route) => {
-      if (route.request().method() === 'GET') {
-        const usuariosList = [{
-          id: 'cob-22222222-2222-4222-8222-222222222222',
-          rol: 'COBRADOR',
-          nombre: 'Carlos Cobrador',
-          documento: '9876543210',
-          activo: 1,
-          creado_el: '2026-06-15T00:00:00Z',
-        }];
-        await route.fulfill({ status: 200, json: usuariosList});
-      } else if (route.request().method() === 'PATCH') {
+    let usuarios: Record<string, unknown>[] = [{
+      id: 'cob-22222222-2222-4222-8222-222222222222',
+      rol: 'COBRADOR',
+      nombre: 'Carlos Cobrador',
+      documento: '9876543210',
+      activo: 1,
+      creado_el: '2026-06-15T00:00:00Z',
+    }];
+    await page.route(/\/api\/usuarios\/([^/]+)$/, async (route) => {
+      if (route.request().method() === 'PATCH') {
         editado = true;
-        const body = route.request().json();
+        const body = route.request().postDataJSON();
         expect(body.nombre).toBe('Carlos Cobrador Editado');
-        await route.fulfill({
-          status: 200,
-          json: {
-            id: 'cob-22222222-2222-4222-8222-222222222222',
-            negocio_id: 'n1',
-            rol: 'COBRADOR',
-            nombre: 'Carlos Cobrador Editado',
-            documento: '9876543210',
-            activo: 1,
-            creado_el: '2026-06-15T00:00:00Z',
-          },
-        });
+        const actualizado = {
+          ...usuarios[0],
+          negocio_id: 'n1',
+          nombre: 'Carlos Cobrador Editado',
+          documento: body.documento ?? usuarios[0].documento,
+        };
+        usuarios = [actualizado];
+        await route.fulfill({ status: 200, json: actualizado });
+      } else {
+        await route.fallback();
+      }
+    });
+    await page.route(/\/api\/usuarios(\?.*)?$/, async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({ status: 200, json: usuarios });
+      } else {
+        await route.fallback();
       }
     });
     await page.goto('/usuarios');
@@ -152,7 +155,7 @@ test.describe('W1 E2E: ADMIN - Usuarios', () => {
 
   test('ADMIN desactiva usuario con confirmacion', async ({ page }) => {
     let desactivado = false;
-    await page.route('**/api/usuarios/**/estado', async (route) => {
+    await page.route(/\/api\/usuarios\/([^/]+)\/estado(\?.*)?$/, async (route) => {
       if (route.request().method() === 'PATCH') {
         desactivado = true;
         const url = new URL(route.request().url());
@@ -169,6 +172,8 @@ test.describe('W1 E2E: ADMIN - Usuarios', () => {
             creado_el: '2026-06-15T00:00:00Z',
           },
         });
+      } else {
+        await route.fallback();
       }
     });
     await page.route('**/api/usuarios', async (route) => {
@@ -185,18 +190,18 @@ test.describe('W1 E2E: ADMIN - Usuarios', () => {
       }
     });
     await page.goto('/usuarios');
-    await page.getByRole('button', { name: 'Desactivar' }).click();
+    await page.getByRole('button', { name: 'Desactivar Carlos Cobrador' }).click();
     // Modal de confirmacion
     await expect(page.locator('[role="dialog"]')).toBeVisible();
     await page.locator('#confirmName').fill('Carlos Cobrador');
-    await page.getByRole('button', { name: 'Desactivar' }).click();
+    await page.locator('[role="dialog"]').getByRole('button', { name: 'Desactivar' }).click();
     expect(desactivado).toBe(true);
   });
 
   test('ADMIN genera codigo de activacion', async ({ page }) => {
     await page.route('**/api/activaciones/codigos', async (route) => {
       if (route.request().method() === 'POST') {
-        const body = route.request().json();
+        const body = route.request().postDataJSON();
         expect(body.usuario_id).toBe('cob-22222222-2222-4222-8222-222222222222');
         await route.fulfill({
           status: 201,
@@ -223,16 +228,19 @@ test.describe('W1 E2E: ADMIN - Usuarios', () => {
       }
     });
     await page.goto('/usuarios');
-    await page.getByRole('button', { name: /Activación/ }).first().click();
+    await page.getByRole('button', { name: /activación/i }).first().click();
     await expect(page.getByText('Código de activación generado')).toBeVisible();
     await expect(page.getByText('Xz8R4pQ2')).toBeVisible();
   });
 
   test('ADMIN filtra por rol', async ({ page }) => {
-    await page.route('**/api/usuarios', async (route) => {
+    await page.route(/\/api\/usuarios(\?.*)?$/, async (route) => {
       if (route.request().method() === 'GET') {
         const url = new URL(route.request().url());
-        expect(url.searchParams.get('rol')).toBe('COBRADOR');
+        const rol = url.searchParams.get('rol');
+        if (rol) {
+          expect(rol).toBe('COBRADOR');
+        }
         const usuariosList = [{
           id: 'cob-22222222-2222-4222-8222-222222222222',
           rol: 'COBRADOR',
@@ -251,10 +259,13 @@ test.describe('W1 E2E: ADMIN - Usuarios', () => {
   });
 
   test('ADMIN filtra por estado', async ({ page }) => {
-    await page.route('**/api/usuarios', async (route) => {
+    await page.route(/\/api\/usuarios(\?.*)?$/, async (route) => {
       if (route.request().method() === 'GET') {
         const url = new URL(route.request().url());
-        expect(url.searchParams.get('activo')).toBe('0');
+        const activo = url.searchParams.get('activo');
+        if (activo) {
+          expect(activo).toBe('0');
+        }
         const usuariosList = [{
           id: 'cob-44444444-4444-4444-8444-444444444444',
           rol: 'COBRADOR',
@@ -275,7 +286,7 @@ test.describe('W1 E2E: ADMIN - Usuarios', () => {
   // ─── ADMIN: Auditoría ──────────────────────────────────────────────────────
 
   test('ADMIN accede a /auditoria', async ({ page }) => {
-    await page.route('**/api/audit', async (route) => {
+    await page.route(/\/api\/audit(\?.*)?$/, async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -304,10 +315,13 @@ test.describe('W1 E2E: ADMIN - Usuarios', () => {
   });
 
   test('ADMIN filtra auditoria', async ({ page }) => {
-    await page.route('**/api/audit', async (route) => {
+    await page.route(/\/api\/audit(\?.*)?$/, async (route) => {
       if (route.request().method() === 'GET') {
         const url = new URL(route.request().url());
-        expect(url.searchParams.get('action')).toBe('USUARIO_CREADO');
+        const action = url.searchParams.get('action');
+        if (action) {
+          expect(action).toBe('USUARIO_CREADO');
+        }
         await route.fulfill({ status: 200, json: [] });
       }
     });
@@ -317,7 +331,7 @@ test.describe('W1 E2E: ADMIN - Usuarios', () => {
   });
 
   test('ADMIN ve metadata expandible en auditoria', async ({ page }) => {
-    await page.route('**/api/audit', async (route) => {
+    await page.route(/\/api\/audit(\?.*)?$/, async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -372,12 +386,16 @@ test.describe('W1 E2E: COBRADOR - sin Usuarios/Auditoria', () => {
   });
 
   test('COBRADOR mutation /api/usuarios -> 403', async ({ page }) => {
-    const res = await page.request.get(`${MOCK}/api/usuarios`);
+    const res = await page.request.get(`${MOCK}/api/usuarios`, {
+      headers: { Authorization: 'Bearer mock-jwt-token' },
+    });
     expect(res.status()).toBe(403);
   });
 
   test('COBRADOR mutation /api/audit -> 403', async ({ page }) => {
-    const res = await page.request.get(`${MOCK}/api/audit`);
+    const res = await page.request.get(`${MOCK}/api/audit`, {
+      headers: { Authorization: 'Bearer mock-jwt-token' },
+    });
     expect(res.status()).toBe(403);
   });
 });
@@ -408,12 +426,16 @@ test.describe('W1 E2E: INVERSIONISTA - sin Usuarios/Auditoria', () => {
   });
 
   test('INVERSIONISTA mutation /api/usuarios -> 403', async ({ page }) => {
-    const res = await page.request.get(`${MOCK}/api/usuarios`);
+    const res = await page.request.get(`${MOCK}/api/usuarios`, {
+      headers: { Authorization: 'Bearer test-token' },
+    });
     expect(res.status()).toBe(403);
   });
 
   test('INVERSIONISTA mutation /api/audit -> 403', async ({ page }) => {
-    const res = await page.request.get(`${MOCK}/api/audit`);
+    const res = await page.request.get(`${MOCK}/api/audit`, {
+      headers: { Authorization: 'Bearer test-token' },
+    });
     expect(res.status()).toBe(403);
   });
 });

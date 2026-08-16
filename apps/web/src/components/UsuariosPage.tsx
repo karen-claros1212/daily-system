@@ -39,29 +39,46 @@ export function UsuariosPage({ session }: { session: import("@/lib/rbac").Sessio
   const [activationResult, setActivationResult] = useState<ActivationResult | null>(null);
   const [confirmDeactivateId, setConfirmDeactivateId] = useState<string | null>(null);
   const [confirmName, setConfirmName] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const isAdmin = hasCapability(session, 'usuarios:gestionar');
   const confirmInputRef = useRef<HTMLInputElement>(null);
 
-  async function loadUsuarios() {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await fetchUsuarios({
-        rol: filters.rol || undefined,
-        activo: filters.activo || undefined,
-      });
-      setUsuarios(data);
-    } catch {
-      setError('Error al cargar usuarios');
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    loadUsuarios();
-  }, [filters.rol, filters.activo]);
+    let ignore = false;
+
+    async function loadUsuarios() {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await fetchUsuarios({
+          rol: filters.rol || undefined,
+          activo: filters.activo || undefined,
+        });
+        if (!ignore) {
+          setUsuarios(data);
+        }
+      } catch {
+        if (!ignore) {
+          setError('Error al cargar usuarios');
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadUsuarios();
+
+    return () => {
+      ignore = true;
+    };
+  }, [filters.rol, filters.activo, refreshKey]);
+
+  function refresh() {
+    setRefreshKey(k => k + 1);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -70,7 +87,7 @@ export function UsuariosPage({ session }: { session: import("@/lib/rbac").Sessio
       await crearUsuario({ nombre: formData.nombre.trim(), rol: formData.rol, documento: formData.documento.trim() || null });
       setFormData({ nombre: '', rol: 'COBRADOR', documento: '' });
       setShowForm(false);
-      await loadUsuarios();
+      refresh();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al crear usuario');
     }
@@ -82,7 +99,7 @@ export function UsuariosPage({ session }: { session: import("@/lib/rbac").Sessio
     try {
       await editarUsuario(id, { nombre: editData.nombre.trim(), documento: editData.documento.trim() || null });
       setEditingId(null);
-      await loadUsuarios();
+      refresh();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al editar usuario');
     }
@@ -92,7 +109,7 @@ export function UsuariosPage({ session }: { session: import("@/lib/rbac").Sessio
     setError(null);
     try {
       await cambiarEstadoUsuario(id, activo);
-      await loadUsuarios();
+      refresh();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al cambiar estado');
     }
@@ -249,7 +266,7 @@ export function UsuariosPage({ session }: { session: import("@/lib/rbac").Sessio
             </select>
           </div>
           <div className="flex items-end">
-            <Button onClick={loadUsuarios} variant="primary">Filtrar</Button>
+            <Button onClick={refresh} variant="primary">Filtrar</Button>
           </div>
         </div>
       </Card>
