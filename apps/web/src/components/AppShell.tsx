@@ -17,6 +17,7 @@ import {
   IconShield,
   IconUsers,
   IconShieldCheck,
+  IconContactos,
 } from '@/components/ui/icons';
 import { IconButton } from '@/components/ui/button';
 
@@ -41,6 +42,7 @@ const ICONS: Record<string, React.ReactNode> = {
   dispositivos: <IconDispositivo size={18} aria-hidden="true" />,
   usuarios: <IconUsers size={18} aria-hidden="true" />,
   auditoria: <IconShieldCheck size={18} aria-hidden="true" />,
+  clientes: <IconContactos size={18} aria-hidden="true" />,
 };
 
 // Títulos humanos por ruta para breadcrumbs (label se mantiene por capabilities).
@@ -53,6 +55,7 @@ const TITLES: Record<string, string> = {
   dispositivos: 'Dispositivos',
   usuarios: 'Usuarios',
   auditoria: 'Auditoría',
+  clientes: 'Clientes',
 };
 
 export function AppShell({ children, session = null }: AppShellProps) {
@@ -60,7 +63,7 @@ export function AppShell({ children, session = null }: AppShellProps) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  const currentPage = pathname?.split('/').pop() || 'dashboard';
+  const currentPage = pathname?.split('/').filter(Boolean)[0] || 'dashboard';
 
   const handleNav = (page: string) => {
     router.push(`/${page}`);
@@ -98,6 +101,9 @@ export function AppShell({ children, session = null }: AppShellProps) {
       : []),
     ...(hasCapability(session, 'usuarios:gestionar')
       ? [{ id: 'usuarios', label: 'Usuarios', icon: ICONS.usuarios }]
+      : []),
+    ...(hasCapability(session, 'clientes:ver')
+      ? [{ id: 'clientes', label: 'Clientes', icon: ICONS.clientes }]
       : []),
     ...(hasCapability(session, 'audit:ver')
       ? [{ id: 'auditoria', label: 'Auditoría', icon: ICONS.auditoria }]

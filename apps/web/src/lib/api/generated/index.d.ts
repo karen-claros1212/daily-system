@@ -171,7 +171,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Editar Cliente */
+        patch: operations["editar_cliente_api_clientes__cliente_id__patch"];
         trace?: never;
     };
     "/api/creditos": {
@@ -1075,22 +1076,125 @@ export interface components {
              */
             idempotente: boolean;
         };
+        /**
+         * Cliente360Response
+         * @description Cliente 360: datos del cliente + creditos con saldo/mora + pagos
+         *     recientes. Saldo/mora provienen de la MISMA autoridad que la hoja viva
+         *     (resumen_creditos): no se duplica calculo financiero en el panel.
+         */
+        Cliente360Response: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Negocio Id
+             * Format: uuid
+             */
+            negocio_id: string;
+            /** Tipo Documento */
+            tipo_documento: string | null;
+            /** Documento Normalizado */
+            documento_normalizado: string | null;
+            /** Identity Status */
+            identity_status: string;
+            /** Primer Apellido */
+            primer_apellido: string | null;
+            /** Segundo Apellido */
+            segundo_apellido: string | null;
+            /** Nombres */
+            nombres: string | null;
+            /** Telefono 1 */
+            telefono_1: string | null;
+            /** Telefono 2 */
+            telefono_2: string | null;
+            /** Direccion */
+            direccion: string | null;
+            /** Barrio */
+            barrio: string | null;
+            /** Ciudad */
+            ciudad: string | null;
+            /** Ocupacion */
+            ocupacion: string | null;
+            /**
+             * Creado El
+             * Format: date-time
+             */
+            creado_el: string;
+            /** Creditos */
+            creditos: components["schemas"]["CreditoClienteResumen"][];
+            /** Pagos Recientes */
+            pagos_recientes: components["schemas"]["PagoClienteResumen"][];
+            /** Saldo Total */
+            saldo_total: number;
+        };
         /** ClienteCreate */
         ClienteCreate: {
             /** Primer Apellido */
             primer_apellido: string;
             /** Nombres */
             nombres: string;
+            /** Segundo Apellido */
+            segundo_apellido?: string | null;
             /** Tipo Documento */
             tipo_documento?: string | null;
             /** Documento Normalizado */
             documento_normalizado?: string | null;
             /** Telefono 1 */
             telefono_1?: string | null;
+            /** Telefono 2 */
+            telefono_2?: string | null;
             /** Direccion */
             direccion?: string | null;
+            /** Barrio */
+            barrio?: string | null;
             /** Ciudad */
             ciudad?: string | null;
+            /** Ocupacion */
+            ocupacion?: string | null;
+        };
+        /** ClienteListItem */
+        ClienteListItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Tipo Documento */
+            tipo_documento: string | null;
+            /** Documento Normalizado */
+            documento_normalizado: string | null;
+            /** Identity Status */
+            identity_status: string;
+            /** Primer Apellido */
+            primer_apellido: string | null;
+            /** Segundo Apellido */
+            segundo_apellido: string | null;
+            /** Nombres */
+            nombres: string | null;
+            /** Telefono 1 */
+            telefono_1: string | null;
+            /** Ciudad */
+            ciudad: string | null;
+            /** Creditos Activos */
+            creditos_activos: number;
+            /**
+             * Creado El
+             * Format: date-time
+             */
+            creado_el: string;
+        };
+        /** ClienteListPage */
+        ClienteListPage: {
+            /** Items */
+            items: components["schemas"]["ClienteListItem"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
         };
         /** ClienteResponse */
         ClienteResponse: {
@@ -1104,18 +1208,30 @@ export interface components {
              * Format: uuid
              */
             negocio_id: string;
-            /** Primer Apellido */
-            primer_apellido: string;
-            /** Nombres */
-            nombres: string;
+            /** Tipo Documento */
+            tipo_documento: string | null;
             /** Documento Normalizado */
             documento_normalizado: string | null;
             /** Identity Status */
             identity_status: string;
+            /** Primer Apellido */
+            primer_apellido: string | null;
+            /** Segundo Apellido */
+            segundo_apellido: string | null;
+            /** Nombres */
+            nombres: string | null;
+            /** Telefono 1 */
+            telefono_1: string | null;
+            /** Telefono 2 */
+            telefono_2: string | null;
             /** Direccion */
             direccion: string | null;
+            /** Barrio */
+            barrio: string | null;
             /** Ciudad */
             ciudad: string | null;
+            /** Ocupacion */
+            ocupacion: string | null;
             /**
              * Creado El
              * Format: date-time
@@ -1164,6 +1280,34 @@ export interface components {
              */
             creado_el: string;
         };
+        /**
+         * ClienteUpdate
+         * @description Editable en el panel: identidad de contacto y nombres.
+         *
+         *     Intencionalmente NO se edita tipo_documento / documento_normalizado /
+         *     identity_status: la identidad se resuelve por el flujo de verificacion, no
+         *     por edicion libre en el panel (documento/identidad invariante).
+         */
+        ClienteUpdate: {
+            /** Primer Apellido */
+            primer_apellido?: string | null;
+            /** Segundo Apellido */
+            segundo_apellido?: string | null;
+            /** Nombres */
+            nombres?: string | null;
+            /** Telefono 1 */
+            telefono_1?: string | null;
+            /** Telefono 2 */
+            telefono_2?: string | null;
+            /** Direccion */
+            direccion?: string | null;
+            /** Barrio */
+            barrio?: string | null;
+            /** Ciudad */
+            ciudad?: string | null;
+            /** Ocupacion */
+            ocupacion?: string | null;
+        };
         /** CodigoActivacionCreate */
         CodigoActivacionCreate: {
             /** Cobrador Id */
@@ -1192,6 +1336,48 @@ export interface components {
              * Format: date-time
              */
             expira_el: string;
+        };
+        /** CreditoClienteResumen */
+        CreditoClienteResumen: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Estado */
+            estado: string;
+            /** Cuota */
+            cuota: number;
+            /** N Cuotas */
+            n_cuotas: number;
+            /** Monto */
+            monto: number;
+            /** Total */
+            total: number;
+            /** Periodicidad */
+            periodicidad: string;
+            /**
+             * Fecha Inicio
+             * Format: date
+             */
+            fecha_inicio: string;
+            /** Saldo */
+            saldo: number;
+            /** Mora Legacy */
+            mora_legacy: number;
+            /** Pico */
+            pico: number;
+            /** Cuotas Pagadas */
+            cuotas_pagadas: number;
+            /**
+             * Ruta Id
+             * Format: uuid
+             */
+            ruta_id: string;
+            /** Ruta Nombre */
+            ruta_nombre: string;
+            /** Cobrador Nombre */
+            cobrador_nombre: string | null;
         };
         /** CreditoCreate */
         CreditoCreate: {
@@ -1842,6 +2028,27 @@ export interface components {
             /** Siguiente Paso */
             siguiente_paso: string;
         };
+        /** PagoClienteResumen */
+        PagoClienteResumen: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Credito Id */
+            credito_id: string | null;
+            /** Tipo */
+            tipo: string;
+            /** Monto */
+            monto: number;
+            /** Nota */
+            nota: string | null;
+            /**
+             * Recibido El Servidor
+             * Format: date-time
+             */
+            recibido_el_servidor: string;
+        };
         /** PagoCreate */
         PagoCreate: {
             /**
@@ -2410,6 +2617,11 @@ export interface operations {
     listar_clientes_api_clientes_get: {
         parameters: {
             query?: {
+                q?: string | null;
+                tipo_documento?: string | null;
+                identity_status?: string | null;
+                limit?: number;
+                offset?: number;
                 negocio_id?: string | null;
                 role?: string | null;
                 route_id?: string | null;
@@ -2428,7 +2640,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClienteResponse"][];
+                    "application/json": components["schemas"]["ClienteListPage"];
                 };
             };
             /** @description Validation Error */
@@ -2497,6 +2709,47 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Cliente360Response"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    editar_cliente_api_clientes__cliente_id__patch: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path: {
+                cliente_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClienteUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

@@ -115,6 +115,62 @@ export function registrarNegocio(data: OnboardingNegocioCreate): Promise<Onboard
   }).then((r) => parseJson<OnboardingNegocioResponse>(r));
 }
 
+// === Cliente (W2) ===
+
+export type ClienteList = components['schemas']['ClienteListItem'];
+export type ClienteListPage = components['schemas']['ClienteListPage'];
+export type Cliente = components['schemas']['ClienteResponse'];
+export type Cliente360 = components['schemas']['Cliente360Response'];
+export type ClienteCreateInput = components['schemas']['ClienteCreate'];
+export type ClienteUpdateInput = components['schemas']['ClienteUpdate'];
+
+/** GET /api/clientes via BFF (paginado + búsqueda + filtros). */
+export function fetchClientes(params?: {
+  q?: string;
+  tipo_documento?: string;
+  identity_status?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<ClienteListPage> {
+  const qs = new URLSearchParams();
+  if (params?.q) qs.set('q', params.q);
+  if (params?.tipo_documento) qs.set('tipo_documento', params.tipo_documento);
+  if (params?.identity_status) qs.set('identity_status', params.identity_status);
+  if (params?.limit) qs.set('limit', String(params.limit));
+  if (params?.offset) qs.set('offset', String(params.offset));
+  const query = qs.toString();
+  return fetch(`/api/clientes${query ? '?' + query : ''}`, { cache: 'no-store' }).then((r) =>
+    parseJson<ClienteListPage>(r),
+  );
+}
+
+/** POST /api/clientes via BFF (clientes:gestionar). */
+export function crearCliente(data: ClienteCreateInput): Promise<Cliente> {
+  return fetch('/api/clientes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    cache: 'no-store',
+  }).then((r) => parseJson<Cliente>(r));
+}
+
+/** GET /api/clientes/{id} via BFF — Cliente 360 (clientes:ver). */
+export function fetchCliente360(id: string): Promise<Cliente360> {
+  return fetch(`/api/clientes/${encodeURIComponent(id)}`, { cache: 'no-store' }).then((r) =>
+    parseJson<Cliente360>(r),
+  );
+}
+
+/** PATCH /api/clientes/{id} via BFF (clientes:gestionar). */
+export function editarCliente(id: string, data: ClienteUpdateInput): Promise<Cliente> {
+  return fetch(`/api/clientes/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    cache: 'no-store',
+  }).then((r) => parseJson<Cliente>(r));
+}
+
 // === Usuario (W1) ===
 
 export type Usuario = {
