@@ -790,6 +790,7 @@ class AuditLogResponse(BaseModel):
     id: UUID
     negocio_id: UUID
     actor_id: UUID
+    actor_nombre: str | None
     action: str
     entity_type: str
     entity_id: UUID | None

@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { proxyGet, proxyPost } from '@/lib/api/gateway';
+
+import { proxyGet, proxyPatch } from '@/lib/api/gateway';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,5 +24,5 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  return proxyPost(`/api/usuarios/${encodeURIComponent(id)}`, request);
+  return proxyPatch(`/api/usuarios/${encodeURIComponent(id)}`, request);
 }

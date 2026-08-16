@@ -46,6 +46,98 @@ const bootstrap = new Map();
 // El store es mutable y se resetea explicitamente via /api/_test/reset-onboarding.
 const onboardingNegocios = new Map(); // nit -> nombre (conflictos de NIT)
 
+// ─── W1: usuarios del negocio ────────────────────────────────────────────────
+const USUARIOS_MOCK = [
+  {
+    id: 'adm-11111111-1111-4111-8111-111111111111',
+    negocio_id: 'n1',
+    rol: 'ADMINISTRADOR',
+    nombre: 'Admin Principal',
+    documento: '1234567890',
+    activo: 1,
+    creado_el: new Date(Date.now() - 90 * 86400000).toISOString(),
+  },
+  {
+    id: 'cob-22222222-2222-4222-8222-222222222222',
+    negocio_id: 'n1',
+    rol: 'COBRADOR',
+    nombre: 'Carlos Cobrador',
+    documento: '9876543210',
+    activo: 1,
+    creado_el: new Date(Date.now() - 60 * 86400000).toISOString(),
+  },
+  {
+    id: 'inv-33333333-3333-4333-8333-333333333333',
+    negocio_id: 'n1',
+    rol: 'INVERSIONISTA',
+    nombre: 'Maria Inversionista',
+    documento: '5555666677',
+    activo: 1,
+    creado_el: new Date(Date.now() - 30 * 86400000).toISOString(),
+  },
+  {
+    id: 'cob-44444444-4444-4444-8444-444444444444',
+    negocio_id: 'n1',
+    rol: 'COBRADOR',
+    nombre: 'Ana Inactiva',
+    documento: '1111222233',
+    activo: 0,
+    creado_el: new Date(Date.now() - 120 * 86400000).toISOString(),
+  },
+];
+
+// ─── W1: audit logs ──────────────────────────────────────────────────────────
+const AUDIT_MOCK = [
+  {
+    id: uuid(),
+    negocio_id: 'n1',
+    actor_id: 'adm-11111111-1111-4111-8111-111111111111',
+    action: 'USUARIO_CREADO',
+    entity_type: 'USUARIO',
+    entity_id: 'cob-22222222-2222-4222-8222-222222222222',
+    metadata: { rol: 'COBRADOR', documento: '9876543210' },
+    ip_address: '192.168.1.100',
+    user_agent: 'Mozilla/5.0',
+    creado_el: new Date(Date.now() - 60 * 86400000).toISOString(),
+  },
+  {
+    id: uuid(),
+    negocio_id: 'n1',
+    actor_id: 'adm-11111111-1111-4111-8111-111111111111',
+    action: 'USUARIO_CREADO',
+    entity_type: 'USUARIO',
+    entity_id: 'inv-33333333-3333-4333-8333-333333333333',
+    metadata: { rol: 'INVERSIONISTA', documento: '5555666677' },
+    ip_address: '192.168.1.100',
+    user_agent: 'Mozilla/5.0',
+    creado_el: new Date(Date.now() - 30 * 86400000).toISOString(),
+  },
+  {
+    id: uuid(),
+    negocio_id: 'n1',
+    actor_id: 'adm-11111111-1111-4111-8111-111111111111',
+    action: 'USUARIO_DESATIVADO',
+    entity_type: 'USUARIO',
+    entity_id: 'cob-44444444-4444-4444-8444-444444444444',
+    metadata: { razon: 'baja voluntaria' },
+    ip_address: '192.168.1.100',
+    user_agent: 'Mozilla/5.0',
+    creado_el: new Date(Date.now() - 15 * 86400000).toISOString(),
+  },
+  {
+    id: uuid(),
+    negocio_id: 'n1',
+    actor_id: 'adm-11111111-1111-4111-8111-111111111111',
+    action: 'CODIGO_ACTIVACION_GENERADO',
+    entity_type: 'USUARIO',
+    entity_id: 'cob-22222222-2222-4222-8222-222222222222',
+    metadata: { prefijo: 'Xz8R4pQ2', expira_minutos: 60 },
+    ip_address: '192.168.1.100',
+    user_agent: 'Mozilla/5.0',
+    creado_el: new Date(Date.now() - 5 * 3600000).toISOString(),
+  },
+];
+
 function seedOnboarding() {
   onboardingNegocios.clear();
   onboardingNegocios.set('900123456', 'Negocio Existente');
@@ -818,6 +910,167 @@ const server = http.createServer(async (req, res) => {
       expira_el: rfc3339(Date.now() + 24 * 60 * 60 * 1000),
     });
   }
+
+  // ── GET /api/usuarios (listar usuarios del negocio) ─────────────────────────
+  if (req.method === 'GET' && path === '/api/usuarios') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (ses.rol !== 'ADMINISTRADOR') return json(res, 403, { detail: 'Forbidden' });
+
+    // W1 mock: lista de usuarios por negocio
+    const rol = req.url.includes('rol=') ? new URL(req.url, 'http://localhost').searchParams.get('rol') : null;
+    const activo = req.url.includes('activo=') ? new URL(req.url, 'http://localhost').searchParams.get('activo') : null;
+
+    const usuariosMock = USUARIOS_MOCK.filter(u => {
+      if (u.negocio_id !== 'n1') return false;
+      if (rol && u.rol !== rol) return false;
+      if (activo !== null && String(u.activo) !== activo) return false;
+      return true;
+    });
+
+    return json(res, 200, usuariosMock.map(u => ({
+      id: u.id,
+      rol: u.rol,
+      nombre: u.nombre,
+      documento: u.documento,
+      activo: u.activo,
+      creado_el: u.creado_el,
+    })));
+  }
+
+  // ── POST /api/usuarios (crear usuario) ──────────────────────────────────────
+  if (req.method === 'POST' && path === '/api/usuarios') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (ses.rol !== 'ADMINISTRADOR') return json(res, 403, { detail: 'Forbidden' });
+
+    const { nombre, rol, documento } = body;
+    if (!nombre || typeof nombre !== 'string' || !nombre.trim()) {
+      return json(res, 422, { detail: 'nombre es requerido' });
+    }
+    if (!rol || !['COBRADOR', 'INVERSIONISTA'].includes(rol)) {
+      return json(res, 422, { detail: 'rol invalido' });
+    }
+
+    const nuevo = {
+      id: uuid(),
+      negocio_id: 'n1',
+      rol,
+      nombre: nombre.trim(),
+      documento: documento ? String(documento).trim() : null,
+      activo: 1,
+      creado_el: new Date().toISOString(),
+    };
+    USUARIOS_MOCK.push(nuevo);
+    return json(res, 201, nuevo);
+  }
+
+  // ── PATCH /api/usuarios/:id (editar usuario) ────────────────────────────────
+  if (req.method === 'PATCH' && path.startsWith('/api/usuarios/') && !path.includes('/estado')) {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (ses.rol !== 'ADMINISTRADOR') return json(res, 403, { detail: 'Forbidden' });
+
+    const id = path.split('/').pop();
+    const u = USUARIOS_MOCK.find(u => u.id === id);
+    if (!u) return json(res, 404, { detail: 'Usuario no encontrado' });
+
+    const { nombre, documento } = body;
+    if (nombre) u.nombre = nombre.trim();
+    if (documento !== undefined) u.documento = documento ? String(documento).trim() : null;
+
+    return json(res, 200, {
+      id: u.id,
+      negocio_id: u.negocio_id,
+      rol: u.rol,
+      nombre: u.nombre,
+      documento: u.documento,
+      activo: u.activo,
+      creado_el: u.creado_el,
+    });
+  }
+
+  // ── PATCH /api/usuarios/:id/estado?activo=0|1 (cambiar estado) ──────────────
+  if (req.method === 'PATCH' && path.match(/^\/api\/usuarios\/[^\/]+\/estado$/)) {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (ses.rol !== 'ADMINISTRADOR') return json(res, 403, { detail: 'Forbidden' });
+
+    const url = new URL(req.url, 'http://localhost');
+    const activo = parseInt(url.searchParams.get('activo'), 10);
+    if (isNaN(activo) || activo !== 0 && activo !== 1) {
+      return json(res, 422, { detail: 'activo debe ser 0 o 1' });
+    }
+
+    const parts = path.split('/');
+    const id = parts[parts.length - 2];
+    const u = USUARIOS_MOCK.find(u => u.id === id);
+    if (!u) return json(res, 404, { detail: 'Usuario no encontrado' });
+    u.activo = activo;
+
+    return json(res, 200, {
+      id: u.id,
+      negocio_id: u.negocio_id,
+      rol: u.rol,
+      nombre: u.nombre,
+      documento: u.documento,
+      activo: u.activo,
+      creado_el: u.creado_el,
+    });
+  }
+
+  // ── GET /api/audit (logs de auditoria) ──────────────────────────────────────
+  if (req.method === 'GET' && path === '/api/audit') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (ses.rol !== 'ADMINISTRADOR') return json(res, 403, { detail: 'Forbidden' });
+
+    const url = new URL(req.url, 'http://localhost');
+    const action = url.searchParams.get('action');
+    const entity_type = url.searchParams.get('entity_type');
+    const actor_id = url.searchParams.get('actor_id');
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10) || 50, 200);
+
+    let logs = AUDIT_MOCK.filter(l => {
+      if (l.negocio_id !== 'n1') return false;
+      if (action && l.action !== action) return false;
+      if (entity_type && l.entity_type !== entity_type) return false;
+      if (actor_id && l.actor_id !== actor_id) return false;
+      return true;
+    });
+
+    // Orden: mas reciente primero
+    logs.sort((a, b) => new Date(b.creado_el).getTime() - new Date(a.creado_el).getTime());
+    logs = logs.slice(0, limit);
+
+    // Read model: incluir actor_nombre (LEFT JOIN simulado)
+    const result = logs.map(l => {
+      const actor = USUARIOS_MOCK.find(u => u.id === l.actor_id);
+      return {
+        id: l.id,
+        negocio_id: l.negocio_id,
+        actor_id: l.actor_id,
+        actor_nombre: actor ? actor.nombre : null,
+        action: l.action,
+        entity_type: l.entity_type,
+        entity_id: l.entity_id,
+        metadata: l.metadata,
+        ip_address: l.ip_address,
+        user_agent: l.user_agent,
+        creado_el: l.creado_el,
+      };
+    });
+
+    return json(res, 200, result);
+  }
+
+  // ── POST /api/activaciones/codigos (generar codigo de activacion) ────────────
+  // (ya existe en mock-api.mjs desde linea ~595, verificar que no duplique)
 
   return json(res, 404, { detail: 'Not found in mock API' });
 });

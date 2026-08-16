@@ -916,6 +916,8 @@ export interface components {
              * Format: uuid
              */
             actor_id: string;
+            /** Actor Nombre */
+            actor_nombre: string | null;
             /** Action */
             action: string;
             /** Entity Type */

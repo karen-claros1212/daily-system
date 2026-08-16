@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+
 import { proxyGet, proxyPost } from '@/lib/api/gateway';
 
 export const dynamic = 'force-dynamic';

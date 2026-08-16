@@ -55,16 +55,17 @@ def consultar_audit(
 
     return [
         AuditLogResponse(
-            id=r.id,
-            negocio_id=r.negocio_id,
-            actor_id=r.actor_id,
-            action=r.action,
-            entity_type=r.entity_type,
-            entity_id=r.entity_id,
-            metadata=r.metadata_col,
-            ip_address=r.ip_address,
-            user_agent=r.user_agent,
-            creado_el=r.creado_el,
+            id=r.AuditLog.id,
+            negocio_id=r.AuditLog.negocio_id,
+            actor_id=r.AuditLog.actor_id,
+            actor_nombre=r[1] if len(r) > 1 else None,
+            action=r.AuditLog.action,
+            entity_type=r.AuditLog.entity_type,
+            entity_id=r.AuditLog.entity_id,
+            metadata=r.AuditLog.metadata_col,
+            ip_address=r.AuditLog.ip_address,
+            user_agent=r.AuditLog.user_agent,
+            creado_el=r.AuditLog.creado_el,
         )
         for r in registros
     ]

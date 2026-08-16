@@ -3,16 +3,16 @@
 **Proyecto:** daily-system
 **Rama:** `product/web-premium-v1`
 **Última actualización:** 2026-08-15
-**HEAD:** `6bfe606`
+**HEAD:** `869dfc1`
 
 ---
 
 ## Estado global
 
-| Fase | Estado | Commit | Endpoints | Pruebas | CI | Decisones | Blockers |
+| Fase | Estado | Commit | Endpoints | Pruebas | CI | Decisiones | Blockers |
 |---|---|---|---|---|---|---|---|
-| **W0** | EN PROGRESO | 6bfe606 | — | — | ✅ | Ledger creado | Ninguno |
-| **W1** | PENDIENTE | — | — | — | — | — | Depende de W0 |
+| **W0** | ✅ COMPLETADO | dac558d | BFF usuarios/audit | — | ✅ | Ledger creado | Ninguno |
+| **W1** | ✅ COMPLETADO | 869dfc1 | Todos | 32/32 backend + E2E + A11Y | en espera | Git repair, BFF PATCH, m10, UI completa | Ninguno |
 | **W2** | PENDIENTE | — | — | — | — | — | Depende de W1 |
 | **W3** | PENDIENTE | — | — | — | — | — | Depende de W2 |
 | **W4** | PENDIENTE | — | — | — | — | — | Depende de W3 |
@@ -113,12 +113,24 @@
 
 ## W1 — Audit Trail + Usuarios/Roles
 
-**Estado:** PENDIENTE
+**Estado:** ✅ COMPLETADO
 **Depende de:** W0.2 (matriz) + W0.3 (regla fecha)
-**Backend:** nuevo endpoint + tabla audit_log
-**BFF:** GET /api/audit (paginado, filtrado)
-**UI:** /audit (ADMIN)
-**E2E:** ADMIN crea COBRADOR/INVERSIONISTA; INVERSIONISTA inicia sesión; COBRADOR no administra usuarios
+**Backend:** tabla audit_log, actor_nombre en read model (LEFT JOIN), m10 migration (DROP CHECK → UPDATE → CREATE INDEX)
+**BFF:** GET /api/usuarios, POST /api/usuarios, PATCH /api/usuarios/[id], PATCH /api/usuarios/[id]/estado?activo=0|1, GET /api/audit, POST /api/activaciones/codigos
+**UI:** /usuarios (ADMIN, con filtros/activación/confirmación), /auditoria (ADMIN, con actor nombre/metadata expandible)
+**E2E:** ADMIN crea/edita/desactiva/reactiva usuario, genera activación, filtra auditoría; COBRADOR/INVERSIONISTA sin navegación Usuarios/Auditoría, 403 en mutaciones
+**A11Y:** axe en /usuarios, /auditoria, formularios, confirmaciones, keyboard nav
+**Gates:** backend 32/32 ✅, api:check ✅, lint ✅, typecheck ✅, build ✅
+
+### Incidente Git (resuelto)
+- master accidental apuntaba a 913fe6f (contaminado)
+- Branquicota quarantine: `quarantine/master-contamination-2026-08-15` → 913fe6f
+- master restaurado a baseline canónico `486d08b`
+- product/web-premium-v1 limpio, push exitoso
+
+### m10 — Migration hardening
+- Orden crítico: DROP CHECK constraint → UPDATE typo (USUARIO_DESATIVADO → USUARIO_DESACTIVADO) → CREATE INDEX
+- Test PostgreSQL real con fila legacy: pasa 32/32
 
 ---
 

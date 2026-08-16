@@ -2,15 +2,18 @@
 
 Solo ADMINISTRADOR puede consultar el audit trail de su negocio.
 Filtros: action, entity_type, actor_id, since (>=), limit.
+
+El read model incluye actor_nombre (join con usuario) para evitar N+1 en el
+frontend. El actor_id se conserva para trazabilidad completa.
 """
 
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import and_, desc
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, desc, func
+from sqlalchemy.orm import Session, joinedload
 
-from src.models import AuditLog
+from src.models import AuditLog, Usuario
 
 
 def consultar_audit(
@@ -21,9 +24,17 @@ def consultar_audit(
     actor_id: UUID | None = None,
     since: datetime | None = None,
     limit: int = 50,
-) -> list[AuditLog]:
-    """Consultar audit trail con filtros opcionales."""
-    q = db.query(AuditLog).filter(AuditLog.negocio_id == negocio_id)
+) -> list[tuple[AuditLog, str | None]]:
+    """Consultar audit trail con filtros opcionales.
+
+    Devuelve lista de (AuditLog, actor_nombre) — el actor_nombre sale de un
+    LEFT JOIN con usuario (un solo query, sin N+1).
+    """
+    q = (
+        db.query(AuditLog, Usuario.nombre)
+        .outerjoin(Usuario, AuditLog.actor_id == Usuario.id)
+        .filter(AuditLog.negocio_id == negocio_id)
+    )
 
     if action:
         q = q.filter(AuditLog.action == action)

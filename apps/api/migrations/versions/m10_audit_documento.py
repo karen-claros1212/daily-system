@@ -6,10 +6,11 @@ Create Date: 2026-08-15
 
 Migracion forward-only que:
 1. Elimina el CHECK cerrada en action (permitir acciones futuras sin migracion).
-2. Crea unique index parcial (negocio_id, documento) WHERE documento IS NOT NULL.
-3. Corrige typo: USUARIO_DESATIVADO -> USUARIO_DESACTIVADO en el CHECK (si se mantiene).
+2. Corrige typo: USUARIO_DESATIVADO -> USUARIO_DESACTIVADO en datos existentes.
+3. Crea unique index parcial (negocio_id, documento) WHERE documento IS NOT NULL.
 
-Mapear el typo en la DB: renombrar filas existentes.
+Orden critico: DROP CHECK ANTES del UPDATE para que PostgreSQL no rechace
+el UPDATE con el valor nuevo que el CHECK viejo no acepta.
 """
 
 import sqlalchemy as sa
@@ -23,7 +24,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # 1. Corregir typo en datos existentes
+    # 1. Drop CHECK constraint cerrada PRIMERO (permitir valores nuevos)
+    op.drop_constraint("check_audit_action", "audit_log", type_="check")
+
+    # 2. Corregir typo en datos existentes (ahora el CHECK ya no bloquea)
     bind = op.get_bind()
     bind.execute(
         sa.text(
@@ -31,9 +35,6 @@ def upgrade() -> None:
             "WHERE action = 'USUARIO_DESATIVADO'"
         )
     )
-
-    # 2. Drop CHECK constraint cerrada
-    op.drop_constraint("check_audit_action", "audit_log", type_="check")
 
     # 3. Crear unique index parcial (negocio_id, documento) WHERE documento IS NOT NULL
     #    Solo para PostgreSQL; SQLite no soporta partial indexes.

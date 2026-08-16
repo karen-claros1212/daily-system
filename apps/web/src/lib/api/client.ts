@@ -145,6 +145,7 @@ export type AuditLog = {
   id: string;
   negocio_id: string;
   actor_id: string;
+  actor_nombre: string | null;
   action: string;
   entity_type: string;
   entity_id: string | null;
@@ -209,4 +210,14 @@ export function fetchAudit(params?: {
   if (params?.limit) qs.set('limit', params.limit);
   const query = qs.toString();
   return fetch(`/api/audit${query ? '?' + query : ''}`, { cache: 'no-store' }).then((r) => parseJson<AuditLog[]>(r));
+}
+
+/** POST /api/activaciones/codigos via BFF (ADMINISTRADOR). */
+export function generarCodigoActivacion(data: { usuario_id: string; expira_minutos?: number }): Promise<{ codigo_id: string; token: string; prefijo: string; expira_el: string }> {
+  return fetch('/api/activaciones/codigos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    cache: 'no-store',
+  }).then((r) => parseJson<{ codigo_id: string; token: string; prefijo: string; expira_el: string }>(r));
 }

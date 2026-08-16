@@ -156,4 +156,174 @@ test.describe('A11y', () => {
     });
     expect(styles.color).toBeTruthy();
   });
+
+  // ─── W1: a11y /usuarios ───────────────────────────────────────────────────
+  test('usuarios a11y scan', async ({ page }) => {
+    await page.route('**/api/usuarios', async (route) => {
+      await route.fulfill({
+        status: 200,
+        json: [
+          {
+            id: 'adm-1111',
+            rol: 'ADMINISTRADOR',
+            nombre: 'Admin Principal',
+            documento: '1234567890',
+            activo: 1,
+            creado_el: '2026-05-15T00:00:00Z',
+          },
+          {
+            id: 'cob-2222',
+            rol: 'COBRADOR',
+            nombre: 'Carlos Cobrador',
+            documento: '9876543210',
+            activo: 1,
+            creado_el: '2026-06-15T00:00:00Z',
+          },
+        ],
+      });
+    });
+    await page.route('**/api/activaciones/codigos', async (route) => {
+      await route.fulfill({
+        status: 201,
+        json: { codigo_id: 'cod-1', token: 'tok-1', prefijo: 'Xz8R', expira_el: '2099-01-01T00:00:00Z' },
+      });
+    });
+    await setSessionToken(page, 'mock-admin');
+    await page.goto('/usuarios');
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('usuarios form keyboard nav', async ({ page }) => {
+    await page.route('**/api/usuarios', async (route) => {
+      await route.fulfill({ status: 200, json: [] });
+    });
+    await setSessionToken(page, 'mock-admin');
+    await page.goto('/usuarios');
+    await page.getByRole('button', { name: 'Nuevo Usuario' }).click();
+    await page.keyboard.press('Tab');
+    await expect(page.locator(':focus-visible')).toBeVisible();
+    await page.keyboard.press('Tab');
+    await expect(page.locator(':focus-visible')).toBeVisible();
+  });
+
+  test('usuarios filters a11y', async ({ page }) => {
+    await page.route('**/api/usuarios', async (route) => {
+      await route.fulfill({ status: 200, json: [] });
+    });
+    await setSessionToken(page, 'mock-admin');
+    await page.goto('/usuarios');
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  // ─── W1: a11y /auditoria ─────────────────────────────────────────────────
+  test('auditoria a11y scan', async ({ page }) => {
+    await page.route('**/api/audit', async (route) => {
+      await route.fulfill({
+        status: 200,
+        json: [
+          {
+            id: 'log-1',
+            negocio_id: 'n1',
+            actor_id: 'adm-1111',
+            actor_nombre: 'Admin Principal',
+            action: 'USUARIO_CREADO',
+            entity_type: 'USUARIO',
+            entity_id: 'cob-2222',
+            metadata: { rol: 'COBRADOR' },
+            ip_address: '192.168.1.100',
+            user_agent: 'Mozilla/5.0',
+            creado_el: '2026-06-15T10:00:00Z',
+          },
+        ],
+      });
+    });
+    await setSessionToken(page, 'mock-admin');
+    await page.goto('/auditoria');
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('auditoria expandible a11y', async ({ page }) => {
+    await page.route('**/api/audit', async (route) => {
+      await route.fulfill({
+        status: 200,
+        json: [
+          {
+            id: 'log-2',
+            negocio_id: 'n1',
+            actor_id: 'adm-1111',
+            actor_nombre: 'Admin Principal',
+            action: 'USUARIO_CREADO',
+            entity_type: 'USUARIO',
+            entity_id: 'cob-2222',
+            metadata: { rol: 'COBRADOR', documento: '9876543210' },
+            ip_address: '192.168.1.100',
+            user_agent: 'Mozilla/5.0',
+            creado_el: '2026-06-15T10:00:00Z',
+          },
+        ],
+      });
+    });
+    await setSessionToken(page, 'mock-admin');
+    await page.goto('/auditoria');
+    await page.getByRole('button', { name: /Ver/ }).first().click();
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  // ─── W1: a11y confirm dialog ─────────────────────────────────────────────
+  test('confirm dialog a11y', async ({ page }) => {
+    await page.route('**/api/usuarios', async (route) => {
+      const usuariosList = [{
+        id: 'cob-2222',
+        rol: 'COBRADOR',
+        nombre: 'Carlos Cobrador',
+        documento: '9876543210',
+        activo: 1,
+        creado_el: '2026-06-15T00:00:00Z',
+      }];
+      await route.fulfill({ status: 200, json: usuariosList});
+    });
+    await page.route('**/api/usuarios/**/estado', async (route) => {
+      await route.fulfill({ status: 200, json: {
+        id: 'cob-2222',
+        negocio_id: 'n1',
+        rol: 'COBRADOR',
+        nombre: 'Carlos Cobrador',
+        documento: '9876543210',
+        activo: 0,
+        creado_el: '2026-06-15T00:00:00Z'
+      }});
+    });
+    await setSessionToken(page, 'mock-admin');
+    await page.goto('/usuarios');
+    await page.getByRole('button', { name: 'Desactivar' }).click();
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  // ─── W1: keyboard nav en tabla ───────────────────────────────────────────
+  test('keyboard nav en tabla usuarios', async ({ page }) => {
+    await page.route('**/api/usuarios', async (route) => {
+      const usuariosList = [{
+        id: 'cob-2222',
+        rol: 'COBRADOR',
+        nombre: 'Carlos Cobrador',
+        documento: '9876543210',
+        activo: 1,
+        creado_el: '2026-06-15T00:00:00Z',
+      }];
+      await route.fulfill({ status: 200, json: usuariosList});
+    });
+    await setSessionToken(page, 'mock-admin');
+    await page.goto('/usuarios');
+    // Tab hasta la tabla y navegar
+    await page.getByRole('button', { name: 'Nuevo Usuario' }).click();
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await expect(page.locator(':focus-visible')).toBeVisible();
+  });
 });
