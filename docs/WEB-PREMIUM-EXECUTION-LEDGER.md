@@ -3,7 +3,7 @@
 **Proyecto:** daily-system
 **Rama:** `product/web-premium-v1`
 **Última actualización:** 2026-08-16
-**HEAD:** (ver commit final de este trabajo — Git es autoridad)
+**HEAD:** `355cdb3` (W1 FINAL PASS — código certificado)
 
 ---
 
@@ -12,7 +12,7 @@
 | Fase | Estado | Commit | Endpoints | Pruebas | CI | Decisiones | Blockers |
 |---|---|---|---|---|---|---|---|
 | **W0** | ✅ COMPLETADO | dac558d | BFF usuarios/audit | — | ✅ | Ledger creado | Ninguno |
-| **W1** | EN VERIFICACIÓN (CI remoto) | (HEAD real) | Todos | 399 backend + 136 E2E mock + 41 a11y | en espera (SHA final) | Git repair, BFF PATCH, m10, UI completa, PG migration gate real en CI | Ninguno |
+| **W1** | ✅ FINAL PASS | 355cdb3 | Todos | 399 backend + 136 E2E mock + 41 a11y | ✅ PASS (ambos) | Git repair, BFF PATCH, m10, UI completa, PG migration gate real en CI | Ninguno |
 | **W2** | PENDIENTE | — | — | — | — | — | Depende de W1 |
 | **W3** | PENDIENTE | — | — | — | — | — | Depende de W2 |
 | **W4** | PENDIENTE | — | — | — | — | — | Depende de W3 |
@@ -113,7 +113,7 @@
 
 ## W1 — Audit Trail + Usuarios/Roles
 
-**Estado:** EN VERIFICACIÓN — CI remoto sobre el SHA final
+**Estado:** ✅ FINAL PASS — CI remoto verde sobre `355cdb3`
 **Depende de:** W0.2 (matriz) + W0.3 (regla fecha)
 **Backend:** tabla audit_log, actor_nombre en read model (LEFT JOIN), m10 migration (DROP CHECK → UPDATE → CREATE INDEX)
 **BFF:** GET /api/usuarios, POST /api/usuarios, PATCH /api/usuarios/[id], PATCH /api/usuarios/[id]/estado?activo=0|1, GET /api/audit, POST /api/activaciones/codigos
@@ -121,7 +121,9 @@
 **E2E:** ADMIN crea/edita/desactiva/reactiva usuario, genera activación, filtra auditoría; COBRADOR/INVERSIONISTA sin navegación Usuarios/Auditoría, 403 en mutaciones
 **A11Y:** axe en /usuarios, /auditoria, formularios, confirmaciones, keyboard nav
 **Gates locales:** backend 399 passed / 9 skipped ✅, alembic head m10_audit_documento ✅, api:check ✅, lint 0 errores ✅, typecheck ✅, build ✅, E2E mock 136/136 ✅, W1+a11y 41 passed ✅
-**CI remoto:** Backend CI + Web CI PASS sobre dba043a; pendiente PASS sobre el SHA final (este commit)
+**CI remoto (sobre 355cdb3):**
+- Backend CI `31957450735` **PASS** — Alembic check ✅, pytest 399/9 ✅, PostgreSQL m9→m10 migration gate ✅, PostgreSQL NIT concurrency gate ✅
+- Web CI `31957450733` **PASS** — OpenAPI drift + lint + typecheck + build ✅, E2E mock (RBAC + contrato) ✅, E2E real (FastAPI + Postgres) ✅
 
 ### Incidente Git (resuelto)
 - master accidental apuntaba a 913fe6f (contaminado)
@@ -132,9 +134,10 @@
 ### m10 — Migration hardening
 - Orden crítico: DROP CHECK constraint → UPDATE typo (USUARIO_DESATIVADO → USUARIO_DESACTIVADO) → CREATE INDEX
 - Test unitario portable (SQLite) con actor `activo=1` (NOT NULL)
-- Gate de migración real PostgreSQL (`TestM9toM10UpgradePG`) ejecutado en CI:
+- Gate de migración real PostgreSQL (`TestM9toM10UpgradePG`) **ejecutado en CI** (paso propio):
   DB scratch temporal, alembic upgrade m9, fila legacy con typo, alembic upgrade m10,
   verifica rename + sin typo + índice uq_usuario_negocio_documento + head m10.
+- Fix final: `render_as_string(hide_password=False)` para no enmascarar credenciales de conexión (CI lo confirmó PASS).
 
 ---
 
