@@ -493,12 +493,18 @@ class TestM9toM10Upgrade:
             db_session.add(n)
             db_session.flush()
 
-        audit_id = uuid4()
+        # Crear usuario actor (FK audit_log.actor_id → usuario.id)
         actor_id = uuid4()
+        db_session.execute(text(
+            "INSERT INTO usuario (id, negocio_id, rol, nombre) VALUES (:aid, :nid, 'ADMINISTRADOR', 'Admin Test')"
+        ), {'aid': str(actor_id), 'nid': str(n.id)})
+        db_session.flush()
+
+        audit_id = uuid4()
         entity_id = uuid4()
         db_session.execute(text(
             "INSERT INTO audit_log (id, negocio_id, actor_id, action, entity_type, entity_id, creado_el) "
-            "VALUES (:aid, :nid, :cid, :action, :et, :eid, datetime('now'))"
+            "VALUES (:aid, :nid, :cid, :action, :et, :eid, CURRENT_TIMESTAMP)"
         ), {
             "aid": str(audit_id),
             "nid": str(n.id),
