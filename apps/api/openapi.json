@@ -1517,6 +1517,102 @@
         "operationId": "listar_creditos_api_creditos_get",
         "parameters": [
           {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Estado"
+            }
+          },
+          {
+            "name": "ruta_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ruta Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 20,
+              "default": "fecha_inicio",
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4,
+              "default": "desc",
+              "title": "Order"
+            }
+          },
+          {
             "name": "negocio_id",
             "in": "query",
             "required": false,
@@ -1607,11 +1703,124 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CreditoResponse"
-                  },
-                  "title": "Response Listar Creditos Api Creditos Get"
+                  "$ref": "#/components/schemas/CreditoListPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/creditos/resumen": {
+      "get": {
+        "tags": [
+          "creditos"
+        ],
+        "summary": "Resumen Cartera",
+        "operationId": "resumen_cartera_api_creditos_resumen_get",
+        "parameters": [
+          {
+            "name": "negocio_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Negocio Id"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            }
+          },
+          {
+            "name": "route_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Route Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditoResumenResponse"
                 }
               }
             }
@@ -1738,7 +1947,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreditoResponse"
+                  "$ref": "#/components/schemas/CreditoDetailResponse"
                 }
               }
             }
@@ -7623,6 +7832,293 @@
         ],
         "title": "CreditoCreate"
       },
+      "CreditoDetailResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "negocio_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Negocio Id"
+          },
+          "cliente_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cliente Id"
+          },
+          "cliente_nombre": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cliente Nombre"
+          },
+          "ruta_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Ruta Id"
+          },
+          "ruta_nombre": {
+            "type": "string",
+            "title": "Ruta Nombre"
+          },
+          "cobrador_nombre": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cobrador Nombre"
+          },
+          "estado": {
+            "type": "string",
+            "title": "Estado"
+          },
+          "cuota": {
+            "type": "integer",
+            "title": "Cuota"
+          },
+          "n_cuotas": {
+            "type": "integer",
+            "title": "N Cuotas"
+          },
+          "monto": {
+            "type": "integer",
+            "title": "Monto"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "periodicidad": {
+            "type": "string",
+            "title": "Periodicidad"
+          },
+          "fecha_inicio": {
+            "type": "string",
+            "format": "date",
+            "title": "Fecha Inicio"
+          },
+          "saldo": {
+            "type": "integer",
+            "title": "Saldo"
+          },
+          "mora": {
+            "type": "integer",
+            "title": "Mora"
+          },
+          "pico": {
+            "type": "integer",
+            "title": "Pico"
+          },
+          "cuotas_pagadas": {
+            "type": "integer",
+            "title": "Cuotas Pagadas"
+          },
+          "creado_el": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creado El"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "negocio_id",
+          "cliente_id",
+          "cliente_nombre",
+          "ruta_id",
+          "ruta_nombre",
+          "cobrador_nombre",
+          "estado",
+          "cuota",
+          "n_cuotas",
+          "monto",
+          "total",
+          "periodicidad",
+          "fecha_inicio",
+          "saldo",
+          "mora",
+          "pico",
+          "cuotas_pagadas",
+          "creado_el"
+        ],
+        "title": "CreditoDetailResponse",
+        "description": "Detalle W3: credito + financiero (resumen_creditos) + nombres humanos\nsegun rol. No mezcla pagos/jornadas/caja."
+      },
+      "CreditoListItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "cliente_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cliente Id"
+          },
+          "cliente_nombre": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cliente Nombre"
+          },
+          "ruta_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Ruta Id"
+          },
+          "ruta_nombre": {
+            "type": "string",
+            "title": "Ruta Nombre"
+          },
+          "cobrador_nombre": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cobrador Nombre"
+          },
+          "estado": {
+            "type": "string",
+            "title": "Estado"
+          },
+          "cuota": {
+            "type": "integer",
+            "title": "Cuota"
+          },
+          "n_cuotas": {
+            "type": "integer",
+            "title": "N Cuotas"
+          },
+          "monto": {
+            "type": "integer",
+            "title": "Monto"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "periodicidad": {
+            "type": "string",
+            "title": "Periodicidad"
+          },
+          "fecha_inicio": {
+            "type": "string",
+            "format": "date",
+            "title": "Fecha Inicio"
+          },
+          "saldo": {
+            "type": "integer",
+            "title": "Saldo"
+          },
+          "mora": {
+            "type": "integer",
+            "title": "Mora"
+          },
+          "pico": {
+            "type": "integer",
+            "title": "Pico"
+          },
+          "cuotas_pagadas": {
+            "type": "integer",
+            "title": "Cuotas Pagadas"
+          },
+          "creado_el": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creado El"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "cliente_id",
+          "cliente_nombre",
+          "ruta_id",
+          "ruta_nombre",
+          "cobrador_nombre",
+          "estado",
+          "cuota",
+          "n_cuotas",
+          "monto",
+          "total",
+          "periodicidad",
+          "fecha_inicio",
+          "saldo",
+          "mora",
+          "pico",
+          "cuotas_pagadas",
+          "creado_el"
+        ],
+        "title": "CreditoListItem",
+        "description": "Fila del read model de cartera (W3).\n\n`cliente_nombre` es PII: SOLO ADMINISTRADOR/COBRADOR lo reciben poblado;\nINVERSIONISTA recibe `None` (read-only PII minimizada, sin Cliente360).\nSaldo/mora/pico/cuotas_pagadas provienen de la MISMA autoridad financiera\nque la hoja viva (hoja_viva_service.resumen_creditos)."
+      },
+      "CreditoListPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CreditoListItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "CreditoListPage"
+      },
       "CreditoResponse": {
         "properties": {
           "id": {
@@ -7718,6 +8214,35 @@
           "creado_el"
         ],
         "title": "CreditoResponse"
+      },
+      "CreditoResumenResponse": {
+        "properties": {
+          "total_creditos": {
+            "type": "integer",
+            "title": "Total Creditos"
+          },
+          "activos": {
+            "type": "integer",
+            "title": "Activos"
+          },
+          "saldo_total_cartera": {
+            "type": "integer",
+            "title": "Saldo Total Cartera"
+          },
+          "en_mora": {
+            "type": "integer",
+            "title": "En Mora"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_creditos",
+          "activos",
+          "saldo_total_cartera",
+          "en_mora"
+        ],
+        "title": "CreditoResumenResponse",
+        "description": "Agregados de cartera scoped por rol (W3): autoridad del resumen\nsuperior de la pantalla /creditos. NUNCA se calculan en el navegador."
       },
       "CuotaProgramadaResponse": {
         "properties": {

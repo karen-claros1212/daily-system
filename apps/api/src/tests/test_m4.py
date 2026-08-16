@@ -257,13 +257,13 @@ class TestMultirutaAislamiento:
         r = client.get(f"/api/rutas/{self.ruta_ids['R2']}/hoja-viva", params=auth_r1)
         assert r.status_code == 403
 
-        # Crédito de otra ruta → 403 (no revela existencia)
+        # Crédito de otra ruta → 404 (W3: no revela existencia, consistente con jornadas/pagos/rutas)
         r = client.get(f"/api/creditos/{self.credito_ids['R2']}", params=auth_r1)
-        assert r.status_code == 403
+        assert r.status_code == 404
 
-        # Lists scoped to R1 only
+        # Lists scoped to R1 only (W3: envelope {items,total,limit,offset})
         r = client.get("/api/creditos", params=auth_r1)
-        assert {c["id"] for c in r.json()} == {str(self.credito_ids["R1"])}
+        assert {c["id"] for c in r.json()["items"]} == {str(self.credito_ids["R1"])}
 
         r = client.get("/api/clientes", params=auth_r1)
         assert {c["id"] for c in r.json()["items"]} == {str(self.cliente_ids["C1"])}

@@ -17,9 +17,13 @@ Verificacion en codigo (ago 2026):
   - dispositivo.py : registrar -> SOLO ADMINISTRADOR
   - usuario.py     : CRUD completo -> SOLO ADMINISTRADOR
   - audit.py       : GET -> SOLO ADMINISTRADOR
-  - cliente.py     : list/detail -> clientes:ver (ADMINISTRADOR | COBRADOR);
+   - cliente.py     : list/detail -> clientes:ver (ADMINISTRADOR | COBRADOR);
                       create/update -> clientes:gestionar (SOLO ADMINISTRADOR);
                       INVERSIONISTA no lee clientes (PII no necesaria)
+   - credito.py     : list/detail/resumen -> creditos:ver (los 3 roles; COBRADOR
+                      scoped a su ruta, INVERSIONISTA PII minimizada sin
+                      Cliente360); create -> creditos:gestionar (SOLO
+                      ADMINISTRADOR, negative 403 para COBRADOR/INVERSIONISTA)
 """
 
 from typing import Final
@@ -52,6 +56,7 @@ CAPABILITIES_POR_ROL: Final[dict[str, tuple[str, ...]]] = {
         "audit:ver",
         "clientes:ver",
         "clientes:gestionar",
+        "creditos:gestionar",
     ),
     "COBRADOR": (
         "jornada:ver",
@@ -62,6 +67,7 @@ CAPABILITIES_POR_ROL: Final[dict[str, tuple[str, ...]]] = {
         "pagos:registrar",
         "sync:ver",
         "clientes:ver",
+        "creditos:ver",
     ),
 }
 

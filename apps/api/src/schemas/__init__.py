@@ -292,6 +292,77 @@ class CreditoResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CreditoListItem(BaseModel):
+    """Fila del read model de cartera (W3).
+
+    `cliente_nombre` es PII: SOLO ADMINISTRADOR/COBRADOR lo reciben poblado;
+    INVERSIONISTA recibe `None` (read-only PII minimizada, sin Cliente360).
+    Saldo/mora/pico/cuotas_pagadas provienen de la MISMA autoridad financiera
+    que la hoja viva (hoja_viva_service.resumen_creditos).
+    """
+
+    id: UUID
+    cliente_id: UUID | None
+    cliente_nombre: str | None
+    ruta_id: UUID
+    ruta_nombre: str
+    cobrador_nombre: str | None
+    estado: str
+    cuota: int
+    n_cuotas: int
+    monto: int
+    total: int
+    periodicidad: str
+    fecha_inicio: date
+    saldo: int
+    mora: int
+    pico: int
+    cuotas_pagadas: int
+    creado_el: datetime
+
+
+class CreditoListPage(BaseModel):
+    items: list[CreditoListItem]
+    total: int
+    limit: int
+    offset: int
+
+
+class CreditoResumenResponse(BaseModel):
+    """Agregados de cartera scoped por rol (W3): autoridad del resumen
+    superior de la pantalla /creditos. NUNCA se calculan en el navegador."""
+
+    total_creditos: int
+    activos: int
+    saldo_total_cartera: int
+    en_mora: int
+
+
+class CreditoDetailResponse(BaseModel):
+    """Detalle W3: credito + financiero (resumen_creditos) + nombres humanos
+    segun rol. No mezcla pagos/jornadas/caja."""
+
+    id: UUID
+    negocio_id: UUID
+    cliente_id: UUID | None
+    cliente_nombre: str | None
+    ruta_id: UUID
+    ruta_nombre: str
+    cobrador_nombre: str | None
+    estado: str
+    cuota: int
+    n_cuotas: int
+    monto: int
+    total: int
+    periodicidad: str
+    fecha_inicio: date
+    saldo: int
+    mora: int
+    pico: int
+    cuotas_pagadas: int
+    creado_el: datetime
+
+
 class CuotaProgramadaResponse(BaseModel):
     """Cuota del plan contractual de un credito, para el sync del movil."""
 
