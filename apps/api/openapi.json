@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Daily System API",
-    "description": "Plataforma local-first para cr\u00e9dito diario, cobranza de campo, rutas, caja y riesgo en Colombia",
+    "description": "Plataforma local-first para crédito diario, cobranza de campo, rutas, caja y riesgo en Colombia",
     "version": "0.1.0"
   },
   "paths": {
@@ -673,7 +673,7 @@
           "rutas"
         ],
         "summary": "Reasignar Ruta",
-        "description": "S4 \u2014 Reasignacion productiva R1\u2192R2.\n\nDesactiva la ruta actual (R1), crea/activa R2 para el mismo cobrador,\nbump version_asignacion del dispositivo del cobrador (invalida JWT viejo).\n\nContrato:\n  - SOLO ADMINISTRADOR\n  - Mismo negocio, cobrador valido\n  - R1 deja de ser la ruta activa del cobrador\n  - R2 queda como la UNICA ruta activa\n  - Transaccion unica\n  - Servidor es autoridad\n  - Movil nunca selecciona ruta\n  - version_asignacion se incrementa \u2192 JWT anterior queda invalido",
+        "description": "S4 — Reasignacion productiva R1→R2.\n\nDesactiva la ruta actual (R1), crea/activa R2 para el mismo cobrador,\nbump version_asignacion del dispositivo del cobrador (invalida JWT viejo).\n\nContrato:\n  - SOLO ADMINISTRADOR\n  - Mismo negocio, cobrador valido\n  - R1 deja de ser la ruta activa del cobrador\n  - R2 queda como la UNICA ruta activa\n  - Transaccion unica\n  - Servidor es autoridad\n  - Movil nunca selecciona ruta\n  - version_asignacion se incrementa → JWT anterior queda invalido",
         "operationId": "reasignar_ruta_api_rutas__ruta_id__reasignar_patch",
         "parameters": [
           {
@@ -3776,7 +3776,7 @@
           "dispositivos"
         ],
         "summary": "Listar",
-        "description": "List devices (ADMINISTRADOR only, DTO minimizado sin secretos).\n\nRBAC review: el listado administrativo NO es visible para COBRADOR ni\nINVERSIONISTA (403 fail-closed) \u2014 un celular no necesita enumerar\ndispositivos del negocio.",
+        "description": "List devices (ADMINISTRADOR only, DTO minimizado sin secretos).\n\nRBAC review: el listado administrativo NO es visible para COBRADOR ni\nINVERSIONISTA (403 fail-closed) — un celular no necesita enumerar\ndispositivos del negocio.",
         "operationId": "listar_api_dispositivos_get",
         "parameters": [
           {
@@ -3898,7 +3898,7 @@
           "dispositivos"
         ],
         "summary": "Validar",
-        "description": "Validate a device \u2014 updates ultima_validacion_servidor.",
+        "description": "Validate a device — updates ultima_validacion_servidor.",
         "operationId": "validar_api_dispositivos__dispositivo_id__validar_post",
         "parameters": [
           {
@@ -4410,7 +4410,7 @@
           "activaciones"
         ],
         "summary": "Crear Codigo",
-        "description": "Genera codigo de activacion de un solo uso para un usuario objetivo (admin).\n\nEl objetivo admite cualquier rol con sesion (Etapa 2): COBRADOR exige ruta\nactiva unica (H3); INVERSIONISTA/ADMINISTRADOR no. Se acepta `usuario_id`\n(can\u00f3nico) o su alias legado `cobrador_id`; ver CodigoActivacionCreate.",
+        "description": "Genera codigo de activacion de un solo uso para un usuario objetivo (admin).\n\nEl objetivo admite cualquier rol con sesion (Etapa 2): COBRADOR exige ruta\nactiva unica (H3); INVERSIONISTA/ADMINISTRADOR no. Se acepta `usuario_id`\n(canónico) o su alias legado `cobrador_id`; ver CodigoActivacionCreate.",
         "operationId": "crear_codigo_api_activaciones_codigos_post",
         "parameters": [
           {
@@ -4622,7 +4622,7 @@
           "mobile"
         ],
         "summary": "Mobile Bootstrap",
-        "description": "Bootstrap productivo del movil (Bearer JWT ES256, D7-01).\n\nEl RequestContext revalida en CADA request el binding completo\n(dispositivo ACTIVE, version_asignacion, usuario, negocio, public_key_hash)\ny exige exactamente UNA ruta activa del cobrador (0 y >1 -> 401). El\nservidor deriva negocio, cobrador, ruta y versiones desde la base: no se\naceptan negocio_id/route_id/rol por URL ni por body (aislamiento movil).\nLa credencial bootstrap del canje ya NO autentica esta ruta: su unica\nfuncion posterior al canje es obtener el primer JWT v\u00eda desafio/canje.",
+        "description": "Bootstrap productivo del movil (Bearer JWT ES256, D7-01).\n\nEl RequestContext revalida en CADA request el binding completo\n(dispositivo ACTIVE, version_asignacion, usuario, negocio, public_key_hash)\ny exige exactamente UNA ruta activa del cobrador (0 y >1 -> 401). El\nservidor deriva negocio, cobrador, ruta y versiones desde la base: no se\naceptan negocio_id/route_id/rol por URL ni por body (aislamiento movil).\nLa credencial bootstrap del canje ya NO autentica esta ruta: su unica\nfuncion posterior al canje es obtener el primer JWT vía desafio/canje.",
         "operationId": "mobile_bootstrap_api_mobile_bootstrap_get",
         "responses": {
           "200": {
@@ -4758,7 +4758,7 @@
           "auth"
         ],
         "summary": "Obtener Me",
-        "description": "Identidad canonica de la sesion: rol/tenant/capabilities desde la DB.\n\nJWT-only (get_request_context_jwt): ni siquiera en test/development el\nstub query-param vale para /me. Un cliente no puede pedir su identidad\ncon ?role=... \u2014 la identidad sale exclusivamente de la sesion firmada.",
+        "description": "Identidad canonica de la sesion: rol/tenant/capabilities desde la DB.\n\nJWT-only (get_request_context_jwt): ni siquiera en test/development el\nstub query-param vale para /me. Un cliente no puede pedir su identidad\ncon ?role=... — la identidad sale exclusivamente de la sesion firmada.",
         "operationId": "obtener_me_api_auth_me_get",
         "responses": {
           "200": {
@@ -4780,7 +4780,7 @@
           "inversionista"
         ],
         "summary": "Obtener Resumen Inversionista",
-        "description": "Get investor summary for the negocio (from ctx) \u2014 no PII.\n\nOnly INVERSIONISTA or ADMINISTRADOR can access.",
+        "description": "Get investor summary for the negocio (from ctx) — no PII.\n\nOnly INVERSIONISTA or ADMINISTRADOR can access.",
         "operationId": "obtener_resumen_inversionista_api_inversionista_resumen_get",
         "parameters": [
           {
@@ -8642,7 +8642,7 @@
           "reversal_of_payment_id"
         ],
         "title": "PagoSyncResponse",
-        "description": "Vista de pago para el sync m\u00f3vil.\n\nExpone, adem\u00e1s de los campos base de PagoResponse, los que el modelo local\npago necesita para preservar la fidelidad financiera: cobrador_id, nota y\nreversal_of_payment_id. Critical para que un REVERSAL del servidor no pierda\nsu enlace al pago original y el movil no permita revertir dos veces."
+        "description": "Vista de pago para el sync móvil.\n\nExpone, además de los campos base de PagoResponse, los que el modelo local\npago necesita para preservar la fidelidad financiera: cobrador_id, nota y\nreversal_of_payment_id. Critical para que un REVERSAL del servidor no pierda\nsu enlace al pago original y el movil no permita revertir dos veces."
       },
       "RutaCreate": {
         "properties": {
