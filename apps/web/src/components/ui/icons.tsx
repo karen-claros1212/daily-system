@@ -227,3 +227,13 @@ export function IconContactos(p: IconProps) {
     </svg>
   );
 }
+
+export function IconCredito(p: IconProps) {
+  return (
+    <svg {...BASE} width={p.size ?? 18} height={p.size ?? 18} className={p.className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 6.5v11" />
+      <path d="M14.8 8.6c-.6-1-1.7-1.4-2.8-1.4-1.4 0-2.6.8-2.6 2s1 1.7 2.6 2 2.6.8 2.6 2-1.2 2-2.6 2c-1.1 0-2.2-.4-2.8-1.4" />
+    </svg>
+  );
+}

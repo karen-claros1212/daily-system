@@ -171,6 +171,64 @@ export function editarCliente(id: string, data: ClienteUpdateInput): Promise<Cli
   }).then((r) => parseJson<Cliente>(r));
 }
 
+// === Credito / Cartera (W3) ===
+
+export type CreditoListItem = components['schemas']['CreditoListItem'];
+export type CreditoListPage = components['schemas']['CreditoListPage'];
+export type CreditoResumen = components['schemas']['CreditoResumenResponse'];
+export type CreditoDetail = components['schemas']['CreditoDetailResponse'];
+export type CreditoCreateInput = components['schemas']['CreditoCreate'];
+
+export type CreditoSort = 'fecha_inicio' | 'monto' | 'total' | 'cuota' | 'periodicidad' | 'estado' | 'saldo';
+
+/** GET /api/creditos via BFF (read model paginado; el financiero lo provee el backend). */
+export function fetchCreditos(params?: {
+  q?: string;
+  estado?: string;
+  ruta_id?: string;
+  limit?: number;
+  offset?: number;
+  sort?: CreditoSort;
+  order?: 'asc' | 'desc';
+}): Promise<CreditoListPage> {
+  const qs = new URLSearchParams();
+  if (params?.q) qs.set('q', params.q);
+  if (params?.estado) qs.set('estado', params.estado);
+  if (params?.ruta_id) qs.set('ruta_id', params.ruta_id);
+  if (params?.limit) qs.set('limit', String(params.limit));
+  if (params?.offset) qs.set('offset', String(params.offset));
+  if (params?.sort) qs.set('sort', params.sort);
+  if (params?.order) qs.set('order', params.order);
+  const query = qs.toString();
+  return fetch(`/api/creditos${query ? '?' + query : ''}`, { cache: 'no-store' }).then((r) =>
+    parseJson<CreditoListPage>(r),
+  );
+}
+
+/** GET /api/creditos/resumen via BFF — agregados de cartera scoped por rol. */
+export function fetchResumenCreditos(): Promise<CreditoResumen> {
+  return fetch('/api/creditos/resumen', { cache: 'no-store' }).then((r) =>
+    parseJson<CreditoResumen>(r),
+  );
+}
+
+/** GET /api/creditos/{id} via BFF — detalle con financiero (creditos:ver). */
+export function fetchCredito(id: string): Promise<CreditoDetail> {
+  return fetch(`/api/creditos/${encodeURIComponent(id)}`, { cache: 'no-store' }).then((r) =>
+    parseJson<CreditoDetail>(r),
+  );
+}
+
+/** POST /api/creditos via BFF (creditos:gestionar, solo ADMINISTRADOR). */
+export function crearCredito(data: CreditoCreateInput): Promise<components['schemas']['CreditoResponse']> {
+  return fetch('/api/creditos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    cache: 'no-store',
+  }).then((r) => parseJson<components['schemas']['CreditoResponse']>(r));
+}
+
 // === Usuario (W1) ===
 
 export type Usuario = {

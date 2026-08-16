@@ -193,6 +193,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/creditos/resumen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resumen Cartera */
+        get: operations["resumen_cartera_api_creditos_resumen_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/creditos/{credito_id}": {
         parameters: {
             query?: never;
@@ -1408,6 +1425,136 @@ export interface components {
              */
             periodicidad: string;
         };
+        /**
+         * CreditoDetailResponse
+         * @description Detalle W3: credito + financiero (resumen_creditos) + nombres humanos
+         *     segun rol. No mezcla pagos/jornadas/caja.
+         */
+        CreditoDetailResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Negocio Id
+             * Format: uuid
+             */
+            negocio_id: string;
+            /** Cliente Id */
+            cliente_id: string | null;
+            /** Cliente Nombre */
+            cliente_nombre: string | null;
+            /**
+             * Ruta Id
+             * Format: uuid
+             */
+            ruta_id: string;
+            /** Ruta Nombre */
+            ruta_nombre: string;
+            /** Cobrador Nombre */
+            cobrador_nombre: string | null;
+            /** Estado */
+            estado: string;
+            /** Cuota */
+            cuota: number;
+            /** N Cuotas */
+            n_cuotas: number;
+            /** Monto */
+            monto: number;
+            /** Total */
+            total: number;
+            /** Periodicidad */
+            periodicidad: string;
+            /**
+             * Fecha Inicio
+             * Format: date
+             */
+            fecha_inicio: string;
+            /** Saldo */
+            saldo: number;
+            /** Mora */
+            mora: number;
+            /** Pico */
+            pico: number;
+            /** Cuotas Pagadas */
+            cuotas_pagadas: number;
+            /**
+             * Creado El
+             * Format: date-time
+             */
+            creado_el: string;
+        };
+        /**
+         * CreditoListItem
+         * @description Fila del read model de cartera (W3).
+         *
+         *     `cliente_nombre` es PII: SOLO ADMINISTRADOR/COBRADOR lo reciben poblado;
+         *     INVERSIONISTA recibe `None` (read-only PII minimizada, sin Cliente360).
+         *     Saldo/mora/pico/cuotas_pagadas provienen de la MISMA autoridad financiera
+         *     que la hoja viva (hoja_viva_service.resumen_creditos).
+         */
+        CreditoListItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Cliente Id */
+            cliente_id: string | null;
+            /** Cliente Nombre */
+            cliente_nombre: string | null;
+            /**
+             * Ruta Id
+             * Format: uuid
+             */
+            ruta_id: string;
+            /** Ruta Nombre */
+            ruta_nombre: string;
+            /** Cobrador Nombre */
+            cobrador_nombre: string | null;
+            /** Estado */
+            estado: string;
+            /** Cuota */
+            cuota: number;
+            /** N Cuotas */
+            n_cuotas: number;
+            /** Monto */
+            monto: number;
+            /** Total */
+            total: number;
+            /** Periodicidad */
+            periodicidad: string;
+            /**
+             * Fecha Inicio
+             * Format: date
+             */
+            fecha_inicio: string;
+            /** Saldo */
+            saldo: number;
+            /** Mora */
+            mora: number;
+            /** Pico */
+            pico: number;
+            /** Cuotas Pagadas */
+            cuotas_pagadas: number;
+            /**
+             * Creado El
+             * Format: date-time
+             */
+            creado_el: string;
+        };
+        /** CreditoListPage */
+        CreditoListPage: {
+            /** Items */
+            items: components["schemas"]["CreditoListItem"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
         /** CreditoResponse */
         CreditoResponse: {
             /**
@@ -1458,6 +1605,21 @@ export interface components {
              * Format: date-time
              */
             creado_el: string;
+        };
+        /**
+         * CreditoResumenResponse
+         * @description Agregados de cartera scoped por rol (W3): autoridad del resumen
+         *     superior de la pantalla /creditos. NUNCA se calculan en el navegador.
+         */
+        CreditoResumenResponse: {
+            /** Total Creditos */
+            total_creditos: number;
+            /** Activos */
+            activos: number;
+            /** Saldo Total Cartera */
+            saldo_total_cartera: number;
+            /** En Mora */
+            en_mora: number;
         };
         /**
          * CuotaProgramadaResponse
@@ -2774,6 +2936,13 @@ export interface operations {
     listar_creditos_api_creditos_get: {
         parameters: {
             query?: {
+                q?: string | null;
+                estado?: string | null;
+                ruta_id?: string | null;
+                limit?: number;
+                offset?: number;
+                sort?: string;
+                order?: string;
                 negocio_id?: string | null;
                 role?: string | null;
                 route_id?: string | null;
@@ -2792,7 +2961,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CreditoResponse"][];
+                    "application/json": components["schemas"]["CreditoListPage"];
                 };
             };
             /** @description Validation Error */
@@ -2845,6 +3014,41 @@ export interface operations {
             };
         };
     };
+    resumen_cartera_api_creditos_resumen_get: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditoResumenResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     obtener_credito_api_creditos__credito_id__get: {
         parameters: {
             query?: {
@@ -2868,7 +3072,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CreditoResponse"];
+                    "application/json": components["schemas"]["CreditoDetailResponse"];
                 };
             };
             /** @description Validation Error */
