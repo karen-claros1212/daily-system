@@ -3,7 +3,7 @@
 **Proyecto:** daily-system
 **Rama:** `product/web-premium-v1`
 **Última actualización:** 2026-08-16
-**HEAD:** `355cdb3` (W1 FINAL PASS — código certificado)
+**HEAD:** `d89f736` (W2 FINAL PASS — código certificado)
 
 ---
 
@@ -13,7 +13,7 @@
 |---|---|---|---|---|---|---|---|
 | **W0** | ✅ COMPLETADO | dac558d | BFF usuarios/audit | — | ✅ | Ledger creado | Ninguno |
 | **W1** | ✅ FINAL PASS | 355cdb3 | Todos | 399 backend + 136 E2E mock + 41 a11y | ✅ PASS (ambos) | Git repair, BFF PATCH, m10, UI completa, PG migration gate real en CI | Ninguno |
-| **W2** | PENDIENTE | — | — | — | — | — | Depende de W1 |
+| **W2** | ✅ FINAL PASS | d89f736 | Todos | 426 backend + 157 E2E mock + 22 a11y + 26 real | ✅ PASS (ambos) | Listado scoped COBRADOR, 360 DTO, real E2E en PG :5432 | Ninguno |
 | **W3** | PENDIENTE | — | — | — | — | — | Depende de W2 |
 | **W4** | PENDIENTE | — | — | — | — | — | Depende de W3 |
 | **W5** | PENDIENTE | — | — | — | — | — | Depende de W4 |
@@ -44,7 +44,7 @@
 | Dominio | Backend | BFF | UI | Mutaciones | E2E | Estado |
 |---|---:|---:|---:|---:|---:|---|
 | Usuarios | auditar | auditar | no/parcial | auditar | auditar | W1 |
-| Clientes | sí | no/parcial | no | sí | no | W2 |
+| Clientes | sí | sí | sí | sí | sí | W2 |
 | Créditos | sí | no/parcial | no | sí | no | W3 |
 | Rutas | sí | GET/parcial | parcial | backend sí | parcial | W4 |
 | Jornadas | sí | sí | parcial | móvil/domain | parcial | verificado |
@@ -143,8 +143,23 @@
 
 ## W2 — Clientes 360
 
-**Estado:** PENDIENTE
+**Estado:** ✅ FINAL PASS — CI remoto verde sobre `d89f736`
 **Depende de:** W1
+**Backend:** GET/POST `/api/clientes` (lista paginada + filtros `q`, `tipo_documento`, `identity_status`; scoped a la ruta del COBRADOR), GET/PATCH `/api/clientes/{id}` (detalle 360 con créditos, saldo/mora/ruta/cobrador y `pagos_recientes`; PATCH solo campos editables — identidad NO editable → 422), capabilities `clientes:ver` (ADMINISTRADOR + COBRADOR) y `clientes:gestionar` (SOLO ADMINISTRADOR); `cliente_service.py`, DTOs `clienteListDTO`/`clienteResponseDTO`/`cliente360DTO`; OpenAPI regenerado
+**BFF:** GET+POST `/api/clientes`, GET+PATCH `/api/clientes/[id]` (proxies al backend, session httpOnly)
+**UI:** `/clientes` (ClientesPage: tabla, search, filtros estado/tipo, paginación, crear/editar con confirmación), `/clientes/[id]` (Cliente360Page: créditos con saldo/mora/ruta/cobrador + pagos recientes), gate `clientes:ver` → Forbidden para INVERSIONISTA, nav por capability
+**E2E mock:** 18 tests en `w2-clientes.spec.ts` (ADMIN lista/busca/filtra/pagina/crea/edita/detalle 360; COBRADOR lista scoped, detalle 404 fuera de ruta, POST 403; INVERSIONISTA sin nav + 403) + 3 scans a11y
+**E2E real:** 26/26 contra FastAPI real (:8001) + Postgres (incluye `real-rbac` con CAPS W2)
+**Gates locales:** backend 426 passed / 9 skipped ✅, alembic head m10_audit_documento ✅, api:check ✅, lint 0 errores ✅, typecheck ✅, build ✅, E2E mock 157/157 ✅, a11y 22 ✅, E2E real 26/26 ✅
+**CI remoto (sobre d89f736):**
+- Backend CI `31961405789` **PASS** — Alembic check + pytest 426/9 + migration gates PG ✅
+- Web CI `31961405790` **PASS** — OpenAPI drift + lint + typecheck + build + E2E mock ✅
+
+### Decisiones W2
+- **Listado COBRADOR scoped por ruta**: el mock replica el contrato real (COBRADOR ve solo clientes de su ruta; detalle fuera de ruta → 404, nunca 403).
+- **Identidad NO editable por PATCH**: el contrato real responde 422 si el payload intenta mutar documento/tipo/estado.
+- **No se creó `real-clientes.spec.ts`**: cobertura W2 real suficiente mediante (1) E2E mock completo del contrato, (2) `real-rbac.spec.ts` con las CAPS `clientes:*` contra FastAPI real, (3) contract tests del backend (`test_w2.py`).
+- **E2E real local se ejecuta sobre PG `:5432`** (`REAL_DB_URL=postgresql://postgres:postgres@127.0.0.1:5432/daily_web_e2e_test`) con el backend en `:8001`; el default de `real-seed.ts` (`:5433`) quedó para el entorno heredado.
 
 ---
 
@@ -251,6 +266,8 @@
 | 2 | Fecha de negocio = America/Bogota | 2026-08-15 | Colombia; no cambiar Hoja Viva existente |
 | 3 | Mobile Contract Freeze | 2026-08-15 | Proteger app en uso real |
 | 4 | W10 antes de W11 | 2026-08-15 | Provider gateway necesario para asistente |
+| 5 | E2E real de W2 sobre PG :5432 | 2026-08-16 | PG heredado en :5433 quedó desalineado; :5432 es la instancia canónica |
+| 6 | Sin real-clientes.spec.ts | 2026-08-16 | Cobertura W2 real vía mock E2E + real-rbac CAPS + test_w2 |
 
 ## Blockers
 
