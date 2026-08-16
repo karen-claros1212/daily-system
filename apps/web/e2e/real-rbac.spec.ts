@@ -43,6 +43,9 @@ const CAPS_ADMINISTRADOR = [
   'creditos:ver',
   'codigos:crear',
   'dispositivos:registrar',
+  'usuarios:ver',
+  'usuarios:gestionar',
+  'audit:ver',
 ];
 const CAPS_COBRADOR = [
   'jornada:ver',
