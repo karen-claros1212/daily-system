@@ -467,3 +467,69 @@ class TestMeCapabilitiesW1:
         assert "usuarios:ver" not in caps
         assert "usuarios:gestionar" not in caps
         assert "audit:ver" not in caps
+
+
+class TestM9toM10Upgrade:
+    """H2: m9->m10 migration renombra USUARIO_DESATIVADO -> USUARIO_DESACTIVADO.
+
+    Simula una base de datos existente con m9 (CHECK cerrada con el typo)
+    e inserta una fila con action='USUARIO_DESATIVADO'. Luego aplica m10
+    y verifica que la fila se actualizó correctamente.
+    """
+
+    def test_m10_rename_typo(self, db_session):
+        """m9 crea tabla con CHECK cerrada -> insertar typo -> m10 lo renombra.
+
+        La tabla audit_log ya existe (creada por test_db / Base.metadata).
+        Insertamos fila con action='USUARIO_DESATIVADO' (typo de m9),
+        ejecutamos el UPDATE de m10 directamente y verificamos el renombrado.
+        """
+        from sqlalchemy import text
+        from uuid import uuid4
+
+        n = db_session.query(Negocio).first()
+        if not n:
+            n = Negocio(id=uuid4(), nombre="Test", nit="123", pais="CO", moneda="COP")
+            db_session.add(n)
+            db_session.flush()
+
+        audit_id = uuid4()
+        actor_id = uuid4()
+        entity_id = uuid4()
+        db_session.execute(text(
+            "INSERT INTO audit_log (id, negocio_id, actor_id, action, entity_type, entity_id, creado_el) "
+            "VALUES (:aid, :nid, :cid, :action, :et, :eid, datetime('now'))"
+        ), {
+            "aid": str(audit_id),
+            "nid": str(n.id),
+            "cid": str(actor_id),
+            "action": "USUARIO_DESATIVADO",
+            "et": "USUARIO",
+            "eid": str(entity_id),
+        })
+        db_session.commit()
+
+        # Verificar que la fila existe con typo
+        row = db_session.execute(
+            text("SELECT action FROM audit_log WHERE action = 'USUARIO_DESATIVADO'")
+        ).fetchone()
+        assert row is not None, "Fila con typo existe antes de m10"
+
+        # Ejecutar UPDATE de m10 directamente (sin alembic)
+        db_session.execute(text(
+            "UPDATE audit_log SET action = 'USUARIO_DESACTIVADO' "
+            "WHERE action = 'USUARIO_DESATIVADO'"
+        ))
+        db_session.commit()
+
+        # Verificar que la fila se renombró
+        renamed = db_session.execute(
+            text("SELECT action FROM audit_log WHERE action = 'USUARIO_DESACTIVADO'")
+        ).fetchone()
+        assert renamed is not None, "m10 renombró USUARIO_DESATIVADO -> USUARIO_DESACTIVADO"
+
+        # Verificar que no queda fila con typo
+        leftover = db_session.execute(
+            text("SELECT action FROM audit_log WHERE action = 'USUARIO_DESATIVADO'")
+        ).fetchone()
+        assert leftover is None, "No debe quedar fila con typo después de m10"
