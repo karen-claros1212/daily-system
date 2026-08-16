@@ -114,3 +114,99 @@ export function registrarNegocio(data: OnboardingNegocioCreate): Promise<Onboard
     cache: 'no-store',
   }).then((r) => parseJson<OnboardingNegocioResponse>(r));
 }
+
+// === Usuario (W1) ===
+
+export type Usuario = {
+  id: string;
+  negocio_id: string;
+  rol: string;
+  nombre: string;
+  documento: string | null;
+  activo: number;
+  creado_el: string;
+};
+
+export type UsuarioList = {
+  id: string;
+  rol: string;
+  nombre: string;
+  documento: string | null;
+  activo: number;
+  creado_el: string;
+};
+
+export type UsuarioUpdate = {
+  nombre?: string;
+  documento?: string | null;
+};
+
+export type AuditLog = {
+  id: string;
+  negocio_id: string;
+  actor_id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  metadata: Record<string, unknown> | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  creado_el: string;
+};
+
+/** GET /api/usuarios via BFF. */
+export function fetchUsuarios(params?: { rol?: string; activo?: string }): Promise<UsuarioList[]> {
+  const qs = new URLSearchParams();
+  if (params?.rol) qs.set('rol', params.rol);
+  if (params?.activo) qs.set('activo', params.activo);
+  const query = qs.toString();
+  return fetch(`/api/usuarios${query ? '?' + query : ''}`, { cache: 'no-store' }).then((r) => parseJson<UsuarioList[]>(r));
+}
+
+/** POST /api/usuarios via BFF. */
+export function crearUsuario(data: { nombre: string; rol: string; documento?: string | null }): Promise<Usuario> {
+  return fetch('/api/usuarios', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    cache: 'no-store',
+  }).then((r) => parseJson<Usuario>(r));
+}
+
+/** PATCH /api/usuarios/{id} via BFF. */
+export function editarUsuario(id: string, data: UsuarioUpdate): Promise<Usuario> {
+  return fetch(`/api/usuarios/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    cache: 'no-store',
+  }).then((r) => parseJson<Usuario>(r));
+}
+
+/** PATCH /api/usuarios/{id}/estado?activo=0|1 via BFF. */
+export function cambiarEstadoUsuario(id: string, activo: number): Promise<Usuario> {
+  return fetch(`/api/usuarios/${encodeURIComponent(id)}/estado?activo=${activo}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+    cache: 'no-store',
+  }).then((r) => parseJson<Usuario>(r));
+}
+
+/** GET /api/audit via BFF. */
+export function fetchAudit(params?: {
+  action?: string;
+  entity_type?: string;
+  actor_id?: string;
+  since?: string;
+  limit?: string;
+}): Promise<AuditLog[]> {
+  const qs = new URLSearchParams();
+  if (params?.action) qs.set('action', params.action);
+  if (params?.entity_type) qs.set('entity_type', params.entity_type);
+  if (params?.actor_id) qs.set('actor_id', params.actor_id);
+  if (params?.since) qs.set('since', params.since);
+  if (params?.limit) qs.set('limit', params.limit);
+  const query = qs.toString();
+  return fetch(`/api/audit${query ? '?' + query : ''}`, { cache: 'no-store' }).then((r) => parseJson<AuditLog[]>(r));
+}
