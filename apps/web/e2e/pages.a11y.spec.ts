@@ -430,6 +430,88 @@ test.describe('A11y', () => {
     expect(results.violations).toEqual([]);
   });
 
+  // ─── W3: a11y /creditos y /creditos/[id] ──────────────────────────────────
+  test('creditos a11y scan', async ({ page }) => {
+    await page.route(/\/api\/creditos(\?.*)?$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        json: {
+          items: [
+            {
+              id: 'cred-1111',
+              cliente_id: 'cli-1111',
+              cliente_nombre: 'Ana María Torres Rojas',
+              ruta_id: 'r1',
+              ruta_nombre: 'Ruta Centro',
+              cobrador_nombre: 'Carlos Cobrador',
+              estado: 'ACTIVO',
+              cuota: 100000,
+              n_cuotas: 12,
+              monto: 1000000,
+              total: 1200000,
+              periodicidad: 'DIARIA',
+              fecha_inicio: '2026-07-01',
+              saldo: 800000,
+              mora: 5,
+              pico: 1200000,
+              cuotas_pagadas: 4,
+              creado_el: '2026-07-01T00:00:00Z',
+            },
+          ],
+          total: 1,
+          limit: 25,
+          offset: 0,
+        },
+      });
+    });
+    await page.route(/\/api\/creditos\/resumen(\?.*)?$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        json: { total_creditos: 1, activos: 1, saldo_total_cartera: 800000, en_mora: 1 },
+      });
+    });
+    await setSessionToken(page, 'mock-admin');
+    await page.goto('/creditos');
+    await expect(page.getByText('Créditos (1)')).toBeVisible();
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('credito detalle a11y scan', async ({ page }) => {
+    await page.route(/\/api\/creditos\/[^/]+(\?.*)?$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        json: {
+          id: 'cred-1111',
+          negocio_id: 'n1',
+          cliente_id: 'cli-1111',
+          cliente_nombre: 'Ana María Torres Rojas',
+          ruta_id: 'r1',
+          ruta_nombre: 'Ruta Centro',
+          cobrador_nombre: 'Carlos Cobrador',
+          estado: 'ACTIVO',
+          cuota: 100000,
+          n_cuotas: 12,
+          monto: 1000000,
+          total: 1200000,
+          periodicidad: 'DIARIA',
+          fecha_inicio: '2026-07-01',
+          saldo: 800000,
+          mora: 5,
+          pico: 1200000,
+          cuotas_pagadas: 4,
+          creado_el: '2026-07-01T00:00:00Z',
+        },
+      });
+    });
+    await setSessionToken(page, 'mock-admin');
+    await page.goto('/creditos/cred-1111');
+    await expect(page.getByText('Saldo')).toBeVisible();
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+
   // ─── W1: keyboard nav en tabla ───────────────────────────────────────────
   test('keyboard nav en tabla usuarios', async ({ page }) => {
     await page.route('**/api/usuarios', async (route) => {

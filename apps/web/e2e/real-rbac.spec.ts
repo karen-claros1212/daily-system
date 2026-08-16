@@ -41,6 +41,7 @@ const CAPS_ADMINISTRADOR = [
   'rutas:crear',
   'rutas:reasignar',
   'creditos:ver',
+  'creditos:gestionar',
   'codigos:crear',
   'dispositivos:registrar',
   'usuarios:ver',
@@ -58,6 +59,7 @@ const CAPS_COBRADOR = [
   'pagos:registrar',
   'sync:ver',
   'clientes:ver',
+  'creditos:ver',
 ];
 
 interface MeBody {

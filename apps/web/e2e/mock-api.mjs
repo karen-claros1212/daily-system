@@ -293,6 +293,61 @@ function resetClientes() {
   CLIENTES_MOCK.push(...seed);
 }
 
+// ─── W3: read model de cartera (deriva de CLIENTES_MOCK) ────────────────────
+// Replica el contrato CreditoListItem/CreditoDetailResponse: el financiero
+// (saldo/mora/pico/cuotas_pagadas) viene del fixture, como en el backend
+// viene de hoja_viva_service. INVERSIONISTA -> PII minimizada.
+const RUTAS_MOCK = [
+  { id: 'r1', nombre: 'Ruta Norte', cobrador_nombre: 'Carlos M.' },
+  { id: 'r2', nombre: 'Ruta Sur', cobrador_nombre: 'Ana P.' },
+];
+
+function rutaMock(id) {
+  return RUTAS_MOCK.find((r) => r.id === id) ?? { id, nombre: '', cobrador_nombre: null };
+}
+
+function nombreCliente(c) {
+  return [c.nombres, c.primer_apellido, c.segundo_apellido].filter(Boolean).join(' ').trim() || null;
+}
+
+function creditoListDTO(c, cr, mostrarPii) {
+  return {
+    id: cr.id,
+    cliente_id: mostrarPii ? c.id : null,
+    cliente_nombre: mostrarPii ? nombreCliente(c) : null,
+    ruta_id: cr.ruta_id,
+    ruta_nombre: cr.ruta_nombre ?? rutaMock(cr.ruta_id).nombre,
+    cobrador_nombre: cr.cobrador_nombre ?? rutaMock(cr.ruta_id).cobrador_nombre,
+    estado: cr.estado,
+    cuota: cr.cuota,
+    n_cuotas: cr.n_cuotas,
+    monto: cr.monto,
+    total: cr.total,
+    periodicidad: cr.periodicidad,
+    fecha_inicio: cr.fecha_inicio,
+    saldo: cr.saldo,
+    mora: cr.mora_legacy,
+    pico: cr.pico,
+    cuotas_pagadas: cr.cuotas_pagadas,
+    creado_el: c.creado_el,
+  };
+}
+
+function creditosFlatten(mostrarPii) {
+  const out = [];
+  for (const c of CLIENTES_MOCK) {
+    if (c.negocio_id !== 'n1') continue;
+    for (const cr of c.creditos) out.push(creditoListDTO(c, cr, mostrarPii));
+  }
+  return out;
+}
+
+const CREDITO_SORTS = new Set([
+  'fecha_inicio', 'monto', 'total', 'cuota', 'periodicidad', 'estado', 'saldo',
+]);
+
+const CREDITO_PERIODICIDADES = new Set(['DIARIO', 'SEMANAL', 'QUINCENAL', 'UNICA']);
+
 // ─── W1: audit logs ──────────────────────────────────────────────────────────
 const AUDIT_MOCK = [
   {
@@ -463,7 +518,7 @@ const ROL_CAPABILITIES = {
   COBRADOR: [
     'jornada:ver', 'jornada:abrir', 'jornada:cerrar',
     'ruta:ver', 'movimientos:registrar', 'pagos:registrar', 'sync:ver',
-    'clientes:ver',
+    'clientes:ver', 'creditos:ver',
   ],
   INVERSIONISTA: [
     'inversionista:resumen', 'inversionista:suscripcion',
@@ -472,7 +527,7 @@ const ROL_CAPABILITIES = {
   ADMINISTRADOR: [
     'inversionista:resumen', 'inversionista:suscripcion',
     'jornadas:ver', 'rutas:ver', 'rutas:crear', 'rutas:reasignar',
-    'creditos:ver', 'codigos:crear', 'dispositivos:registrar',
+    'creditos:ver', 'creditos:gestionar', 'codigos:crear', 'dispositivos:registrar',
     'usuarios:ver', 'usuarios:gestionar', 'audit:ver',
     'clientes:ver', 'clientes:gestionar',
   ],
@@ -792,6 +847,169 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && path === '/api/_test/reset-clientes') {
     resetClientes();
     return json(res, 200, { ok: true });
+  }
+  if (req.method === 'POST' && path === '/api/_test/reset-creditos') {
+    resetClientes();
+    return json(res, 200, { ok: true });
+  }
+
+  // ── W3: GET /api/creditos/resumen (agregados scoped, creditos:ver) ─────────
+  if (req.method === 'GET' && path === '/api/creditos/resumen') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('creditos:ver')) {
+      return json(res, 403, { detail: 'No autorizado para creditos:ver' });
+    }
+    let filas = creditosFlatten(true);
+    if (ses.rol === 'COBRADOR') filas = filas.filter((f) => f.ruta_id === ses.route_id);
+    const activos = filas.filter((f) => f.estado === 'ACTIVO');
+    return json(res, 200, {
+      total_creditos: filas.length,
+      activos: activos.length,
+      saldo_total_cartera: activos.reduce((acc, f) => acc + f.saldo, 0),
+      en_mora: activos.filter((f) => f.mora > 0).length,
+    });
+  }
+
+  // ── W3: GET /api/creditos (read model paginado, creditos:ver) ──────────────
+  if (req.method === 'GET' && path === '/api/creditos') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('creditos:ver')) {
+      return json(res, 403, { detail: 'No autorizado para creditos:ver' });
+    }
+
+    const query = new URL(req.url, 'http://localhost').searchParams;
+    const q = query.get('q');
+    const estado = query.get('estado');
+    const ruta_id = query.get('ruta_id');
+    const limit = Math.min(parseInt(query.get('limit') || '50', 10) || 50, 100);
+    const offset = parseInt(query.get('offset') || '0', 10) || 0;
+    const sort = query.get('sort') || 'fecha_inicio';
+    const order = query.get('order') || 'desc';
+    if (!CREDITO_SORTS.has(sort)) return json(res, 422, { detail: `sort no permitido: ${sort}` });
+    if (order !== 'asc' && order !== 'desc') return json(res, 422, { detail: 'order debe ser asc o desc' });
+
+    // INVERSIONISTA: read-only con PII minimizada; q no aplica (busca sobre PII).
+    const mostrarPii = ses.rol !== 'INVERSIONISTA';
+    let filas = creditosFlatten(mostrarPii);
+
+    if (ses.rol === 'COBRADOR') {
+      filas = filas.filter((f) => f.ruta_id === ses.route_id);
+      if (ruta_id && ruta_id !== ses.route_id) {
+        return json(res, 404, { detail: 'Créditos no encontrados' });
+      }
+    } else if (ruta_id) {
+      filas = filas.filter((f) => f.ruta_id === ruta_id);
+    }
+
+    if (estado) filas = filas.filter((f) => f.estado === estado);
+    if (q && mostrarPii) {
+      const term = q.trim().toLowerCase();
+      filas = filas.filter((f) => (f.cliente_nombre || '').toLowerCase().includes(term));
+    }
+
+    const total = filas.length;
+    const rev = order === 'desc';
+    const key = (f) => f[sort] ?? '';
+    filas.sort((a, b) => {
+      const av = key(a);
+      const bv = key(b);
+      if (av < bv) return rev ? 1 : -1;
+      if (av > bv) return rev ? -1 : 1;
+      return 0;
+    });
+    const items = filas.slice(offset, offset + limit);
+    return json(res, 200, { items, total, limit, offset });
+  }
+
+  // ── W3: POST /api/creditos (crear, SOLO creditos:gestionar) ────────────────
+  if (req.method === 'POST' && path === '/api/creditos') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('creditos:gestionar')) {
+      return json(res, 403, { detail: 'No autorizado para creditos:gestionar' });
+    }
+
+    const permitidos = new Set([
+      'cliente_id', 'ruta_id', 'cuota', 'n_cuotas', 'monto', 'fecha_inicio', 'periodicidad',
+    ]);
+    for (const k of Object.keys(body)) if (!permitidos.has(k)) {
+      return json(res, 422, { detail: `Campo no permitido: ${k}` });
+    }
+
+    const cliente = CLIENTES_MOCK.find((c) => c.id === body.cliente_id && c.negocio_id === 'n1');
+    if (!cliente) return json(res, 404, { detail: 'Cliente no encontrado' });
+    const ruta = RUTAS_MOCK.find((r) => r.id === body.ruta_id);
+    if (!ruta) return json(res, 404, { detail: 'Ruta no encontrada' });
+
+    if (!Number.isInteger(body.cuota) || body.cuota <= 0) return json(res, 422, { detail: 'cuota invalida' });
+    if (!Number.isInteger(body.n_cuotas) || body.n_cuotas <= 0) return json(res, 422, { detail: 'n_cuotas invalido' });
+    if (!Number.isInteger(body.monto) || body.monto <= 0) return json(res, 422, { detail: 'monto invalido' });
+    if (!body.fecha_inicio || !/^\d{4}-\d{2}-\d{2}$/.test(body.fecha_inicio)) {
+      return json(res, 422, { detail: 'fecha_inicio invalida' });
+    }
+    const periodicidad = body.periodicidad ?? 'DIARIO';
+    if (!CREDITO_PERIODICIDADES.has(periodicidad)) return json(res, 422, { detail: 'periodicidad invalida' });
+
+    const total = body.cuota * body.n_cuotas;
+    const nuevo = {
+      id: uuid(),
+      estado: 'ACTIVO',
+      cuota: body.cuota,
+      n_cuotas: body.n_cuotas,
+      monto: body.monto,
+      total,
+      periodicidad,
+      fecha_inicio: body.fecha_inicio,
+      saldo: total,
+      mora_legacy: 0,
+      pico: total,
+      cuotas_pagadas: 0,
+      ruta_id: ruta.id,
+      ruta_nombre: ruta.nombre,
+      cobrador_nombre: ruta.cobrador_nombre,
+    };
+    cliente.creditos.push(nuevo);
+    return json(res, 201, {
+      id: nuevo.id,
+      negocio_id: 'n1',
+      cliente_id: cliente.id,
+      ruta_id: ruta.id,
+      cuota: nuevo.cuota,
+      n_cuotas: nuevo.n_cuotas,
+      monto: nuevo.monto,
+      total: nuevo.total,
+      periodicidad: nuevo.periodicidad,
+      fecha_inicio: nuevo.fecha_inicio,
+      estado: nuevo.estado,
+      tasa_efectiva_anual: null,
+      residuo_redondeo: 0,
+      version: 1,
+      creado_el: new Date().toISOString(),
+    });
+  }
+
+  // ── W3: GET /api/creditos/:id (detalle, creditos:ver) ─────────────────────
+  if (req.method === 'GET' && path.startsWith('/api/creditos/')) {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('creditos:ver')) {
+      return json(res, 403, { detail: 'No autorizado para creditos:ver' });
+    }
+
+    const id = path.split('/').pop();
+    const mostrarPii = ses.rol !== 'INVERSIONISTA';
+    const fila = creditosFlatten(mostrarPii).find((f) => f.id === id);
+    if (!fila) return json(res, 404, { detail: 'Crédito no encontrado' });
+    if (ses.rol === 'COBRADOR' && fila.ruta_id !== ses.route_id) {
+      return json(res, 404, { detail: 'Crédito no encontrado' });
+    }
+    return json(res, 200, { ...fila, negocio_id: 'n1' });
   }
 
   // ── POST /api/onboarding/negocios (publico, pre-sesion, Etapa 3) ──────────
