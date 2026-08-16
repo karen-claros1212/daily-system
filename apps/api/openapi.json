@@ -939,6 +939,80 @@
         "operationId": "listar_clientes_api_clientes_get",
         "parameters": [
           {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "tipo_documento",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tipo Documento"
+            }
+          },
+          {
+            "name": "identity_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Identity Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
             "name": "negocio_id",
             "in": "query",
             "required": false,
@@ -1029,11 +1103,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ClienteResponse"
-                  },
-                  "title": "Response Listar Clientes Api Clientes Get"
+                  "$ref": "#/components/schemas/ClienteListPage"
                 }
               }
             }
@@ -1154,6 +1224,141 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cliente360Response"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "clientes"
+        ],
+        "summary": "Editar Cliente",
+        "operationId": "editar_cliente_api_clientes__cliente_id__patch",
+        "parameters": [
+          {
+            "name": "cliente_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cliente Id"
+            }
+          },
+          {
+            "name": "negocio_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Negocio Id"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            }
+          },
+          {
+            "name": "route_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Route Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClienteUpdate"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -6341,15 +6546,17 @@
         ],
         "title": "CanjearResponse"
       },
-      "ClienteCreate": {
+      "Cliente360Response": {
         "properties": {
-          "primer_apellido": {
+          "id": {
             "type": "string",
-            "title": "Primer Apellido"
+            "format": "uuid",
+            "title": "Id"
           },
-          "nombres": {
+          "negocio_id": {
             "type": "string",
-            "title": "Nombres"
+            "format": "uuid",
+            "title": "Negocio Id"
           },
           "tipo_documento": {
             "anyOf": [
@@ -6373,6 +6580,43 @@
             ],
             "title": "Documento Normalizado"
           },
+          "identity_status": {
+            "type": "string",
+            "title": "Identity Status"
+          },
+          "primer_apellido": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primer Apellido"
+          },
+          "segundo_apellido": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segundo Apellido"
+          },
+          "nombres": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nombres"
+          },
           "telefono_1": {
             "anyOf": [
               {
@@ -6383,6 +6627,17 @@
               }
             ],
             "title": "Telefono 1"
+          },
+          "telefono_2": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telefono 2"
           },
           "direccion": {
             "anyOf": [
@@ -6395,6 +6650,17 @@
             ],
             "title": "Direccion"
           },
+          "barrio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Barrio"
+          },
           "ciudad": {
             "anyOf": [
               {
@@ -6405,6 +6671,187 @@
               }
             ],
             "title": "Ciudad"
+          },
+          "ocupacion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocupacion"
+          },
+          "creado_el": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creado El"
+          },
+          "creditos": {
+            "items": {
+              "$ref": "#/components/schemas/CreditoClienteResumen"
+            },
+            "type": "array",
+            "title": "Creditos"
+          },
+          "pagos_recientes": {
+            "items": {
+              "$ref": "#/components/schemas/PagoClienteResumen"
+            },
+            "type": "array",
+            "title": "Pagos Recientes"
+          },
+          "saldo_total": {
+            "type": "integer",
+            "title": "Saldo Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "negocio_id",
+          "tipo_documento",
+          "documento_normalizado",
+          "identity_status",
+          "primer_apellido",
+          "segundo_apellido",
+          "nombres",
+          "telefono_1",
+          "telefono_2",
+          "direccion",
+          "barrio",
+          "ciudad",
+          "ocupacion",
+          "creado_el",
+          "creditos",
+          "pagos_recientes",
+          "saldo_total"
+        ],
+        "title": "Cliente360Response",
+        "description": "Cliente 360: datos del cliente + creditos con saldo/mora + pagos\nrecientes. Saldo/mora provienen de la MISMA autoridad que la hoja viva\n(resumen_creditos): no se duplica calculo financiero en el panel."
+      },
+      "ClienteCreate": {
+        "properties": {
+          "primer_apellido": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Primer Apellido"
+          },
+          "nombres": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Nombres"
+          },
+          "segundo_apellido": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segundo Apellido"
+          },
+          "tipo_documento": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tipo Documento"
+          },
+          "documento_normalizado": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Documento Normalizado"
+          },
+          "telefono_1": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telefono 1"
+          },
+          "telefono_2": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telefono 2"
+          },
+          "direccion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direccion"
+          },
+          "barrio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Barrio"
+          },
+          "ciudad": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ciudad"
+          },
+          "ocupacion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocupacion"
           }
         },
         "type": "object",
@@ -6414,25 +6861,23 @@
         ],
         "title": "ClienteCreate"
       },
-      "ClienteResponse": {
+      "ClienteListItem": {
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid",
             "title": "Id"
           },
-          "negocio_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Negocio Id"
-          },
-          "primer_apellido": {
-            "type": "string",
-            "title": "Primer Apellido"
-          },
-          "nombres": {
-            "type": "string",
-            "title": "Nombres"
+          "tipo_documento": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tipo Documento"
           },
           "documento_normalizado": {
             "anyOf": [
@@ -6449,7 +6894,7 @@
             "type": "string",
             "title": "Identity Status"
           },
-          "direccion": {
+          "primer_apellido": {
             "anyOf": [
               {
                 "type": "string"
@@ -6458,7 +6903,40 @@
                 "type": "null"
               }
             ],
-            "title": "Direccion"
+            "title": "Primer Apellido"
+          },
+          "segundo_apellido": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segundo Apellido"
+          },
+          "nombres": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nombres"
+          },
+          "telefono_1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telefono 1"
           },
           "ciudad": {
             "anyOf": [
@@ -6471,6 +6949,200 @@
             ],
             "title": "Ciudad"
           },
+          "creditos_activos": {
+            "type": "integer",
+            "title": "Creditos Activos"
+          },
+          "creado_el": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creado El"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "tipo_documento",
+          "documento_normalizado",
+          "identity_status",
+          "primer_apellido",
+          "segundo_apellido",
+          "nombres",
+          "telefono_1",
+          "ciudad",
+          "creditos_activos",
+          "creado_el"
+        ],
+        "title": "ClienteListItem"
+      },
+      "ClienteListPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ClienteListItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "ClienteListPage"
+      },
+      "ClienteResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "negocio_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Negocio Id"
+          },
+          "tipo_documento": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tipo Documento"
+          },
+          "documento_normalizado": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Documento Normalizado"
+          },
+          "identity_status": {
+            "type": "string",
+            "title": "Identity Status"
+          },
+          "primer_apellido": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primer Apellido"
+          },
+          "segundo_apellido": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segundo Apellido"
+          },
+          "nombres": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nombres"
+          },
+          "telefono_1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telefono 1"
+          },
+          "telefono_2": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telefono 2"
+          },
+          "direccion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direccion"
+          },
+          "barrio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Barrio"
+          },
+          "ciudad": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ciudad"
+          },
+          "ocupacion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocupacion"
+          },
           "creado_el": {
             "type": "string",
             "format": "date-time",
@@ -6481,12 +7153,18 @@
         "required": [
           "id",
           "negocio_id",
-          "primer_apellido",
-          "nombres",
+          "tipo_documento",
           "documento_normalizado",
           "identity_status",
+          "primer_apellido",
+          "segundo_apellido",
+          "nombres",
+          "telefono_1",
+          "telefono_2",
           "direccion",
+          "barrio",
           "ciudad",
+          "ocupacion",
           "creado_el"
         ],
         "title": "ClienteResponse"
@@ -6617,6 +7295,124 @@
         "title": "ClienteSyncResponse",
         "description": "Cliente para el sync del movil: expone las columnas que la tabla local\n`cliente` del dispositivo puede conservar (ver lib/database/tables.dart)."
       },
+      "ClienteUpdate": {
+        "properties": {
+          "primer_apellido": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primer Apellido"
+          },
+          "segundo_apellido": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segundo Apellido"
+          },
+          "nombres": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nombres"
+          },
+          "telefono_1": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telefono 1"
+          },
+          "telefono_2": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telefono 2"
+          },
+          "direccion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direccion"
+          },
+          "barrio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Barrio"
+          },
+          "ciudad": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ciudad"
+          },
+          "ocupacion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocupacion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ClienteUpdate",
+        "description": "Editable en el panel: identidad de contacto y nombres.\n\nIntencionalmente NO se edita tipo_documento / documento_normalizado /\nidentity_status: la identidad se resuelve por el flujo de verificacion, no\npor edicion libre en el panel (documento/identidad invariante)."
+      },
       "CodigoActivacionCreate": {
         "properties": {
           "cobrador_id": {
@@ -6683,6 +7479,99 @@
           "expira_el"
         ],
         "title": "CodigoActivacionResponse"
+      },
+      "CreditoClienteResumen": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "estado": {
+            "type": "string",
+            "title": "Estado"
+          },
+          "cuota": {
+            "type": "integer",
+            "title": "Cuota"
+          },
+          "n_cuotas": {
+            "type": "integer",
+            "title": "N Cuotas"
+          },
+          "monto": {
+            "type": "integer",
+            "title": "Monto"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "periodicidad": {
+            "type": "string",
+            "title": "Periodicidad"
+          },
+          "fecha_inicio": {
+            "type": "string",
+            "format": "date",
+            "title": "Fecha Inicio"
+          },
+          "saldo": {
+            "type": "integer",
+            "title": "Saldo"
+          },
+          "mora_legacy": {
+            "type": "integer",
+            "title": "Mora Legacy"
+          },
+          "pico": {
+            "type": "integer",
+            "title": "Pico"
+          },
+          "cuotas_pagadas": {
+            "type": "integer",
+            "title": "Cuotas Pagadas"
+          },
+          "ruta_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Ruta Id"
+          },
+          "ruta_nombre": {
+            "type": "string",
+            "title": "Ruta Nombre"
+          },
+          "cobrador_nombre": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cobrador Nombre"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "estado",
+          "cuota",
+          "n_cuotas",
+          "monto",
+          "total",
+          "periodicidad",
+          "fecha_inicio",
+          "saldo",
+          "mora_legacy",
+          "pico",
+          "cuotas_pagadas",
+          "ruta_id",
+          "ruta_nombre",
+          "cobrador_nombre"
+        ],
+        "title": "CreditoClienteResumen"
       },
       "CreditoCreate": {
         "properties": {
@@ -8369,6 +9258,61 @@
         ],
         "title": "OnboardingNegocioResponse",
         "description": "Respuesta tipada del alta segura. El `token` del codigo de activacion\nse entrega UNA vez: es la identidad bootstrap con la que el admin inicial\nusa el login Web ya existente (siguiente_paso=\"activar_codigo\"). Nunca se\nexponen secretos del servidor ni datos de tenancy de terceros."
+      },
+      "PagoClienteResumen": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "credito_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credito Id"
+          },
+          "tipo": {
+            "type": "string",
+            "title": "Tipo"
+          },
+          "monto": {
+            "type": "integer",
+            "title": "Monto"
+          },
+          "nota": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nota"
+          },
+          "recibido_el_servidor": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Recibido El Servidor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "credito_id",
+          "tipo",
+          "monto",
+          "nota",
+          "recibido_el_servidor"
+        ],
+        "title": "PagoClienteResumen"
       },
       "PagoCreate": {
         "properties": {

@@ -21,21 +21,18 @@ def _uuid_eq(column, val):
     return column == val
 
 
-def build_hoja_viva(
+def resumen_creditos(
     db: Session,
-    ruta_id: UUID,
+    creditos: list[Credito],
     report_date: date | None = None,
 ) -> dict:
-    report_date = report_date or today_bogota()
+    """Resumen financiero por credito: saldo, cuotas_pagadas, pico, mora_legacy.
 
-    creditos = (
-        db.query(Credito)
-        .filter(
-            _uuid_eq(Credito.ruta_id, ruta_id),
-            Credito.estado == "ACTIVO",
-        )
-        .all()
-    )
+    Autoridad UNICA del calculo de saldo y mora_legacy: reutilizada por
+    build_hoja_viva y por el detalle Cliente 360 del panel. Batch de pagos
+    (SUM(PAYMENT) - SUM(REVERSAL)), sin N+1.
+    """
+    report_date = report_date or today_bogota()
 
     credito_ids = [c.id for c in creditos]
 
@@ -59,6 +56,54 @@ def build_hoja_viva(
             if credito_id not in pagos_agg:
                 pagos_agg[credito_id] = {"PAYMENT": 0, "REVERSAL": 0}
             pagos_agg[credito_id][tipo] = total
+
+    resumen = {}
+    for credito in creditos:
+        cid = credito.id
+        agg = pagos_agg.get(cid, {"PAYMENT": 0, "REVERSAL": 0})
+        abono_neto = (agg["PAYMENT"] or 0) - (agg["REVERSAL"] or 0)
+
+        saldo = credito.total - abono_neto
+        cuotas_pagadas = abono_neto // credito.cuota if credito.cuota > 0 else 0
+        pico = abono_neto % credito.cuota if credito.cuota > 0 else 0
+
+        # mora_legacy
+        if credito.fecha_inicio:
+            mora_legacy = (report_date - credito.fecha_inicio).days - 1 - cuotas_pagadas
+            mora_legacy = max(mora_legacy, 0)
+        else:
+            mora_legacy = 0
+
+        resumen[cid] = {
+            "abono_neto": abono_neto,
+            "saldo": saldo,
+            "cuotas_pagadas": cuotas_pagadas,
+            "pico": pico,
+            "mora_legacy": mora_legacy,
+        }
+
+    return resumen
+
+
+def build_hoja_viva(
+    db: Session,
+    ruta_id: UUID,
+    report_date: date | None = None,
+) -> dict:
+    report_date = report_date or today_bogota()
+
+    creditos = (
+        db.query(Credito)
+        .filter(
+            _uuid_eq(Credito.ruta_id, ruta_id),
+            Credito.estado == "ACTIVO",
+        )
+        .all()
+    )
+
+    credito_ids = [c.id for c in creditos]
+
+    resumen = resumen_creditos(db, creditos, report_date)
 
     # DC_LEGACY = Σ cuota de todos los créditos activos (sin filtrar periodicidad)
     dc_legacy = sum(c.cuota for c in creditos)
@@ -87,19 +132,12 @@ def build_hoja_viva(
     clientes = []
     for credito in creditos:
         cid = credito.id
-        agg = pagos_agg.get(cid, {"PAYMENT": 0, "REVERSAL": 0})
-        abono_neto = (agg["PAYMENT"] or 0) - (agg["REVERSAL"] or 0)
-
-        saldo = credito.total - abono_neto
-        cuotas_pagadas = abono_neto // credito.cuota if credito.cuota > 0 else 0
-        pico = abono_neto % credito.cuota if credito.cuota > 0 else 0
-
-        # mora_legacy
-        if credito.fecha_inicio:
-            mora_legacy = (report_date - credito.fecha_inicio).days - 1 - cuotas_pagadas
-            mora_legacy = max(mora_legacy, 0)
-        else:
-            mora_legacy = 0
+        fin = resumen[cid]
+        abono_neto = fin["abono_neto"]
+        saldo = fin["saldo"]
+        cuotas_pagadas = fin["cuotas_pagadas"]
+        pico = fin["pico"]
+        mora_legacy = fin["mora_legacy"]
 
         # Semáforo: siempre GRIS hasta score_snapshot real
         semaforo = "GRIS"

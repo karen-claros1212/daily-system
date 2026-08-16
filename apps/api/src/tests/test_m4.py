@@ -266,7 +266,7 @@ class TestMultirutaAislamiento:
         assert {c["id"] for c in r.json()} == {str(self.credito_ids["R1"])}
 
         r = client.get("/api/clientes", params=auth_r1)
-        assert {c["id"] for c in r.json()} == {str(self.cliente_ids["C1"])}
+        assert {c["id"] for c in r.json()["items"]} == {str(self.cliente_ids["C1"])}
 
         r = client.get("/api/pagos", params=auth_r1)
         assert all(p["negocio_id"] == str(self.nid) for p in r.json())
@@ -368,7 +368,7 @@ class TestMultirutaAislamiento:
         r = client.get("/api/rutas", params=auth)
         assert len(r.json()) == 4
         r = client.get("/api/clientes", params=auth)
-        assert len(r.json()) == 4
+        assert len(r.json()["items"]) == 4
         r = client.get("/api/pagos", params=auth)
         assert len(r.json()) == 1
 

@@ -95,27 +95,147 @@ class RutaReasignarResponse(BaseModel):
 # --- Cliente ---
 
 class ClienteCreate(BaseModel):
-    primer_apellido: str
-    nombres: str
-    tipo_documento: str | None = None
-    documento_normalizado: str | None = None
-    telefono_1: str | None = None
-    direccion: str | None = None
-    ciudad: str | None = None
+    primer_apellido: str = Field(..., min_length=1, max_length=100)
+    nombres: str = Field(..., min_length=1, max_length=200)
+    segundo_apellido: str | None = Field(None, max_length=100)
+    tipo_documento: str | None = Field(None, max_length=20)
+    documento_normalizado: str | None = Field(None, max_length=50)
+    telefono_1: str | None = Field(None, max_length=20)
+    telefono_2: str | None = Field(None, max_length=20)
+    direccion: str | None = Field(None, max_length=300)
+    barrio: str | None = Field(None, max_length=100)
+    ciudad: str | None = Field(None, max_length=100)
+    ocupacion: str | None = Field(None, max_length=100)
+
+    @field_validator("primer_apellido", "nombres", "segundo_apellido",
+                     "tipo_documento", "documento_normalizado", "telefono_1",
+                     "telefono_2", "direccion", "barrio", "ciudad", "ocupacion",
+                     mode="before")
+    @classmethod
+    def _strip(cls, v):
+        return v.strip() if isinstance(v, str) else v
+
+
+class ClienteUpdate(BaseModel):
+    """Editable en el panel: identidad de contacto y nombres.
+
+    Intencionalmente NO se edita tipo_documento / documento_normalizado /
+    identity_status: la identidad se resuelve por el flujo de verificacion, no
+    por edicion libre en el panel (documento/identidad invariante).
+    """
+
+    primer_apellido: str | None = Field(None, min_length=1, max_length=100)
+    segundo_apellido: str | None = Field(None, max_length=100)
+    nombres: str | None = Field(None, min_length=1, max_length=200)
+    telefono_1: str | None = Field(None, max_length=20)
+    telefono_2: str | None = Field(None, max_length=20)
+    direccion: str | None = Field(None, max_length=300)
+    barrio: str | None = Field(None, max_length=100)
+    ciudad: str | None = Field(None, max_length=100)
+    ocupacion: str | None = Field(None, max_length=100)
+
+    @field_validator("primer_apellido", "nombres", "segundo_apellido",
+                     "telefono_1", "telefono_2", "direccion", "barrio",
+                     "ciudad", "ocupacion", mode="before")
+    @classmethod
+    def _strip(cls, v):
+        return v.strip() if isinstance(v, str) else v
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class ClienteResponse(BaseModel):
     id: UUID
     negocio_id: UUID
-    primer_apellido: str
-    nombres: str
+    tipo_documento: str | None
     documento_normalizado: str | None
     identity_status: str
+    primer_apellido: str | None
+    segundo_apellido: str | None
+    nombres: str | None
+    telefono_1: str | None
+    telefono_2: str | None
     direccion: str | None
+    barrio: str | None
     ciudad: str | None
+    ocupacion: str | None
     creado_el: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ClienteListItem(BaseModel):
+    id: UUID
+    tipo_documento: str | None
+    documento_normalizado: str | None
+    identity_status: str
+    primer_apellido: str | None
+    segundo_apellido: str | None
+    nombres: str | None
+    telefono_1: str | None
+    ciudad: str | None
+    creditos_activos: int
+    creado_el: datetime
+
+
+class ClienteListPage(BaseModel):
+    items: list[ClienteListItem]
+    total: int
+    limit: int
+    offset: int
+
+
+class CreditoClienteResumen(BaseModel):
+    id: UUID
+    estado: str
+    cuota: int
+    n_cuotas: int
+    monto: int
+    total: int
+    periodicidad: str
+    fecha_inicio: date
+    saldo: int
+    mora_legacy: int
+    pico: int
+    cuotas_pagadas: int
+    ruta_id: UUID
+    ruta_nombre: str
+    cobrador_nombre: str | None
+
+
+class PagoClienteResumen(BaseModel):
+    id: UUID
+    credito_id: UUID | None
+    tipo: str
+    monto: int
+    nota: str | None
+    recibido_el_servidor: datetime
+
+
+class Cliente360Response(BaseModel):
+    """Cliente 360: datos del cliente + creditos con saldo/mora + pagos
+    recientes. Saldo/mora provienen de la MISMA autoridad que la hoja viva
+    (resumen_creditos): no se duplica calculo financiero en el panel.
+    """
+
+    id: UUID
+    negocio_id: UUID
+    tipo_documento: str | None
+    documento_normalizado: str | None
+    identity_status: str
+    primer_apellido: str | None
+    segundo_apellido: str | None
+    nombres: str | None
+    telefono_1: str | None
+    telefono_2: str | None
+    direccion: str | None
+    barrio: str | None
+    ciudad: str | None
+    ocupacion: str | None
+    creado_el: datetime
+    creditos: list[CreditoClienteResumen]
+    pagos_recientes: list[PagoClienteResumen]
+    saldo_total: int
 
 
 class ClienteSyncResponse(BaseModel):

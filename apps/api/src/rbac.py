@@ -17,6 +17,9 @@ Verificacion en codigo (ago 2026):
   - dispositivo.py : registrar -> SOLO ADMINISTRADOR
   - usuario.py     : CRUD completo -> SOLO ADMINISTRADOR
   - audit.py       : GET -> SOLO ADMINISTRADOR
+  - cliente.py     : list/detail -> clientes:ver (ADMINISTRADOR | COBRADOR);
+                      create/update -> clientes:gestionar (SOLO ADMINISTRADOR);
+                      INVERSIONISTA no lee clientes (PII no necesaria)
 """
 
 from typing import Final
@@ -47,6 +50,8 @@ CAPABILITIES_POR_ROL: Final[dict[str, tuple[str, ...]]] = {
         "usuarios:ver",
         "usuarios:gestionar",
         "audit:ver",
+        "clientes:ver",
+        "clientes:gestionar",
     ),
     "COBRADOR": (
         "jornada:ver",
@@ -56,6 +61,7 @@ CAPABILITIES_POR_ROL: Final[dict[str, tuple[str, ...]]] = {
         "movimientos:registrar",
         "pagos:registrar",
         "sync:ver",
+        "clientes:ver",
     ),
 }
 
@@ -69,3 +75,8 @@ def capabilities_de_rol(rol: str | None) -> list[str]:
     if rol not in CAPABILITIES_POR_ROL:
         return []
     return list(CAPABILITIES_POR_ROL[rol])
+
+
+def tiene_capability(rol: str | None, capability: str) -> bool:
+    """¿El rol tiene la capability? Default-deny para roles desconocidos."""
+    return capability in CAPABILITIES_POR_ROL.get(rol or "", ())
