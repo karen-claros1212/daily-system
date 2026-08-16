@@ -52,6 +52,16 @@ jobs:
         run: |
           pytest src/tests/ -q --tb=short
 
+      - name: PostgreSQL migration gate (m9 -> m10)
+        working-directory: apps/api
+        env:
+          API_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/daily_backend_ci_test
+          DAILY_ENV: test
+        run: |
+          pytest \
+            src/tests/test_w1.py::TestM9toM10UpgradePG::test_m10_real_migration \
+            -q --tb=short
+
       - name: PostgreSQL NIT concurrency gate
         working-directory: apps/api
         env:

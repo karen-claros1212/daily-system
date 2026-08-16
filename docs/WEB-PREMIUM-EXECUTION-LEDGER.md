@@ -2,8 +2,8 @@
 
 **Proyecto:** daily-system
 **Rama:** `product/web-premium-v1`
-**Última actualización:** 2026-08-15
-**HEAD:** `98df7aa`
+**Última actualización:** 2026-08-16
+**HEAD:** (ver commit final de este trabajo — Git es autoridad)
 
 ---
 
@@ -12,7 +12,7 @@
 | Fase | Estado | Commit | Endpoints | Pruebas | CI | Decisiones | Blockers |
 |---|---|---|---|---|---|---|---|
 | **W0** | ✅ COMPLETADO | dac558d | BFF usuarios/audit | — | ✅ | Ledger creado | Ninguno |
-| **W1** | ✅ COMPLETADO | 98df7aa | Todos | 33/33 backend + E2E + A11Y | en espera | Git repair, BFF PATCH, m10, UI completa, PG migration gate | Ninguno |
+| **W1** | EN VERIFICACIÓN (CI remoto) | (HEAD real) | Todos | 399 backend + 136 E2E mock + 41 a11y | en espera (SHA final) | Git repair, BFF PATCH, m10, UI completa, PG migration gate real en CI | Ninguno |
 | **W2** | PENDIENTE | — | — | — | — | — | Depende de W1 |
 | **W3** | PENDIENTE | — | — | — | — | — | Depende de W2 |
 | **W4** | PENDIENTE | — | — | — | — | — | Depende de W3 |
@@ -31,7 +31,7 @@
 
 ## W0 — Execution Ledger + Contratos + Fecha de Negocio
 
-### Estado: EN PROGRESO
+### Estado: ✅ COMPLETADO
 
 #### W0.1 — Ledger (este archivo)
 - [x] Ledger creado con fases W0-W14
@@ -113,14 +113,15 @@
 
 ## W1 — Audit Trail + Usuarios/Roles
 
-**Estado:** ✅ COMPLETADO
+**Estado:** EN VERIFICACIÓN — CI remoto sobre el SHA final
 **Depende de:** W0.2 (matriz) + W0.3 (regla fecha)
 **Backend:** tabla audit_log, actor_nombre en read model (LEFT JOIN), m10 migration (DROP CHECK → UPDATE → CREATE INDEX)
 **BFF:** GET /api/usuarios, POST /api/usuarios, PATCH /api/usuarios/[id], PATCH /api/usuarios/[id]/estado?activo=0|1, GET /api/audit, POST /api/activaciones/codigos
 **UI:** /usuarios (ADMIN, con filtros/activación/confirmación), /auditoria (ADMIN, con actor nombre/metadata expandible)
 **E2E:** ADMIN crea/edita/desactiva/reactiva usuario, genera activación, filtra auditoría; COBRADOR/INVERSIONISTA sin navegación Usuarios/Auditoría, 403 en mutaciones
 **A11Y:** axe en /usuarios, /auditoria, formularios, confirmaciones, keyboard nav
-**Gates:** backend 32/32 ✅, api:check ✅, lint ✅, typecheck ✅, build ✅
+**Gates locales:** backend 399 passed / 9 skipped ✅, alembic head m10_audit_documento ✅, api:check ✅, lint 0 errores ✅, typecheck ✅, build ✅, E2E mock 136/136 ✅, W1+a11y 41 passed ✅
+**CI remoto:** Backend CI + Web CI PASS sobre dba043a; pendiente PASS sobre el SHA final (este commit)
 
 ### Incidente Git (resuelto)
 - master accidental apuntaba a 913fe6f (contaminado)
@@ -130,7 +131,10 @@
 
 ### m10 — Migration hardening
 - Orden crítico: DROP CHECK constraint → UPDATE typo (USUARIO_DESATIVADO → USUARIO_DESACTIVADO) → CREATE INDEX
-- Test PostgreSQL real con fila legacy: pasa 32/32
+- Test unitario portable (SQLite) con actor `activo=1` (NOT NULL)
+- Gate de migración real PostgreSQL (`TestM9toM10UpgradePG`) ejecutado en CI:
+  DB scratch temporal, alembic upgrade m9, fila legacy con typo, alembic upgrade m10,
+  verifica rename + sin typo + índice uq_usuario_negocio_documento + head m10.
 
 ---
 

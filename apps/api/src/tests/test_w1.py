@@ -550,21 +550,32 @@ class TestM9toM10UpgradePG:
 
     @pytest.fixture
     def pg_test_db_url(self):
-        """URL de la DB de test PG para migración aislada."""
-        url = os.getenv("API_DATABASE_URL", "")
-        if not url.startswith("postgresql"):
+        """URL de la DB de test PG para migración aislada.
+
+        Deriva el nombre scratch de forma robusta (parseando la URL) en vez de
+        un replace de string, que falla cuando la DB de origen tiene otro nombre
+        (p. ej. daily_backend_ci_test en CI).
+        """
+        from sqlalchemy.engine import make_url
+
+        raw = os.getenv("API_DATABASE_URL", "")
+        if not raw.startswith("postgresql"):
             pytest.skip("No PostgreSQL available for migration gate")
-        # Usar la misma DB pero con nombre scratch para no interferir
-        return url.replace("daily_web_e2e_test", "daily_migration_gate")
+        url = make_url(raw)
+        url = url.set(database="daily_migration_gate")
+        return str(url)
 
     @pytest.fixture
     def migration_db(self, pg_test_db_url, request):
         """Crea/destruye DB temporal para migración."""
         from sqlalchemy import create_engine as sa_create_engine, text
+        from sqlalchemy.engine import make_url
         from sqlalchemy.engine import Engine
 
+        url = make_url(pg_test_db_url)
+        base_url = str(url.set(database="postgres"))
+
         # Conectar a postgres (master DB) para crear/destruir scratch
-        base_url = pg_test_db_url.rsplit("/", 1)[0] + "/postgres"
         engine = sa_create_engine(base_url)
         with engine.connect() as conn:
             conn.execution_options(isolation_level="AUTOCOMMIT")
@@ -577,7 +588,7 @@ class TestM9toM10UpgradePG:
             conn.execute(text("COMMIT"))
             conn.execute(text("CREATE DATABASE daily_migration_gate"))
 
-        yield pg_test_db_url.replace("daily_web_e2e_test", "daily_migration_gate")
+        yield pg_test_db_url
 
         # Cleanup: close engine first, then kill remaining connections
         engine.dispose()
@@ -606,7 +617,7 @@ class TestM9toM10UpgradePG:
         original_db_url = _os.environ.get("API_DATABASE_URL")
         _os.environ["API_DATABASE_URL"] = migration_db
 
-        api_dir = "/home/jesus/proyectos/daily-system/apps/api"
+        api_dir = _os.path.abspath(_os.path.join(_os.path.dirname(__file__), "..", ".."))
         migrations_dir = _os.path.join(api_dir, "migrations")
         alembic_cfg = Config(_os.path.join(api_dir, "alembic.ini"))
         alembic_cfg.set_main_option("script_location", migrations_dir)
