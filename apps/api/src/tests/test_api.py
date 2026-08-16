@@ -95,8 +95,8 @@ class TestRutaAPI:
         response = client.get(f"/api/rutas?negocio_id={negocio_id}")
         assert response.status_code == 200
         data = response.json()
-        assert len(data) >= 1
-        for r in data:
+        assert len(data["items"]) >= 1
+        for r in data["items"]:
             assert r["negocio_id"] == str(negocio_id)
 
 

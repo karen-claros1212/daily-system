@@ -23,7 +23,7 @@ test.describe('A11y', () => {
 
   test('routes a11y scan', async ({ page }) => {
     await page.route('**/api/rutas', async (route) => {
-      await route.fulfill({ status: 200, json: [] });
+      await route.fulfill({ status: 200, json: { items: [], total: 0, limit: 25, offset: 0 } });
     });
     await setSessionToken(page);
     await page.goto('/routes');

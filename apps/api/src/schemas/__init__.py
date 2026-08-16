@@ -73,11 +73,45 @@ class RutaResponse(BaseModel):
     negocio_id: UUID
     nombre: str
     cobrador_id: UUID | None
+    cobrador_nombre: str | None = None
     activa: int
     version: int
     creado_el: datetime
 
     model_config = {"from_attributes": True}
+
+
+class RutaListItem(BaseModel):
+    """Fila del read model de rutas (W4).
+
+    `ruta_id` es el id estable de la ruta (navegación/detalle). `cobrador_id` y
+    `cobrador_nombre` se resuelven en el servidor (join sin N+1): la UI nunca
+    etiqueta filas con UUIDs crudos.
+    """
+
+    ruta_id: UUID
+    negocio_id: UUID
+    nombre: str
+    activa: int
+    version: int
+    creado_el: datetime
+    cobrador_id: UUID | None
+    cobrador_nombre: str | None
+
+
+class RutaListPage(BaseModel):
+    items: list[RutaListItem]
+    total: int
+    limit: int
+    offset: int
+
+
+class RutaResumenResponse(BaseModel):
+    """Resumen simple de rutas (W4): conteos por estado, scoped por rol."""
+
+    total_rutas: int
+    activas: int
+    inactivas: int
 
 
 class RutaReasignarResponse(BaseModel):

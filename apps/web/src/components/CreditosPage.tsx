@@ -143,7 +143,7 @@ export function CreditosPage({ session }: { session: import("@/lib/rbac").Sessio
       try {
         const data = await fetchRutas();
         if (!ignore) {
-          setRutas(data.map((r) => ({ id: r.id, nombre: r.nombre })));
+          setRutas(data.items.map((r) => ({ id: r.ruta_id, nombre: r.nombre })));
         }
       } catch {
         // Sin rutas no hay filtro por ruta; la lista sigue disponible.

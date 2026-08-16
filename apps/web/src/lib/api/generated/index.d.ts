@@ -89,6 +89,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/rutas/resumen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resumen Rutas */
+        get: operations["resumen_rutas_api_rutas_resumen_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/rutas/{ruta_id}": {
         parameters: {
             query?: never;
@@ -121,20 +138,7 @@ export interface paths {
         head?: never;
         /**
          * Reasignar Ruta
-         * @description S4 — Reasignacion productiva R1→R2.
-         *
-         *     Desactiva la ruta actual (R1), crea/activa R2 para el mismo cobrador,
-         *     bump version_asignacion del dispositivo del cobrador (invalida JWT viejo).
-         *
-         *     Contrato:
-         *       - SOLO ADMINISTRADOR
-         *       - Mismo negocio, cobrador valido
-         *       - R1 deja de ser la ruta activa del cobrador
-         *       - R2 queda como la UNICA ruta activa
-         *       - Transaccion unica
-         *       - Servidor es autoridad
-         *       - Movil nunca selecciona ruta
-         *       - version_asignacion se incrementa → JWT anterior queda invalido
+         * @description S4 — Reasignación productiva R1→R2 (ver ruta_service.reasignar_ruta).
          */
         patch: operations["reasignar_ruta_api_rutas__ruta_id__reasignar_patch"];
         trace?: never;
@@ -2315,6 +2319,52 @@ export interface components {
             /** Cobrador Id */
             cobrador_id?: string | null;
         };
+        /**
+         * RutaListItem
+         * @description Fila del read model de rutas (W4).
+         *
+         *     `ruta_id` es el id estable de la ruta (navegación/detalle). `cobrador_id` y
+         *     `cobrador_nombre` se resuelven en el servidor (join sin N+1): la UI nunca
+         *     etiqueta filas con UUIDs crudos.
+         */
+        RutaListItem: {
+            /**
+             * Ruta Id
+             * Format: uuid
+             */
+            ruta_id: string;
+            /**
+             * Negocio Id
+             * Format: uuid
+             */
+            negocio_id: string;
+            /** Nombre */
+            nombre: string;
+            /** Activa */
+            activa: number;
+            /** Version */
+            version: number;
+            /**
+             * Creado El
+             * Format: date-time
+             */
+            creado_el: string;
+            /** Cobrador Id */
+            cobrador_id: string | null;
+            /** Cobrador Nombre */
+            cobrador_nombre: string | null;
+        };
+        /** RutaListPage */
+        RutaListPage: {
+            /** Items */
+            items: components["schemas"]["RutaListItem"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
         /** RutaReasignarRequest */
         RutaReasignarRequest: {
             /** Nombre */
@@ -2362,6 +2412,8 @@ export interface components {
             nombre: string;
             /** Cobrador Id */
             cobrador_id: string | null;
+            /** Cobrador Nombre */
+            cobrador_nombre?: string | null;
             /** Activa */
             activa: number;
             /** Version */
@@ -2371,6 +2423,18 @@ export interface components {
              * Format: date-time
              */
             creado_el: string;
+        };
+        /**
+         * RutaResumenResponse
+         * @description Resumen simple de rutas (W4): conteos por estado, scoped por rol.
+         */
+        RutaResumenResponse: {
+            /** Total Rutas */
+            total_rutas: number;
+            /** Activas */
+            activas: number;
+            /** Inactivas */
+            inactivas: number;
         };
         /** SuscripcionStatusResponse */
         SuscripcionStatusResponse: {
@@ -2627,6 +2691,13 @@ export interface operations {
     listar_rutas_api_rutas_get: {
         parameters: {
             query?: {
+                q?: string | null;
+                activa?: number | null;
+                cobrador_id?: string | null;
+                limit?: number;
+                offset?: number;
+                sort?: string;
+                order?: string;
                 negocio_id?: string | null;
                 role?: string | null;
                 route_id?: string | null;
@@ -2645,7 +2716,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RutaResponse"][];
+                    "application/json": components["schemas"]["RutaListPage"];
                 };
             };
             /** @description Validation Error */
@@ -2685,6 +2756,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RutaResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resumen_rutas_api_rutas_resumen_get: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RutaResumenResponse"];
                 };
             };
             /** @description Validation Error */

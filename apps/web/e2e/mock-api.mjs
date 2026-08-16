@@ -293,17 +293,49 @@ function resetClientes() {
   CLIENTES_MOCK.push(...seed);
 }
 
-// ─── W3: read model de cartera (deriva de CLIENTES_MOCK) ────────────────────
+// ─── W3/W4: read model de cartera (deriva de CLIENTES_MOCK) ────────────────
 // Replica el contrato CreditoListItem/CreditoDetailResponse: el financiero
 // (saldo/mora/pico/cuotas_pagadas) viene del fixture, como en el backend
 // viene de hoja_viva_service. INVERSIONISTA -> PII minimizada.
-const RUTAS_MOCK = [
-  { id: 'r1', nombre: 'Ruta Norte', cobrador_nombre: 'Carlos M.' },
-  { id: 'r2', nombre: 'Ruta Sur', cobrador_nombre: 'Ana P.' },
+//
+// W4: rutas administrables (RutaListItem/RutaListPage/RutaResumenResponse/
+// RutaResponse). Store mutable (crear/reasignar lo modifican) con reset
+// test-only POST /api/_test/reset-rutas. Los nombres r1='Ruta Centro' y
+// r2='Ruta Sur' son coherentes con las sesiones COBRADOR y con CLIENTES_MOCK
+// (la sesión COBRADOR está asignada a r1 'Ruta Centro').
+const RUTAS_FIXTURE = [
+  { id: 'r1', nombre: 'Ruta Centro', cobrador_id: 'u1', cobrador_nombre: 'Carlos M.', activa: 1, version: 1, negocio_id: 'n1', creado_el: new Date(Date.now() - 40 * 86400000).toISOString() },
+  { id: 'r2', nombre: 'Ruta Sur', cobrador_id: 'u2', cobrador_nombre: 'Ana P.', activa: 0, version: 2, negocio_id: 'n1', creado_el: new Date(Date.now() - 35 * 86400000).toISOString() },
 ];
+
+const RUTAS_MOCK = [];
+
+function seedRutas() {
+  RUTAS_MOCK.length = 0;
+  RUTAS_MOCK.push(...RUTAS_FIXTURE.map((r) => JSON.parse(JSON.stringify(r))));
+}
+seedRutas();
+
+function resetRutas() {
+  seedRutas();
+}
 
 function rutaMock(id) {
   return RUTAS_MOCK.find((r) => r.id === id) ?? { id, nombre: '', cobrador_nombre: null };
+}
+
+// Envelope de lista (contrato RutaListPage): items con ruta_id (NO id), igual
+// que el backend. `activa` se serializa 0/1 (entero, como en el modelo).
+function rutaListItem(r) {
+  return {
+    ruta_id: r.id,
+    nombre: r.nombre,
+    cobrador_id: r.cobrador_id,
+    cobrador_nombre: r.cobrador_nombre,
+    activa: r.activa,
+    version: r.version,
+    creado_el: r.creado_el,
+  };
 }
 
 function nombreCliente(c) {
@@ -559,6 +591,8 @@ const SESIONES = new Map([
   ['mock-admin-empty', { user_id: 'u_admin', usuario_nombre: 'Admin Mock', rol: 'ADMINISTRADOR', device_id: null, route_id: null, route_nombre: null, sinDispositivos: true }],
   ['mock-admin-error', { user_id: 'u_admin', usuario_nombre: 'Admin Mock', rol: 'ADMINISTRADOR', device_id: null, route_id: null, route_nombre: null, error: true }],
   ['mock-admin-401', { user_id: 'u_admin', usuario_nombre: 'Admin Mock', rol: 'ADMINISTRADOR', device_id: null, route_id: null, route_nombre: null, dispositivos401: true }],
+  // Cobrador code alias — necesario para sesionDe() lookup en tests E2E
+  ['test-cobrador-code', { user_id: 'c1', usuario_nombre: 'Carlos Cobrador', rol: 'COBRADOR', device_id: 'mock-device', route_id: 'r1', route_nombre: 'Ruta Centro' }],
 ]);
 
 function sesionDe(token) {
@@ -852,6 +886,10 @@ const server = http.createServer(async (req, res) => {
     resetClientes();
     return json(res, 200, { ok: true });
   }
+  if (req.method === 'POST' && path === '/api/_test/reset-rutas') {
+    resetRutas();
+    return json(res, 200, { ok: true });
+  }
 
   // ── W3: GET /api/creditos/resumen (agregados scoped, creditos:ver) ─────────
   if (req.method === 'GET' && path === '/api/creditos/resumen') {
@@ -1131,21 +1169,152 @@ const server = http.createServer(async (req, res) => {
       expira_el: rfc3339(Date.now() + 30 * 60 * 1000),
     });
   }
+  if (req.method === 'GET' && path === '/api/rutas/resumen') {
+    const sesion = sesionDe(bearerToken(req));
+    if (!sesion || !(capabilities(sesion.rol).includes('ruta:ver') || capabilities(sesion.rol).includes('rutas:ver'))) {
+      return json(res, 403, { detail: 'Forbidden: sin capability de rutas' });
+    }
+    if (sesion.rol === 'COBRADOR') {
+      return json(res, 200, { total_rutas: 1, activas: 1, inactivas: 0, con_cobrador: 1 });
+    }
+    return json(res, 200, {
+      total_rutas: RUTAS_MOCK.length,
+      activas: RUTAS_MOCK.filter((r) => r.activa === 1).length,
+      inactivas: RUTAS_MOCK.filter((r) => r.activa === 0).length,
+      con_cobrador: RUTAS_MOCK.filter((r) => r.cobrador_id).length,
+    });
+  }
   if (req.method === 'GET' && path === '/api/rutas') {
     const sesion = sesionDe(bearerToken(req));
     if (!sesion || !(capabilities(sesion.rol).includes('ruta:ver') || capabilities(sesion.rol).includes('rutas:ver'))) {
       return json(res, 403, { detail: 'Forbidden: sin capability de rutas' });
     }
-    // COBRADOR ve solo la ruta de SU asignacion (como el backend, que filtra
-    // por el ctx del dispositivo); inversionista/admin ven la de negocio.
+    // COBRADOR ve solo su ruta activa (aislamiento igual al backend).
     if (sesion.rol === 'COBRADOR') {
-      if (!sesion.route_id) return json(res, 200, []);
-      return json(res, 200, [{ id: sesion.route_id, nombre: sesion.route_nombre, cobrador_nombre: sesion.usuario_nombre, activa: true, version: 1 }]);
+      const ruta = RUTAS_MOCK.find((r) => r.id === sesion.route_id && r.activa === 1);
+      if (!ruta) return json(res, 200, { items: [], total: 0, limit: 50, offset: 0 });
+      return json(res, 200, { items: [rutaListItem(ruta)], total: 1, limit: 50, offset: 0 });
     }
-    return json(res, 200, [
-      { id: 'r1', nombre: 'Ruta Norte', cobrador_nombre: 'Carlos M.', activa: true, version: 1 },
-      { id: 'r2', nombre: 'Ruta Sur', cobrador_nombre: 'Ana P.', activa: false, version: 2 },
-    ]);
+    const query = new URL(req.url, 'http://localhost').searchParams;
+    const q = (query.get('q') || '').toLowerCase().trim();
+    const activa = query.get('activa');
+    const cobrador_id = query.get('cobrador_id');
+    const limit = Math.min(parseInt(query.get('limit') || '50', 10) || 50, 100);
+    const offset = parseInt(query.get('offset') || '0', 10) || 0;
+    const sort = query.get('sort') || 'nombre';
+    const order = (query.get('order') || 'asc').toLowerCase() === 'desc' ? -1 : 1;
+
+    let filas = RUTAS_MOCK.map((r) => rutaListItem(r));
+    if (q) filas = filas.filter((r) => (r.nombre || '').toLowerCase().includes(q));
+    if (activa === '1' || activa === '0') filas = filas.filter((r) => String(r.activa) === activa);
+    if (cobrador_id) filas = filas.filter((r) => r.cobrador_id === cobrador_id);
+
+    const validSorts = new Set(['nombre', 'creado_el', 'version']);
+    if (validSorts.has(sort)) {
+      filas.sort((a, b) => {
+        const va = a[sort] ?? '';
+        const vb = b[sort] ?? '';
+        if (va < vb) return -1 * order;
+        if (va > vb) return 1 * order;
+        return 0;
+      });
+    }
+
+    const total = filas.length;
+    const items = filas.slice(offset, offset + limit);
+    return json(res, 200, { items, total, limit, offset });
+  }
+  if (req.method === 'GET' && path.startsWith('/api/rutas/')) {
+    const id = decodeURIComponent(path.slice('/api/rutas/'.length));
+    const sesion = sesionDe(bearerToken(req));
+    if (!sesion || !(capabilities(sesion.rol).includes('ruta:ver') || capabilities(sesion.rol).includes('rutas:ver'))) {
+      return json(res, 403, { detail: 'Forbidden: sin capability de rutas' });
+    }
+    const ruta = RUTAS_MOCK.find((r) => r.id === id);
+    if (!ruta) return json(res, 404, { detail: 'Ruta no encontrada' });
+    if (sesion.rol === 'COBRADOR' && (ruta.id !== sesion.route_id || ruta.activa !== 1)) {
+      return json(res, 404, { detail: 'Ruta no encontrada' });
+    }
+    return json(res, 200, {
+      id: ruta.id,
+      nombre: ruta.nombre,
+      cobrador_id: ruta.cobrador_id,
+      cobrador_nombre: ruta.cobrador_nombre,
+      activa: ruta.activa,
+      version: ruta.version,
+      creado_el: ruta.creado_el,
+    });
+  }
+  if (req.method === 'POST' && path === '/api/rutas') {
+    const sesion = sesionDe(bearerToken(req));
+    if (!sesion) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(sesion.rol).includes('rutas:crear')) {
+      return json(res, 403, { detail: 'Solo el administrador puede crear rutas' });
+    }
+    const nombre = typeof body.nombre === 'string' ? body.nombre.trim() : '';
+    if (!nombre) return json(res, 422, { detail: 'nombre es requerido' });
+    const duplicado = RUTAS_MOCK.find((r) => r.nombre.toLowerCase() === nombre.toLowerCase() && r.activa === 1);
+    if (duplicado) {
+      return json(res, 409, { detail: `Ya existe ruta activa '${nombre}'` });
+    }
+    const cobrador_id = typeof body.cobrador_id === 'string' ? body.cobrador_id : null;
+    const cobrador = cobrador_id ? USUARIOS_MOCK.find((u) => u.id === cobrador_id && u.rol === 'COBRADOR') ?? null : null;
+    const ruta = {
+      id: uuid(),
+      nombre,
+      cobrador_id: cobrador_id,
+      cobrador_nombre: cobrador ? cobrador.nombre : null,
+      activa: 1,
+      version: 1,
+      negocio_id: 'n1',
+      creado_el: new Date().toISOString(),
+    };
+    RUTAS_MOCK.push(ruta);
+    return json(res, 201, {
+      id: ruta.id,
+      nombre: ruta.nombre,
+      cobrador_id: ruta.cobrador_id,
+      cobrador_nombre: ruta.cobrador_nombre,
+      activa: ruta.activa,
+      version: ruta.version,
+      creado_el: ruta.creado_el,
+    });
+  }
+  if (req.method === 'PATCH' && path.startsWith('/api/rutas/') && path.endsWith('/reasignar')) {
+    const id = decodeURIComponent(path.slice('/api/rutas/'.length, -'/reasignar'.length));
+    const sesion = sesionDe(bearerToken(req));
+    if (!sesion) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(sesion.rol).includes('rutas:reasignar')) {
+      return json(res, 403, { detail: 'No autorizado para rutas:reasignar' });
+    }
+    const ruta = RUTAS_MOCK.find((r) => r.id === id);
+    if (!ruta) return json(res, 404, { detail: 'Ruta no encontrada' });
+    const nombre = typeof body.nombre === 'string' ? body.nombre.trim() : '';
+    if (!nombre) return json(res, 422, { detail: 'nombre es requerido' });
+    const duplicado = RUTAS_MOCK.find((r) => r.nombre.toLowerCase() === nombre.toLowerCase() && r.activa === 1);
+    if (duplicado) {
+      return json(res, 409, { detail: `Ya existe ruta activa '${nombre}'` });
+    }
+    const nuevo = {
+      id: uuid(),
+      nombre,
+      cobrador_id: ruta.cobrador_id,
+      cobrador_nombre: ruta.cobrador_nombre,
+      activa: 1,
+      version: (ruta.version || 1) + 1,
+      negocio_id: ruta.negocio_id ?? 'n1',
+      creado_el: new Date().toISOString(),
+    };
+    ruta.activa = 0;
+    RUTAS_MOCK.push(nuevo);
+    return json(res, 200, {
+      ruta_anterior_id: ruta.id,
+      ruta_anterior_nombre: ruta.nombre,
+      ruta_nueva_id: nuevo.id,
+      ruta_nueva_nombre: nuevo.nombre,
+      cobrador_id: nuevo.cobrador_id,
+      version_asignacion: nuevo.version,
+    });
   }
   if (req.method === 'GET' && path === '/api/jornadas') {
     const sesion = sesionDe(bearerToken(req));

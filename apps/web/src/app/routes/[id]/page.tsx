@@ -1,13 +1,20 @@
 import { AppShell } from '@/components/AppShell';
 import { Forbidden } from '@/components/Forbidden';
-import { Routes as RoutesComp } from '@/components/Routes';
+import { RouteDetailPage } from '@/components/RouteDetailPage';
 import { hasAnyCapability, requireSession } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
-/** /routes: lista de rutas. COBRADOR ve solo su ruta (filtro del backend);
- * INVERSIONISTA/ADMINISTRADOR ven las del negocio. Sin capability -> 403. */
-export default async function RoutesPage() {
+/**
+ * /routes/[id]: detalle de ruta con reasignación S4 R1→R2 (solo ADMINISTRADOR,
+ * rutas:reasignar) y confirmación explícita del nuevo nombre. COBRADOR solo
+ * accede a su ruta activa (aislamiento del backend, 404 si no).
+ */
+export default async function RouteDetailRoute({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const session = await requireSession();
   if (!hasAnyCapability(session, ['ruta:ver', 'rutas:ver'])) {
     return (
@@ -16,9 +23,10 @@ export default async function RoutesPage() {
       </AppShell>
     );
   }
+  const { id } = await params;
   return (
     <AppShell session={session}>
-      <RoutesComp session={session} />
+      <RouteDetailPage routeId={id} session={session} />
     </AppShell>
   );
 }

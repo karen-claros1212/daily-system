@@ -11,8 +11,10 @@ ella, el endpoint falla 401/403.
 Verificacion en codigo (ago 2026):
   - inversionista.py: resumen/suscripcion  -> INVERSIONISTA | ADMINISTRADOR
   - jornada.py     : GET  filtrado por ruta (COBRADOR) o negocio (resto)
-  - ruta.py        : POST creat + PATCH reasignar -> SOLO ADMINISTRADOR;
-                     GET scoped a la ruta del COBRADOR
+  - ruta.py        : POST crear + PATCH reasignar -> SOLO ADMINISTRADOR;
+                     GET list/resumen/detail -> rutas:ver (ADMINISTRADOR |
+                     INVERSIONISTA) | ruta:ver (COBRADOR scoped a su ruta
+                     activa; fuera de scope -> 404)
   - activacion.py  : POST /codigos -> SOLO ADMINISTRADOR
   - dispositivo.py : registrar -> SOLO ADMINISTRADOR
   - usuario.py     : CRUD completo -> SOLO ADMINISTRADOR

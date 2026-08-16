@@ -276,7 +276,8 @@ class TestMultirutaAislamiento:
         assert {j["id"] for j in r.json()} == {str(j1)}
 
         r = client.get("/api/rutas", params=auth_r1)
-        assert {x["id"] for x in r.json()} == {str(self.ruta_ids["R1"])}
+        assert {x["ruta_id"] for x in r.json()["items"]} == {str(self.ruta_ids["R1"])}
+        assert r.json()["total"] == 1
 
         # Movimientos de la jornada de R2 (vista cobrador R1) → vacío, no 403
         r = client.get("/api/movimientos", params={**auth_r1, "jornada_id": str(j2)})
@@ -366,7 +367,8 @@ class TestMultirutaAislamiento:
         r = client.get(f"/api/movimientos/{m2}", params=auth)
         assert r.status_code == 200
         r = client.get("/api/rutas", params=auth)
-        assert len(r.json()) == 4
+        assert len(r.json()["items"]) == 4
+        assert r.json()["total"] == 4
         r = client.get("/api/clientes", params=auth)
         assert len(r.json()["items"]) == 4
         r = client.get("/api/pagos", params=auth)

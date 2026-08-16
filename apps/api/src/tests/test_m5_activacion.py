@@ -346,7 +346,8 @@ class TestFlujoActivacion:
             | {"route_id": str(escenario["ruta_id"])},
         )
         assert rutas.status_code == 200
-        assert {x["id"] for x in rutas.json()} == {str(escenario["ruta_id"])}
+        assert {x["ruta_id"] for x in rutas.json()["items"]} == {str(escenario["ruta_id"])}
+        assert rutas.json()["total"] == 1
 
     def test_03_prueba_de_posesion_tercero_sin_privada(self, client, db_session, escenario):
         """Un tercero con el token pero SIN la privada del par es rechazado.

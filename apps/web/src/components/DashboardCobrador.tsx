@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { Ruta, Jornada } from '@/lib/api/client';
+import type { RutaListItem, Jornada } from '@/lib/api/client';
 import { fetchRutas, fetchJornadas } from '@/lib/api/client';
 import { MetricCard } from '@/components/ui/misc';
 import { LoadingState, Flash } from '@/components/ui/button';
@@ -14,7 +14,7 @@ import { LoadingState, Flash } from '@/components/ui/button';
  * ctx, nunca por claims). No toca /api/inversionista/*.
  */
 export function DashboardCobrador() {
-  const [rutas, setRutas] = useState<Ruta[]>([]);
+  const [rutas, setRutas] = useState<RutaListItem[]>([]);
   const [jornadas, setJornadas] = useState<Jornada[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -25,7 +25,7 @@ export function DashboardCobrador() {
       try {
         const [r, j] = await Promise.all([fetchRutas(), fetchJornadas()]);
         if (!alive) return;
-        setRutas(r);
+        setRutas(r.items);
         setJornadas(j);
       } catch (e) {
         if (alive) setError((e as Error).message || 'Error al cargar datos');

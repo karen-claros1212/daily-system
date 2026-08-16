@@ -42,14 +42,72 @@ export function fetchJornadas(): Promise<Jornada[]> {
   return fetch('/api/jornadas', { cache: 'no-store' }).then((r) => parseJson<Jornada[]>(r));
 }
 
-/** GET /api/rutas (BFF). */
-export function fetchRutas(): Promise<Ruta[]> {
-  return fetch('/api/rutas', { cache: 'no-store' }).then((r) => parseJson<Ruta[]>(r));
+/** GET /api/rutas (BFF) — read model paginado W4 (rutas:ver | ruta:ver). */
+export type RutaListItem = components['schemas']['RutaListItem'];
+export type RutaListPage = components['schemas']['RutaListPage'];
+export type RutaResumen = components['schemas']['RutaResumenResponse'];
+export type RutaCreateInput = components['schemas']['RutaCreate'];
+export type RutaReasignarInput = components['schemas']['RutaReasignarRequest'];
+export type RutaReasignarResult = components['schemas']['RutaReasignarResponse'];
+
+export type RutaSort = 'nombre' | 'creado_el' | 'version';
+
+export function fetchRutas(params?: {
+  q?: string;
+  activa?: number;
+  cobrador_id?: string;
+  limit?: number;
+  offset?: number;
+  sort?: RutaSort;
+  order?: 'asc' | 'desc';
+}): Promise<RutaListPage> {
+  const qs = new URLSearchParams();
+  if (params?.q) qs.set('q', params.q);
+  if (params?.activa !== undefined) qs.set('activa', String(params.activa));
+  if (params?.cobrador_id) qs.set('cobrador_id', params.cobrador_id);
+  if (params?.limit) qs.set('limit', String(params.limit));
+  if (params?.offset) qs.set('offset', String(params.offset));
+  if (params?.sort) qs.set('sort', params.sort);
+  if (params?.order) qs.set('order', params.order);
+  const query = qs.toString();
+  return fetch(`/api/rutas${query ? '?' + query : ''}`, { cache: 'no-store' }).then((r) =>
+    parseJson<RutaListPage>(r),
+  );
+}
+
+/** GET /api/rutas/resumen (BFF) — conteos por estado, scoped por rol. */
+export function fetchResumenRutas(): Promise<RutaResumen> {
+  return fetch('/api/rutas/resumen', { cache: 'no-store' }).then((r) =>
+    parseJson<RutaResumen>(r),
+  );
 }
 
 /** GET /api/rutas/{id} (BFF). */
 export function fetchRuta(id: string): Promise<Ruta> {
-  return fetch(`/api/rutas/${id}`, { cache: 'no-store' }).then((r) => parseJson<Ruta>(r));
+  return fetch(`/api/rutas/${encodeURIComponent(id)}`, { cache: 'no-store' }).then((r) =>
+    parseJson<Ruta>(r),
+  );
+}
+
+/** POST /api/rutas (BFF) — crear ruta (rutas:crear, solo ADMINISTRADOR). */
+export function crearRuta(data: RutaCreateInput): Promise<Ruta> {
+  return fetch('/api/rutas', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    cache: 'no-store',
+  }).then((r) => parseJson<Ruta>(r));
+}
+
+/** PATCH /api/rutas/{id}/reasignar (BFF) — S4 R1→R2 (rutas:reasignar, solo ADMINISTRADOR). */
+export function reasignarRuta(id: string, data: RutaReasignarInput): Promise<RutaReasignarResult> {
+  console.log("reasignarRuta called:", id, data);
+  return fetch(`/api/rutas/${encodeURIComponent(id)}/reasignar`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    cache: 'no-store',
+  }).then((r) => parseJson<RutaReasignarResult>(r));
 }
 
 /** GET /api/inversionista/resumen via server component o BFF. */

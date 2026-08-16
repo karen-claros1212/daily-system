@@ -428,6 +428,103 @@
         "operationId": "listar_rutas_api_rutas_get",
         "parameters": [
           {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "activa",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 1,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Activa"
+            }
+          },
+          {
+            "name": "cobrador_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cobrador Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 20,
+              "default": "creado_el",
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4,
+              "default": "desc",
+              "title": "Order"
+            }
+          },
+          {
             "name": "negocio_id",
             "in": "query",
             "required": false,
@@ -518,11 +615,124 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/RutaResponse"
-                  },
-                  "title": "Response Listar Rutas Api Rutas Get"
+                  "$ref": "#/components/schemas/RutaListPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rutas/resumen": {
+      "get": {
+        "tags": [
+          "rutas"
+        ],
+        "summary": "Resumen Rutas",
+        "operationId": "resumen_rutas_api_rutas_resumen_get",
+        "parameters": [
+          {
+            "name": "negocio_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Negocio Id"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            }
+          },
+          {
+            "name": "route_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Route Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RutaResumenResponse"
                 }
               }
             }
@@ -673,7 +883,7 @@
           "rutas"
         ],
         "summary": "Reasignar Ruta",
-        "description": "S4 — Reasignacion productiva R1→R2.\n\nDesactiva la ruta actual (R1), crea/activa R2 para el mismo cobrador,\nbump version_asignacion del dispositivo del cobrador (invalida JWT viejo).\n\nContrato:\n  - SOLO ADMINISTRADOR\n  - Mismo negocio, cobrador valido\n  - R1 deja de ser la ruta activa del cobrador\n  - R2 queda como la UNICA ruta activa\n  - Transaccion unica\n  - Servidor es autoridad\n  - Movil nunca selecciona ruta\n  - version_asignacion se incrementa → JWT anterior queda invalido",
+        "description": "S4 — Reasignación productiva R1→R2 (ver ruta_service.reasignar_ruta).",
         "operationId": "reasignar_ruta_api_rutas__ruta_id__reasignar_patch",
         "parameters": [
           {
@@ -10140,6 +10350,104 @@
         ],
         "title": "RutaCreate"
       },
+      "RutaListItem": {
+        "properties": {
+          "ruta_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Ruta Id"
+          },
+          "negocio_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Negocio Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "activa": {
+            "type": "integer",
+            "title": "Activa"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "creado_el": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creado El"
+          },
+          "cobrador_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cobrador Id"
+          },
+          "cobrador_nombre": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cobrador Nombre"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ruta_id",
+          "negocio_id",
+          "nombre",
+          "activa",
+          "version",
+          "creado_el",
+          "cobrador_id",
+          "cobrador_nombre"
+        ],
+        "title": "RutaListItem",
+        "description": "Fila del read model de rutas (W4).\n\n`ruta_id` es el id estable de la ruta (navegación/detalle). `cobrador_id` y\n`cobrador_nombre` se resuelven en el servidor (join sin N+1): la UI nunca\netiqueta filas con UUIDs crudos."
+      },
+      "RutaListPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RutaListItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "RutaListPage"
+      },
       "RutaReasignarRequest": {
         "properties": {
           "nombre": {
@@ -10229,6 +10537,17 @@
             ],
             "title": "Cobrador Id"
           },
+          "cobrador_nombre": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cobrador Nombre"
+          },
           "activa": {
             "type": "integer",
             "title": "Activa"
@@ -10254,6 +10573,30 @@
           "creado_el"
         ],
         "title": "RutaResponse"
+      },
+      "RutaResumenResponse": {
+        "properties": {
+          "total_rutas": {
+            "type": "integer",
+            "title": "Total Rutas"
+          },
+          "activas": {
+            "type": "integer",
+            "title": "Activas"
+          },
+          "inactivas": {
+            "type": "integer",
+            "title": "Inactivas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_rutas",
+          "activas",
+          "inactivas"
+        ],
+        "title": "RutaResumenResponse",
+        "description": "Resumen simple de rutas (W4): conteos por estado, scoped por rol."
       },
       "SuscripcionStatusResponse": {
         "properties": {
