@@ -165,8 +165,24 @@
 
 ## W3 — Cartera y Créditos
 
-**Estado:** PENDIENTE
+**Estado:** ✅ FINAL PASS — CI remoto verde sobre `875d506`
 **Depende de:** W2
+**Backend:** GET `/api/creditos` (envelope `{items,total,limit,offset}`, filtros `q` (PII solo roles con `creditos:ver`), `estado`, `ruta_id` (COBRADOR forzado a su ruta → ruta ajena 404), `limit<=100`, `offset`, sort allowlist `fecha_inicio|monto|total|cuota|periodicidad|estado|saldo` + order `asc|desc` → inválido 422), GET `/api/creditos/resumen` (agregados financieros vía `hoja_viva_service.resumen_creditos`, COBRADOR scoped), GET `/api/creditos/{id}` (detalle con saldo/mora/ruta/cobrador/cliente; COBRADOR fuera de ruta o inexistente → 404 sin revelar; INVERSIONISTA PII minimizada `cliente_nombre`/`cliente_id` → null), POST `/api/creditos` (SOLO `creditos:gestionar` → COBRADOR/INVERSIONISTA 403; body allowlist → 422; ruta/cliente inexistente → 404; invariante `total = cuota × n_cuotas` + `generate_schedule` + auditoría append-only `CREDITO_CREADO`); capabilities `creditos:ver` (ADMINISTRADOR + COBRADOR + INVERSIONISTA) y `creditos:gestionar` (SOLO ADMINISTRADOR); `credito_service.py`, `test_w3.py` (26 tests); OpenAPI regenerado (44 paths)
+**BFF:** GET+POST `/api/creditos`, GET `/api/creditos/resumen`, GET `/api/creditos/[id]` (proxies al backend, session httpOnly)
+**UI:** `/creditos` (CreditosPage: tabla con saldo/mora/formato es-CO, búsqueda, filtro estado, paginación, crear crédito con cálculo de total mostrado por backend), `/creditos/[id]` (CreditoDetailPage: financiero completo + link Cliente360 con `underline` para contraste a11y), gate `creditos:ver`, nav por capability
+**E2E mock:** 13 tests en `w3-creditos.spec.ts` (serial + reset por test; ADMIN lista/resumen/busca/ordena por saldo/crea (total backend)/detalle; COBRADOR scoped a su ruta sin crear ni filtrar ruta ajena (404), detalle ajeno 404; INVERSIONISTA PII minimizada sin Cliente360 ni crear; RBAC 403/404/422) + 2 scans a11y (`creditos`, `credito detalle`) — fix WCAG `link-in-text-block` con `underline hover:no-underline`
+**E2E real:** 34/34 contra FastAPI real (:8001) + Postgres — incluye `real-creditos.spec.ts` (8 tests: create ADMIN 201 + total + audit `CREDITO_CREADO`, POST 403 COBRADOR (JWT real del flujo de dispositivo)/INVERSIONISTA, ruta inexistente 404, lista/resumen/detalle ADMIN, PII minimizada INVERSIONISTA, COBRADOR scoped ruta ajena 404)
+**Gates locales:** backend 452 passed / 9 skipped ✅, alembic head m10_audit_documento ✅, api:check ✅, lint 0 errores (4 warnings baseline) ✅, typecheck ✅, build ✅, npm audit 0 ✅, E2E mock 172/172 ✅, a11y 24 ✅, E2E real 34/34 ✅
+**CI remoto (sobre 875d506):**
+- Backend CI `31964572610` **PASS** — Alembic check + pytest 452/9 + migration gates PG ✅
+- Web CI `31964572612` **PASS** — OpenAPI drift + lint + typecheck + build + E2E mock + E2E real (real-creditos incluido) ✅
+
+### Decisiones W3
+- **Autoridad financiera SOLO backend**: saldo/mora/resumen se calculan en `hoja_viva_service` (mora = días transcurridos − 1 − cuotas pagadas, mín 0); la UI nunca recalcula en TS.
+- **PII minimizada por rol**: INVERSIONISTA lee cartera pero recibe `cliente_nombre`/`cliente_id` → null y sin link Cliente360; COBRADOR ve solo su ruta con 404 (no 403) fuera de ella.
+- **Sort allowlist compartido**: backend y mock replican el mismo conjunto (`fecha_inicio|monto|total|cuota|periodicidad|estado|saldo`); sort inválido → 422 en ambos.
+- **Mock sincronizado con contrato real**: `mock-api.mjs` deriva créditos de `CLIENTES_MOCK` (consistencia con counts de clientes), `POST /api/_test/reset-creditos` para determinismo, y replica 422/404/403 por rol.
+- **E2E real con JWT real de COBRADOR**: el spec usa el flujo de dispositivo completo (activación daily-v1 → canje → desafío → JWT) — el rol no viaja en el JWT, se deriva de la DB por request.
 
 ---
 
