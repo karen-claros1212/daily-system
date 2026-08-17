@@ -34,6 +34,7 @@ const CAPS_INVERSIONISTA = [
   'creditos:ver',
   'movimientos:ver',
   'cobranza:ver',
+  'reportes:ver',
 ];
 const CAPS_ADMINISTRADOR = [
   'inversionista:resumen',
@@ -57,6 +58,7 @@ const CAPS_ADMINISTRADOR = [
   'audit:ver',
   'clientes:ver',
   'clientes:gestionar',
+  'reportes:ver',
 ];
 const CAPS_COBRADOR = [
   'jornada:ver',
