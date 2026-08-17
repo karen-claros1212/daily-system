@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function MovimientosRoute() {
   const session = await requireSession();
-  if (!hasCapability(session, 'movimientos:ver') && session.rol !== 'COBRADOR') {
+  if (!hasCapability(session, 'movimientos:ver')) {
     return (
       <AppShell session={session}>
         <Forbidden rol={session.rol} />

@@ -32,6 +32,7 @@ const CAPS_INVERSIONISTA = [
   'jornadas:ver',
   'rutas:ver',
   'creditos:ver',
+  'movimientos:ver',
 ];
 const CAPS_ADMINISTRADOR = [
   'inversionista:resumen',
@@ -42,6 +43,7 @@ const CAPS_ADMINISTRADOR = [
   'rutas:reasignar',
   'creditos:ver',
   'creditos:gestionar',
+  'movimientos:ver',
   'codigos:crear',
   'dispositivos:registrar',
   'usuarios:ver',
@@ -55,6 +57,7 @@ const CAPS_COBRADOR = [
   'jornada:abrir',
   'jornada:cerrar',
   'ruta:ver',
+  'movimientos:ver',
   'movimientos:registrar',
   'pagos:registrar',
   'sync:ver',

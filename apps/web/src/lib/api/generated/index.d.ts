@@ -438,6 +438,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/movimientos/web": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listar Movimientos Web
+         * @description Web read-model: envelope con filtros, sort, paginación y role scoping.
+         *
+         *     - ADMINISTRADOR: todos los movimientos del negocio.
+         *     - INVERSIONISTA: todos (PII minimizada: creado_por_nombre → null).
+         *     - COBRADOR: scoped a su ruta activa (404 fuera de scope).
+         */
+        get: operations["listar_movimientos_web_api_movimientos_web_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/movimientos/resumen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resumen Movimientos
+         * @description Resumen financiero: gastos por tipo, totales, counts.
+         */
+        get: operations["resumen_movimientos_api_movimientos_resumen_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/movimientos/{movimiento_id}": {
         parameters: {
             query?: never;
@@ -3749,6 +3793,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MovimientoResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listar_movimientos_web_api_movimientos_web_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                tipo?: string | null;
+                naturaleza?: string | null;
+                ruta_id?: string | null;
+                limit?: number;
+                offset?: number;
+                sort?: string;
+                order?: string;
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resumen_movimientos_api_movimientos_resumen_get: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

@@ -19,6 +19,7 @@ import {
   IconShieldCheck,
   IconContactos,
   IconCredito,
+  IconMovimientos,
 } from '@/components/ui/icons';
 import { IconButton } from '@/components/ui/button';
 
@@ -45,6 +46,7 @@ const ICONS: Record<string, React.ReactNode> = {
   auditoria: <IconShieldCheck size={18} aria-hidden="true" />,
   clientes: <IconContactos size={18} aria-hidden="true" />,
   creditos: <IconCredito size={18} aria-hidden="true" />,
+  movimientos: <IconMovimientos size={18} aria-hidden="true" />,
 };
 
 // Títulos humanos por ruta para breadcrumbs (label se mantiene por capabilities).
@@ -59,6 +61,7 @@ const TITLES: Record<string, string> = {
   auditoria: 'Auditoría',
   clientes: 'Clientes',
   creditos: 'Créditos',
+  movimientos: 'Centro Financiero',
 };
 
 export function AppShell({ children, session = null }: AppShellProps) {
@@ -110,6 +113,9 @@ export function AppShell({ children, session = null }: AppShellProps) {
       : []),
     ...(hasCapability(session, 'creditos:ver')
       ? [{ id: 'creditos', label: 'Créditos', icon: ICONS.creditos }]
+      : []),
+    ...(hasCapability(session, 'movimientos:ver')
+      ? [{ id: 'movimientos', label: 'Centro Financiero', icon: ICONS.movimientos }]
       : []),
     ...(hasCapability(session, 'audit:ver')
       ? [{ id: 'auditoria', label: 'Auditoría', icon: ICONS.auditoria }]

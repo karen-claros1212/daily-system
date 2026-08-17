@@ -400,14 +400,10 @@ export type MovimientoSort = 'creado_el' | 'monto' | 'tipo';
 
 export interface MovimientoItem {
   id: string;
-  negocio_id: string;
-  jornada_id: string | null;
   tipo: string;
   naturaleza: string;
   monto: number;
   nota: string | null;
-  clave_idempotencia: string | null;
-  creado_por: string | null;
   creado_por_nombre: string | null;
   creado_el: string | null;
   jornada_fecha: string | null;

@@ -100,11 +100,13 @@ def listar_movimientos_web(
     - INVERSIONISTA: todos (PII minimizada: creado_por_nombre → null).
     - COBRADOR: scoped a su ruta activa (404 fuera de scope).
     """
-    if not tiene_capability(ctx.role, "movimientos:ver") and not ctx.is_cobrador():
+    if not tiene_capability(ctx.role, "movimientos:ver"):
         raise HTTPException(status_code=403, detail="Forbidden: sin capability de movimientos")
 
     if sort not in VALID_SORTS:
         raise HTTPException(status_code=422, detail=f"sort inválido: {sort} (permitidos: {', '.join(sorted(VALID_SORTS))})")
+    if order.lower() not in ("asc", "desc"):
+        raise HTTPException(status_code=422, detail=f"order inválido: {order} (permitidos: asc, desc)")
     dir_order = -1 if order.lower() == "desc" else 1
 
     query = db.query(MovimientoCaja).filter(
@@ -148,19 +150,18 @@ def listar_movimientos_web(
         j = jornadas.get(m.jornada_id) if m.jornada_id else None
         ruta_nombre = rutas.get(j.ruta_id) if j and j.ruta_id else None
         creado_por_nombre = usuarios.get(m.creado_por) if m.creado_por else None
-        # INVERSIONISTA: PII minimizada.
+        # INVERSIONISTA: PII minimizada + free-text minimizada.
         if ctx.role == "INVERSIONISTA":
             creado_por_nombre = None
+            nota = None
+        else:
+            nota = m.nota
         resultado.append({
             "id": str(m.id),
-            "negocio_id": str(m.negocio_id),
-            "jornada_id": str(m.jornada_id) if m.jornada_id else None,
             "tipo": m.tipo,
             "naturaleza": m.naturaleza,
             "monto": m.monto,
-            "nota": m.nota,
-            "clave_idempotencia": m.clave_idempotencia,
-            "creado_por": str(m.creado_por) if m.creado_por else None,
+            "nota": nota,
             "creado_por_nombre": creado_por_nombre,
             "creado_el": m.creado_el.isoformat() if m.creado_el else None,
             "jornada_fecha": j.fecha.isoformat() if j and j.fecha else None,
@@ -177,7 +178,7 @@ def resumen_movimientos(
     db: Session = Depends(get_db),
 ):
     """Resumen financiero: gastos por tipo, totales, counts."""
-    if not tiene_capability(ctx.role, "movimientos:ver") and not ctx.is_cobrador():
+    if not tiene_capability(ctx.role, "movimientos:ver"):
         raise HTTPException(status_code=403, detail="Forbidden: sin capability de movimientos")
 
     query = db.query(MovimientoCaja).filter(

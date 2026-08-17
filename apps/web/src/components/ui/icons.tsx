@@ -237,3 +237,14 @@ export function IconCredito(p: IconProps) {
     </svg>
   );
 }
+
+export function IconMovimientos(p: IconProps) {
+  return (
+    <svg {...BASE} width={p.size ?? 18} height={p.size ?? 18} className={p.className}>
+      <path d="M3 7h18" />
+      <path d="M3 12h18" />
+      <path d="M3 17h12" />
+      <path d="M18 14l3 3-3 3" />
+    </svg>
+  );
+}

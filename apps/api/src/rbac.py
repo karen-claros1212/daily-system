@@ -67,6 +67,7 @@ CAPABILITIES_POR_ROL: Final[dict[str, tuple[str, ...]]] = {
         "jornada:abrir",
         "jornada:cerrar",
         "ruta:ver",
+        "movimientos:ver",
         "movimientos:registrar",
         "pagos:registrar",
         "sync:ver",

@@ -549,7 +549,7 @@ const MOCK_JWT_EXPIRED = 'mock-jwt-expired';  // alias de desafío vencido
 const ROL_CAPABILITIES = {
   COBRADOR: [
     'jornada:ver', 'jornada:abrir', 'jornada:cerrar',
-    'ruta:ver', 'movimientos:registrar', 'pagos:registrar', 'sync:ver',
+    'ruta:ver', 'movimientos:ver', 'movimientos:registrar', 'pagos:registrar', 'sync:ver',
     'clientes:ver', 'creditos:ver',
   ],
   INVERSIONISTA: [
@@ -1065,7 +1065,7 @@ const server = http.createServer(async (req, res) => {
     const token = bearerToken(req);
     const ses = sesionDe(token);
     if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
-    if (!capabilities(ses.rol).includes('movimientos:ver') && ses.rol !== 'COBRADOR') {
+    if (!capabilities(ses.rol).includes('movimientos:ver')) {
       return json(res, 403, { detail: 'No autorizado para movimientos:ver' });
     }
 
@@ -1096,8 +1096,22 @@ const server = http.createServer(async (req, res) => {
 
     const total = filas.length;
     const items = filas.slice(offset, offset + limit).map((f) => {
-      const out = { ...f };
-      if (ses.rol === 'INVERSIONISTA') out.creado_por_nombre = null;
+      const out = {
+        id: f.id,
+        tipo: f.tipo,
+        naturaleza: f.naturaleza,
+        monto: f.monto,
+        nota: f.nota,
+        creado_por_nombre: f.creado_por_nombre,
+        creado_el: f.creado_el,
+        jornada_fecha: f.jornada_fecha,
+        ruta_id: f.ruta_id,
+        ruta_nombre: f.ruta_nombre,
+      };
+      if (ses.rol === 'INVERSIONISTA') {
+        out.creado_por_nombre = null;
+        out.nota = null;
+      }
       return out;
     });
     return json(res, 200, { items, total, limit, offset });
@@ -1108,7 +1122,7 @@ const server = http.createServer(async (req, res) => {
     const token = bearerToken(req);
     const ses = sesionDe(token);
     if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
-    if (!capabilities(ses.rol).includes('movimientos:ver') && ses.rol !== 'COBRADOR') {
+    if (!capabilities(ses.rol).includes('movimientos:ver')) {
       return json(res, 403, { detail: 'No autorizado para movimientos:ver' });
     }
 
