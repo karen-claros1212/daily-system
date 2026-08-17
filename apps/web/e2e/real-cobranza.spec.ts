@@ -34,8 +34,8 @@ test.describe.serial('W6 real: Cobranza Web (FastAPI :8001 + BFF :3000)', () => 
     const cuota3Id = crypto.randomUUID();
 
     await runSql(`
-      INSERT INTO credito (id, negocio_id, cliente_id, ruta_id, total, cuota, n_cuotas, estado, fecha_inicio)
-      VALUES ('${creditoId}', '${seed.negocio_id}', '${seed.inversionista_id}', '${seed.ruta_id}', 600000, 200000, 3, 'ACTIVO', NOW() - INTERVAL '60 days');
+      INSERT INTO credito (id, negocio_id, cliente_id, ruta_id, monto, total, cuota, n_cuotas, estado, fecha_inicio)
+      VALUES ('${creditoId}', '${seed.negocio_id}', '${seed.inversionista_id}', '${seed.ruta_id}', 200000, 600000, 200000, 3, 'ACTIVO', NOW() - INTERVAL '60 days');
       INSERT INTO cuota_programada (id, credito_id, numero, monto, fecha_vencimiento, estado)
       VALUES
         ('${cuota1Id}', '${creditoId}', 1, 200000, NOW() - INTERVAL '45 days', 'PENDIENTE'),
