@@ -93,12 +93,13 @@ test.describe.serial('W5 real: Movimientos Web (FastAPI :8001 + BFF :3000)', () 
     expect(rDesafio.status).toBe(200);
     const sesDesafio = (await rDesafio.json()) as { challenge_id: string; nonce: string; expira_el: string; environment: string };
     const payloadAuth = buildPayloadAuth({
-      protocolVersion: 'daily-auth-v1',
+      purpose: 'issue_access_token',
       environment: sesDesafio.environment,
-      attemptId: sesDesafio.challenge_id,
+      challengeId: sesDesafio.challenge_id,
+      deviceId,
       nonce: sesDesafio.nonce,
-      expiresAt: sesDesafio.expira_el,
       publicKeyHash,
+      expiresAt: sesDesafio.expira_el,
     });
     const rSesion = await fetch(`${API}/api/auth/device/canjear`, {
       method: 'POST',
