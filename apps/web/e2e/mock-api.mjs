@@ -567,7 +567,7 @@ const ROL_CAPABILITIES = {
     'clientes:ver', 'clientes:gestionar',
     'cobranza:ver', 'cobranza:gestionar',
     'promesas:ver', 'promesas:crear', 'promesas:actualizar',
-    'reportes:ver',
+    'reportes:ver', 'dashboard:ejecutivo',
   ],
 };
 
@@ -1485,6 +1485,72 @@ const server = http.createServer(async (req, res) => {
         { tipo: 'TRANSPORTE', total: 150000, count: 3, naturalezas: { GASTO: 150000 } },
         { tipo: 'MATERIALES', total: 100000, count: 2, naturalezas: { GASTO: 100000 } },
         { tipo: 'PAGO', total: 3500000, count: 12, naturalezas: { RECIBIDO: 3500000 } },
+      ],
+    });
+  }
+
+  // ── W8: GET /api/dashboard/ejecutivo (dashboard:ejecutivo, solo ADMIN) ────
+  if (req.method === 'GET' && path === '/api/dashboard/ejecutivo') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('dashboard:ejecutivo')) {
+      return json(res, 403, { detail: 'No autorizado para dashboard:ejecutivo' });
+    }
+    return json(res, 200, {
+      fecha: '2026-08-17',
+      negocio: { nombre: 'Mock Negocio', plan: 'basic', moneda: 'COP' },
+      hoy: {
+        cartera_vigente: 15000000,
+        cartera_vencida: 2500000,
+        pct_vencido: 16.7,
+        recaudo_hoy: 550000,
+        gastos_hoy: 150000,
+        neto_hoy: 400000,
+      },
+      operativo: {
+        rutas_activas: 3,
+        cobradores_activos: 2,
+        creditos_activos: 21,
+        jornada_cerrada_hoy: false,
+      },
+      riesgo: {
+        clientes_en_mora: 6,
+        promesas_activas: 2,
+        promesas_incumplidas: 1,
+        aging_distribution: {
+          CURRENT: { count: 12, amount: 0 },
+          '1-7': { count: 3, amount: 500000 },
+          '8-15': { count: 2, amount: 350000 },
+          '16-30': { count: 1, amount: 200000 },
+          '31-60': { count: 1, amount: 150000 },
+          '61-90': { count: 0, amount: 0 },
+          '90+': { count: 0, amount: 0 },
+        },
+      },
+      tendencia_7d: {
+        serie: [
+          { fecha: '2026-08-11', recaudo: 500000, reversal: 50000, neto: 450000 },
+          { fecha: '2026-08-12', recaudo: 600000, reversal: 30000, neto: 570000 },
+          { fecha: '2026-08-13', recaudo: 450000, reversal: 0, neto: 450000 },
+          { fecha: '2026-08-14', recaudo: 700000, reversal: 100000, neto: 600000 },
+          { fecha: '2026-08-15', recaudo: 550000, reversal: 20000, neto: 530000 },
+          { fecha: '2026-08-16', recaudo: 650000, reversal: 0, neto: 650000 },
+          { fecha: '2026-08-17', recaudo: 550000, reversal: 0, neto: 550000 },
+        ],
+        total_recaudo: 4000000,
+        total_reversal: 200000,
+        total_neto: 3800000,
+      },
+      rutas: [
+        { ruta_id: 'r1', ruta_nombre: 'Ruta Centro', cartera: 5000000, vencido: 800000, creditos: 8 },
+        { ruta_id: 'r2', ruta_nombre: 'Ruta Norte', cartera: 4500000, vencido: 600000, creditos: 6 },
+        { ruta_id: 'r3', ruta_nombre: 'Ruta Sur', cartera: 5500000, vencido: 1100000, creditos: 7 },
+      ],
+      alertas: [
+        { tipo: 'JORNADA_ABIERTA', mensaje: 'Hay jornadas sin cerrar hoy', severidad: 'warning' },
+        { tipo: 'PROMESAS_INCUMPLIDAS', mensaje: '1 promesa(s) incumplida(s)', severidad: 'warning' },
+        { tipo: 'CLIENTES_EN_MORA', mensaje: '6 cliente(s) en mora', severidad: 'info' },
       ],
     });
   }

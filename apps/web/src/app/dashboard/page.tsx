@@ -4,7 +4,8 @@ import { AppShell } from '@/components/AppShell';
 import { Forbidden } from '@/components/Forbidden';
 import { Dashboard as DashboardInversionista } from '@/components/Dashboard';
 import { DashboardCobrador } from '@/components/DashboardCobrador';
-import { canViewFinancial, fetchSession, isCobrador } from '@/lib/session';
+import { DashboardEjecutivo } from '@/components/DashboardEjecutivo';
+import { canViewFinancial, fetchSession, hasCapability, isCobrador } from '@/lib/session';
 import { API_BASE, type InversionistaSummary } from '@/lib/api/client';
 
 export const dynamic = 'force-dynamic';
@@ -13,9 +14,12 @@ export const dynamic = 'force-dynamic';
  * /dashboard despacha la superficie según el rol resuelto por /api/auth/me:
  *
  *   - COBRADOR       -> superficie de campo (jornada/ruta), SIN financiero.
- *   - INVERSIONISTA  -> dashboard financiero (resumen de inversión).
- *   - ADMINISTRADOR  -> dashboard financiero (mismo resumen; el rol gobierna
- *                        el resto de la operación por capabilities).
+ *   - ADMINISTRADOR  -> Dashboard Ejecutivo (W8): KPIs del día, tendencia 7d,
+ *                       concentración de riesgo, alertas. Capability
+ *                       dashboard:ejecutivo (solo ADMIN en W8).
+ *   - INVERSIONISTA  -> dashboard financiero (resumen de inversión). W9
+ *                       completará específicamente la experiencia del
+ *                       inversionista; aquí se preserva la superficie actual.
  *   - Otro/desconocid-> Forbidden 403 controlado (una sesión válida con
  *                        permisos insuficientes NO es una sesión inexistente,
  *                        así que no redirige al login).
@@ -24,6 +28,8 @@ export const dynamic = 'force-dynamic';
  * El backend conserva la autoridad: el fetch a /api/inversionista/resumen se
  * hace AQUI (server) con el Bearer de la cookie y solo si el rol tiene la
  * capability financiera; si el backend rechaza, se ve Forbidden.
+ * El Dashboard Ejecutivo (client) consume el BFF /api/dashboard/ejecutivo,
+ * donde el backend aplica dashboard:ejecutivo (default-deny).
  */
 export default async function DashboardPage() {
   const session = await fetchSession();
@@ -32,6 +38,10 @@ export default async function DashboardPage() {
   let content;
   if (isCobrador(session)) {
     content = <DashboardCobrador />;
+  } else if (hasCapability(session, 'dashboard:ejecutivo')) {
+    // W8: superficie ejecutiva ADMIN. El client component fetcha el BFF;
+    // el backend es la autoridad final (403 si no hay dashboard:ejecutivo).
+    content = <DashboardEjecutivo />;
   } else if (canViewFinancial(session)) {
     // Fetch server-side autorizado por rol; el backend es la autoridad final.
     const cookieStore = await cookies();

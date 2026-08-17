@@ -649,3 +649,42 @@ export function fetchReporteRutas(periodo = 'hoy', fecha_inicio?: string, fecha_
 export function fetchReporteMovimientos(periodo = 'hoy', fecha_inicio?: string, fecha_fin?: string): Promise<ReporteMovimientos> {
   return fetch(`/api/reportes/movimientos?${reporteParams(periodo, fecha_inicio, fecha_fin)}`, { cache: 'no-store' }).then((r) => parseJson<ReporteMovimientos>(r));
 }
+
+// ─── W8: Dashboard Ejecutivo ─────────────────────────────────────────────────
+
+export interface DashboardEjecutivo {
+  fecha: string;
+  negocio: { nombre: string; plan: string; moneda: string };
+  hoy: {
+    cartera_vigente: number;
+    cartera_vencida: number;
+    pct_vencido: number;
+    recaudo_hoy: number;
+    gastos_hoy: number;
+    neto_hoy: number;
+  };
+  operativo: {
+    rutas_activas: number;
+    cobradores_activos: number;
+    creditos_activos: number;
+    jornada_cerrada_hoy: boolean;
+  };
+  riesgo: {
+    clientes_en_mora: number;
+    promesas_activas: number;
+    promesas_incumplidas: number;
+    aging_distribution: Record<string, { count: number; amount: number }>;
+  };
+  tendencia_7d: {
+    serie: { fecha: string; recaudo: number; reversal: number; neto: number }[];
+    total_recaudo: number;
+    total_reversal: number;
+    total_neto: number;
+  };
+  rutas: { ruta_id: string; ruta_nombre: string; cartera: number; vencido: number; creditos: number }[];
+  alertas: { tipo: string; mensaje: string; severidad: 'info' | 'warning' | 'critical' }[];
+}
+
+export function fetchDashboardEjecutivo(): Promise<DashboardEjecutivo> {
+  return fetch('/api/dashboard/ejecutivo', { cache: 'no-store' }).then((r) => parseJson<DashboardEjecutivo>(r));
+}

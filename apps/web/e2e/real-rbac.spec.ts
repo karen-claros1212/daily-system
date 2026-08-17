@@ -59,6 +59,7 @@ const CAPS_ADMINISTRADOR = [
   'clientes:ver',
   'clientes:gestionar',
   'reportes:ver',
+  'dashboard:ejecutivo',
 ];
 const CAPS_COBRADOR = [
   'jornada:ver',
