@@ -156,23 +156,29 @@ graphify-out/
 5. Commit messages: Conventional Commits (feat:, fix:, chore:, refactor:, test:, docs:)
 6. Bot en móvil: PROHIBIDO. Cualquier bot futuro es exclusivamente administrativo.
 7. No tocar los componentes de `docs/SECURITY.md` §7 (auth, activación, sync, finanzas) sin instrucción explícita + pruebas de contrato.
+8. **Mobile Contract Freeze (W0-W14):** `apps/mobile/**` = READ-ONLY. Android/Flutter ya está terminado y operativo. El frente activo es Web Premium (`apps/web/`). `apps/api/**` puede cambiar únicamente de forma **retrocompatible** con el contrato Android existente. Prohibido alterar para facilitar la Web: activación móvil, AndroidKeyStore / device binding, challenge/canje, JWT / version_asignacion, bootstrap, route scope, sync, jornadas, pagos/reversos, movimientos, Hoja Viva, idempotencia, S4/S5 provenance/conflicts.
 
-## Gates de verificación (estado canónico 2026-08-15)
+## Gates de verificación
+
+> Las métricas y SHAs actuales de las verticales Web viven en
+> `docs/WEB-PREMIUM-EXECUTION-LEDGER.md`; **GitHub Actions** es la evidencia CI.
+> Esta tabla es **no-volátil**: no se actualiza con cada W.
 
 | Gate | Comando | Esperado |
 |---|---|---|
-| Backend | `cd apps/api && python3 -m pytest src/tests/ -q` | 367 passed, 8 skipped |
-| Alembic head | `cd apps/api && python3 -m alembic heads` | `m8_negocio_nit` |
-| Mobile | `cd apps/mobile && flutter test` | 177/177 passing |
-| Analyzer | `cd apps/mobile && flutter analyze` | 14 infos preexistentes, 0 nuevos |
+| Backend | `cd apps/api && python3 -m pytest src/tests/ -q` | PASS (0 failed) |
+| Alembic head | `cd apps/api && python3 -m alembic heads` | head canónico vigente (ver Execution Ledger) |
+| Mobile | `cd apps/mobile && flutter test` | **NO ejecutar por rutina W** — frozen (177/177 baseline) |
+| Analyzer | `cd apps/mobile && flutter analyze` | **NO ejecutar por rutina W** — frozen (14 infos baseline) |
 | Web API check | `cd apps/web && npm run api:check` | PASS (contrato OpenAPI) |
 | Web lint | `cd apps/web && npm run lint` | PASS |
 | Web typecheck | `cd apps/web && npm run typecheck` | PASS |
 | Web build | `cd apps/web && npm run build` | PASS |
-| Web E2E mock | `cd apps/web && npm run test` | 107 passing |
-| Web E2E real | `cd apps/web && npm run test:real` | 26 passing |
+| Web E2E mock | `cd apps/web && npm run test` | PASS (0 failed) |
+| Web E2E real | `cd apps/web && npm run test:real` | PASS (0 failed) |
 | Audit | `cd apps/web && npm audit` | 0 vulnerabilities |
-| CI | GitHub Actions | backend-ci · web-ci = PASS (ui-gate trigger: master; mobile baseline aceptado: 177/177, 14 infos) |
+| CI | GitHub Actions | backend-ci · web-ci = PASS |
+| **Mobile freeze** | `git diff --name-only <baseline>..HEAD -- apps/mobile/` | **VACÍO** (0 archivos) |
 
 ## Workflow
 

@@ -1,7 +1,7 @@
 # STATUS — Daily System
 
 **Proyecto:** daily-system
-**Última actualización:** 2026-08-15
+**Última actualización:** 2026-08-16
 **Ruta de trabajo verificada (local):** `/home/jesus/proyectos/daily-system`
 **Rama de trabajo:** `product/web-premium-v1`
 **HEAD operativo:** dinámico — `git rev-parse HEAD` (Git es autoridad)
@@ -32,13 +32,13 @@
 | Campo | Valor |
 |---|---|
 | **Estado general** | Etapa 1 ✅ · Etapa 2 ✅ · Etapa 3 EN PROGRESO · Etapa 4 ⏳ · Etapa 5 ⏳ |
-| **Hito actual** | Web Premium (panel administrativo production-grade) + Migración Next.js 16 — CERRADOS |
-| **Tests backend (SQLite)** | 367 passed, 8 skipped |
-| **Tests mobile** | 177/177 passing |
-| **Web E2E (local, Next 16)** | mock 107 passing (incl. a11y axe) + real 26 passing |
+| **Hito actual** | Web Premium W0-W4 ✅ (W5 pendiente) — ver `WEB-PREMIUM-EXECUTION-LEDGER.md` |
+| **Tests backend (SQLite)** | 472 passed, 9 skipped |
+| **Tests mobile** | 177/177 passing (frozen — no ejecutar por rutina W) |
+| **Web E2E (local, Next 16)** | mock 175 passing (incl. a11y axe) + real 34 passing |
 | **flutter analyze** | 14 infos preexistentes (migraciones congeladas v5/v7) / 0 nuevos |
 | **ruff (deuda conocida)** | 127 errores en `src/` — no limpiado en hardening |
-| **Alembic** | `m8_negocio_nit` (head) · upgrade + current verificados en Backend CI (PG) |
+| **Alembic** | `m10_audit_documento` (head) · upgrade + current verificados en Backend CI (PG) |
 | **npm audit (web)** | 0 vulnerabilidades |
 | **Backend CI** | ✅ PASS |
 | **Web CI** | ✅ PASS (3/3 jobs) |
@@ -77,7 +77,11 @@
 
 ## Estado canónico del producto
 
-### Aplicación cobrador — Android/Flutter (offline-first)
+### Aplicación cobrador — Android/Flutter (offline-first) — 🧊 FROZEN
+
+> **Mobile Contract Freeze (W0-W14):** `apps/mobile/**` = READ-ONLY.
+> Android ya está terminado y operativo. El frente activo es Web Premium.
+> Gate por cada W: `git diff --name-only <baseline>..HEAD -- apps/mobile/` → VACÍO.
 
 | Área | Estado |
 |---|---|
@@ -103,13 +107,13 @@
 | Login (sesión httpOnly `daily_admin_token`) | ✅ Implementado (identidad solo vía `/api/auth/me`) |
 | Onboarding (registro de negocio) | ✅ Implementado (`/registro`) |
 | Dashboard financiero | ✅ Implementado (`/dashboard`, despacha superficie por rol) |
-| Rutas | ✅ Implementado (`/routes`) |
+| Rutas | ✅ Implementado (`/routes`, `/routes/[id]` — W4: CRUD + reasignación S4) |
 | Caja | ✅ Implementado (`/caja`) |
 | Reportes | ✅ Implementado (`/reportes`) |
 | Dispositivos | ✅ Implementado (`/dispositivos`) |
 | Suscripción | ✅ Implementado (`/suscripcion`) |
 | RBAC por capacidades (COBRADOR / INVERSIONISTA / ADMINISTRADOR) | ✅ Implementado (server-side) |
-| E2E Playwright (mock + real) + a11y axe | ✅ PASS (mock 107 / real 26) |
+| E2E Playwright (mock + real) + a11y axe | ✅ PASS (mock 175 / real 34) |
 | `openapi-typescript` cliente generado | ✅ Implementado (`src/lib/api/generated/`, `npm run api:check`) |
 
 ### Backend — FastAPI

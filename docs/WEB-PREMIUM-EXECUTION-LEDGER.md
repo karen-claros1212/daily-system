@@ -3,7 +3,7 @@
 **Proyecto:** daily-system
 **Rama:** `product/web-premium-v1`
 **Última actualización:** 2026-08-16
-**HEAD:** `d89f736` (W2 FINAL PASS — código certificado)
+**HEAD:** `4178378` (W4 FINAL PASS — código certificado)
 
 ---
 
@@ -14,8 +14,8 @@
 | **W0** | ✅ COMPLETADO | dac558d | BFF usuarios/audit | — | ✅ | Ledger creado | Ninguno |
 | **W1** | ✅ FINAL PASS | 355cdb3 | Todos | 399 backend + 136 E2E mock + 41 a11y | ✅ PASS (ambos) | Git repair, BFF PATCH, m10, UI completa, PG migration gate real en CI | Ninguno |
 | **W2** | ✅ FINAL PASS | d89f736 | Todos | 426 backend + 157 E2E mock + 22 a11y + 26 real | ✅ PASS (ambos) | Listado scoped COBRADOR, 360 DTO, real E2E en PG :5432 | Ninguno |
-| **W3** | PENDIENTE | — | — | — | — | — | Depende de W2 |
-| **W4** | PENDIENTE | — | — | — | — | — | Depende de W3 |
+| **W3** | ✅ FINAL PASS | 875d506 | Todos | 452 backend + 172 E2E mock + 24 a11y + 34 real | ✅ PASS (ambos) | Autoridad financiera backend, PII por rol, sort allowlist | Ninguno |
+| **W4** | ✅ FINAL PASS | 4178378 | Todos | 472 backend + 175 E2E mock | ✅ PASS (ambos) | S4 reasignación preserva contrato Android, COBRADOR scoped | Ninguno |
 | **W5** | PENDIENTE | — | — | — | — | — | Depende de W4 |
 | **W6** | PENDIENTE | — | — | — | — | — | Depende de W5 |
 | **W7** | PENDIENTE | — | — | — | — | — | Depende de W6 |
@@ -90,24 +90,35 @@
 
 #### W0.4 — Mobile Contract Freeze
 
-**Protección:** `apps/mobile/**` READ-ONLY durante W0-W14.
+**Protección:** `apps/mobile/**` = READ-ONLY durante W0-W14.
 
-**Compatibilidad requerida al tocar backend compartido:**
-- auth ES256
+**Gate obligatorio por cada vertical W:**
+
+```bash
+git diff --name-only <baseline-vertical>..HEAD -- apps/mobile/
+```
+
+Resultado exigido: **VACÍO** (0 archivos).
+
+Si alguna vez NO es vacío: **STOP.** No justificar automáticamente.
+Requiere regresión crítica demostrada + autorización explícita del owner.
+
+**Compatibilidad backend compartido obligatoria al tocar `apps/api/`:**
+- auth ES256 / AndroidKeyStore
 - device binding
-- bootstrap
-- challenge/canje
+- bootstrap / challenge/canje
+- JWT / version_asignacion
 - route scope
-- Hoja Viva
-- pagos/reversos
-- jornadas
-- movimientos
 - sync
+- jornadas
+- pagos/reversos
+- movimientos
+- Hoja Viva
 - cierres
 - idempotencia
 - S4/S5 conflict/provenance
 
-**Cierre final:** certificación de compatibilidad móvil completa sin cambios Flutter.
+**Cierre final (W14):** certificación de compatibilidad móvil completa sin cambios Flutter.
 
 ---
 
@@ -188,8 +199,29 @@
 
 ## W4 — Rutas y Cobradores
 
-**Estado:** PENDIENTE
+**Estado:** ✅ FINAL PASS
 **Depende de:** W3
+**Código certificado:** `4178378c05c3d1a9dc43fe60df1ff6d8f4da8a0d`
+**Backend CI:** `31979575521` PASS
+**Web CI:** `31979575498` PASS
+
+**Backend:** GET `/api/rutas` (envelope `{items,total,limit,offset}`, filtros `q`/`activa`/`cobrador_id`, sort `nombre|creado_el|version` + order `asc|desc` → inválido 422, paginación `limit<=100`/`offset`), GET `/api/rutas/{id}` (detalle; inexistente → 404), POST `/api/rutas` (SOLO `rutas:crear` → 403; body allowlist → 422; nombre duplicado activo → 409; cobrador inexistente → 404; auditoría `RUTA_CREADA`), PATCH `/api/rutas/{id}/reasignar` (S4: crea ruta nueva para mismo cobrador, ruta anterior → inactiva, bump version, invalidate sesión móvil; nombre duplicado activo → 409; auditoría `RUTA_REASIGNADA`), GET `/api/rutas/resumen` (agregados: total/activas/inactivas/con_cobrador; COBRADOR scoped); capabilities `rutas:ver` (ADMIN+COBRADOR), `rutas:crear` (ADMIN), `rutas:reasignar` (ADMIN); `ruta_service.py`, `test_w4.py` (20 tests); OpenAPI regenerado
+
+**BFF:** GET+POST `/api/rutas`, GET `/api/rutas/[id]`, PATCH `/api/rutas/[id]/reasignar`, GET `/api/rutas/resumen` (proxies al backend, session httpOnly)
+
+**UI:** `/routes` (Routes.tsx: tabla con búsqueda, filtros activa/cobrador, sort, paginación, form crear con confirmación), `/routes/[id]` (RouteDetailPage.tsx: detalle + form reasignación explícita con confirmación + resultado S4), gate `rutas:ver`, nav por capability
+
+**E2E mock:** 9 tests en `w4-rutas.spec.ts` (serial + reset-rutas; ADMIN lista/detalle/crea/409 dup/reasigna S4/cobrador scoped/creación 403/filtros/sort) + a11y scan
+
+**ANDROID / MOBILE CONTRACT FREEZE:** `git diff --name-only e6e564b..4178378 -- apps/mobile/` = **VACÍO** ✅
+
+**Gates locales:** backend 472 passed / 9 skipped ✅, E2E mock 175/175 ✅, lint ✅, typecheck ✅, build ✅
+
+### Decisiones W4
+- **Reasignación S4 crea ruta nueva (no muta la existente):** `ruta_id_origen` inmutable, bump version, invalidate sesión móvil. Preserva el contrato Android (el cobrador recibe su ruta activa por bootstrap, no por mutación).
+- **COBRADOR scoped a su ruta activa:** igual que el backend real — el mock replica el aislamiento (solo ve su ruta; detalle ajeno → 404).
+- **Mock `test-cobrador-code` en `SESIONES`:** necesario para `sesionDe()` en E2E (antes solo existía en `ACTIVATION_TOKENS`, causando null en lookup).
+- **Read-model Web enriquecido:** `cobrador_nombre` en vez de UUID, paginación/filtros para panel — sin alterar el read-model que consume Android.
 
 ---
 
@@ -268,11 +300,12 @@
 1. **Un vertical a la vez.** No saltar fases.
 2. **Commit por requisito.** Un commit por feature.
 3. **CI verde antes de avanzar.** Backend CI + Web CI PASS.
-4. **Mobile Contract Freeze.** No tocar `apps/mobile/**`.
+4. **Mobile Contract Freeze.** `apps/mobile/**` = READ-ONLY. Gate obligatorio: `git diff --name-only <baseline>..HEAD -- apps/mobile/` → VACÍO.
 5. **Backend authority.** Web captura y presenta; backend calcula.
 6. **OpenAPI drift gate.** `npm run api:check` siempre PASS.
 7. **E2E por rol.** ADMIN, INVERSIONISTA, COBRADOR.
 8. **Anti-deuda.** No parches para verde, no `|| true`, no cálculos TS financieros.
+9. **Cierre documental.** Cada W se registra en este ledger con: SHA, CI IDs, tests, mobile freeze, decisiones.
 
 ## Decisones
 
@@ -284,6 +317,8 @@
 | 4 | W10 antes de W11 | 2026-08-15 | Provider gateway necesario para asistente |
 | 5 | E2E real de W2 sobre PG :5432 | 2026-08-16 | PG heredado en :5433 quedó desalineado; :5432 es la instancia canónica |
 | 6 | Sin real-clientes.spec.ts | 2026-08-16 | Cobertura W2 real vía mock E2E + real-rbac CAPS + test_w2 |
+| 7 | Mobile Contract Freeze = gate obligatorio por W | 2026-08-16 | `git diff -- apps/mobile/` debe ser VACÍO; si no, STOP + autorización explícita |
+| 8 | S4 reasignación crea ruta nueva (no muta) | 2026-08-16 | Preserva contrato Android: cobrador recibe ruta por bootstrap, no por mutación in-place |
 
 ## Blockers
 
