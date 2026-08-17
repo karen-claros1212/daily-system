@@ -44,6 +44,7 @@ CAPABILITIES_POR_ROL: Final[dict[str, tuple[str, ...]]] = {
         "creditos:ver",
         "movimientos:ver",
         "cobranza:ver",
+        "reportes:ver",
     ),
     "ADMINISTRADOR": (
         "inversionista:resumen",
@@ -67,6 +68,7 @@ CAPABILITIES_POR_ROL: Final[dict[str, tuple[str, ...]]] = {
         "clientes:ver",
         "clientes:gestionar",
         "creditos:gestionar",
+        "reportes:ver",
     ),
     "COBRADOR": (
         "jornada:ver",

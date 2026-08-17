@@ -923,6 +923,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reportes/resumen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resumen Endpoint
+         * @description Resumen financiero del periodo.
+         */
+        get: operations["resumen_endpoint_api_reportes_resumen_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reportes/recaudo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recaudo Endpoint
+         * @description Serie diaria de recaudo (PAYMENT - REVERSAL).
+         */
+        get: operations["recaudo_endpoint_api_reportes_recaudo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reportes/aging": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aging Endpoint
+         * @description Distribución de aging por bucket.
+         */
+        get: operations["aging_endpoint_api_reportes_aging_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reportes/rutas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Rutas Endpoint
+         * @description Rendimiento agregado por ruta.
+         */
+        get: operations["rutas_endpoint_api_reportes_rutas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reportes/movimientos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Movimientos Endpoint
+         * @description Breakdown de gastos/movimientos por tipo y naturaleza.
+         */
+        get: operations["movimientos_endpoint_api_reportes_movimientos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/me": {
         parameters: {
             query?: never;
@@ -4747,6 +4847,205 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CanjearDesafioResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resumen_endpoint_api_reportes_resumen_get: {
+        parameters: {
+            query?: {
+                /** @description hoy|7d|30d|custom */
+                periodo?: string;
+                /** @description YYYY-MM-DD (custom) */
+                fecha_inicio?: string | null;
+                /** @description YYYY-MM-DD (custom) */
+                fecha_fin?: string | null;
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recaudo_endpoint_api_reportes_recaudo_get: {
+        parameters: {
+            query?: {
+                /** @description hoy|7d|30d|custom */
+                periodo?: string;
+                /** @description YYYY-MM-DD (custom) */
+                fecha_inicio?: string | null;
+                /** @description YYYY-MM-DD (custom) */
+                fecha_fin?: string | null;
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    aging_endpoint_api_reportes_aging_get: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rutas_endpoint_api_reportes_rutas_get: {
+        parameters: {
+            query?: {
+                /** @description hoy|7d|30d|custom */
+                periodo?: string;
+                /** @description YYYY-MM-DD (custom) */
+                fecha_inicio?: string | null;
+                /** @description YYYY-MM-DD (custom) */
+                fecha_fin?: string | null;
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    movimientos_endpoint_api_reportes_movimientos_get: {
+        parameters: {
+            query?: {
+                /** @description hoy|7d|30d|custom */
+                periodo?: string;
+                /** @description YYYY-MM-DD (custom) */
+                fecha_inicio?: string | null;
+                /** @description YYYY-MM-DD (custom) */
+                fecha_fin?: string | null;
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
