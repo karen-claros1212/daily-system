@@ -710,3 +710,6 @@ class DesafioAuth(Base):
     __table_args__ = (
         Index("ix_desafio_auth_dispositivo", "dispositivo_id"),
     )
+
+
+from src.models.promesa_pago import PromesaPago  # noqa: E402, F401

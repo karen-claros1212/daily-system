@@ -43,6 +43,7 @@ CAPABILITIES_POR_ROL: Final[dict[str, tuple[str, ...]]] = {
         "rutas:ver",
         "creditos:ver",
         "movimientos:ver",
+        "cobranza:ver",
     ),
     "ADMINISTRADOR": (
         "inversionista:resumen",
@@ -53,6 +54,11 @@ CAPABILITIES_POR_ROL: Final[dict[str, tuple[str, ...]]] = {
         "rutas:reasignar",
         "creditos:ver",
         "movimientos:ver",
+        "cobranza:ver",
+        "cobranza:gestionar",
+        "promesas:ver",
+        "promesas:crear",
+        "promesas:actualizar",
         "codigos:crear",
         "dispositivos:registrar",
         "usuarios:ver",
@@ -73,6 +79,10 @@ CAPABILITIES_POR_ROL: Final[dict[str, tuple[str, ...]]] = {
         "sync:ver",
         "clientes:ver",
         "creditos:ver",
+        "cobranza:ver",
+        "promesas:ver",
+        "promesas:crear",
+        "promesas:actualizar",
     ),
 }
 

@@ -25,6 +25,7 @@ from src.routes.movimiento import router as movimiento_router
 from src.routes.negocio import router as negocio_router
 from src.routes.onboarding import router as onboarding_router
 from src.routes.pago import router as pago_router
+from src.routes.cobranza import router as cobranza_router
 from src.routes.ruta import router as ruta_router
 from src.routes.usuario import router as usuario_router
 from src.time_utils import as_utc
@@ -163,6 +164,7 @@ app.include_router(ruta_router)
 app.include_router(cliente_router)
 app.include_router(credito_router)
 app.include_router(pago_router)
+app.include_router(cobranza_router)
 app.include_router(hoja_viva_router)
 app.include_router(jornada_router)
 app.include_router(movimiento_router)

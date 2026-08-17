@@ -283,6 +283,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/cobranza/web": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listar Cobranza Web
+         * @description Worklist de cobranza: envelope con aging, prioridad, filtros.
+         */
+        get: operations["listar_cobranza_web_api_cobranza_web_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cobranza/resumen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resumen Cobranza Endpoint
+         * @description Resumen de cobranza: KPIs + aging distribution.
+         */
+        get: operations["resumen_cobranza_endpoint_api_cobranza_resumen_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cobranza/promesas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Crear Promesa
+         * @description Crear promesa de pago. Requiere promesas:crear.
+         */
+        post: operations["crear_promesa_api_cobranza_promesas_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cobranza/promesas/{promesa_id}/cumplir": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cumplir Promesa
+         * @description Marcar promesa como FULFILLED. Requiere promesas:actualizar.
+         */
+        post: operations["cumplir_promesa_api_cobranza_promesas__promesa_id__cumplir_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cobranza/promesas/{promesa_id}/incumplir": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Incumplir Promesa
+         * @description Marcar promesa como BROKEN. Requiere promesas:actualizar.
+         */
+        post: operations["incumplir_promesa_api_cobranza_promesas__promesa_id__incumplir_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cobranza/promesas/{promesa_id}/cancelar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancelar Promesa
+         * @description Marcar promesa como CANCELLED. Requiere promesas:actualizar.
+         */
+        post: operations["cancelar_promesa_api_cobranza_promesas__promesa_id__cancelar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/rutas/{ruta_id}/hoja-viva": {
         parameters: {
             query?: never;
@@ -3375,6 +3495,237 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PagoResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listar_cobranza_web_api_cobranza_web_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                bucket?: string | null;
+                ruta_id?: string | null;
+                estado?: string | null;
+                priority?: string | null;
+                dpd_min?: number | null;
+                dpd_max?: number | null;
+                limit?: number;
+                offset?: number;
+                sort?: string;
+                order?: string;
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resumen_cobranza_endpoint_api_cobranza_resumen_get: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    crear_promesa_api_cobranza_promesas_post: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cumplir_promesa_api_cobranza_promesas__promesa_id__cumplir_post: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path: {
+                promesa_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    incumplir_promesa_api_cobranza_promesas__promesa_id__incumplir_post: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path: {
+                promesa_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelar_promesa_api_cobranza_promesas__promesa_id__cancelar_post: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path: {
+                promesa_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

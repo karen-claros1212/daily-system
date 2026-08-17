@@ -456,3 +456,85 @@ export function fetchMovimientosResumen(): Promise<MovimientoResumen> {
     parseJson<MovimientoResumen>(r),
   );
 }
+
+// ─── W6: Centro de Cobranza ───
+
+export type CobranzaSort = 'days_past_due' | 'overdue_amount' | 'total_outstanding' | 'oldest_unpaid_due_date' | 'cliente_nombre' | 'priority_score';
+
+export interface CobranzaItem {
+  credito_id: string;
+  cliente_id: string | null;
+  cliente_nombre: string | null;
+  ruta_id: string | null;
+  ruta_nombre: string | null;
+  cobrador_nombre: string | null;
+  estado: string;
+  total: number;
+  saldo: number;
+  cuota: number;
+  n_cuotas: number;
+  cuotas_pagadas: number;
+  mora_legacy: number;
+  oldest_unpaid_due_date: string | null;
+  days_past_due: number;
+  overdue_installments: number;
+  overdue_amount: number;
+  aging_bucket: string;
+  priority: string;
+  priority_score: number;
+  priority_factors: string[];
+}
+
+export interface CobranzaListPage {
+  items: CobranzaItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface CobranzaResumen {
+  total_cartera: number;
+  total_vencido: number;
+  pct_vencido: number;
+  clientes_en_mora: number;
+  promesas_activas: number;
+  promesas_incumplidas: number;
+  aging_distribution: Record<string, { count: number; amount: number }>;
+}
+
+export function fetchCobranza(params?: {
+  q?: string;
+  bucket?: string;
+  ruta_id?: string;
+  estado?: string;
+  priority?: string;
+  dpd_min?: number;
+  dpd_max?: number;
+  limit?: number;
+  offset?: number;
+  sort?: CobranzaSort;
+  order?: 'asc' | 'desc';
+}): Promise<CobranzaListPage> {
+  const qs = new URLSearchParams();
+  if (params?.q) qs.set('q', params.q);
+  if (params?.bucket) qs.set('bucket', params.bucket);
+  if (params?.ruta_id) qs.set('ruta_id', params.ruta_id);
+  if (params?.estado) qs.set('estado', params.estado);
+  if (params?.priority) qs.set('priority', params.priority);
+  if (params?.dpd_min) qs.set('dpd_min', String(params.dpd_min));
+  if (params?.dpd_max) qs.set('dpd_max', String(params.dpd_max));
+  if (params?.limit) qs.set('limit', String(params.limit));
+  if (params?.offset) qs.set('offset', String(params.offset));
+  if (params?.sort) qs.set('sort', params.sort);
+  if (params?.order) qs.set('order', params.order);
+  const query = qs.toString();
+  return fetch(`/api/cobranza${query ? '?' + query : ''}`, { cache: 'no-store' }).then((r) =>
+    parseJson<CobranzaListPage>(r),
+  );
+}
+
+export function fetchCobranzaResumen(): Promise<CobranzaResumen> {
+  return fetch('/api/cobranza/resumen', { cache: 'no-store' }).then((r) =>
+    parseJson<CobranzaResumen>(r),
+  );
+}
