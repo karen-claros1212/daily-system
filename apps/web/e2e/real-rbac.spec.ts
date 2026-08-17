@@ -33,6 +33,7 @@ const CAPS_INVERSIONISTA = [
   'rutas:ver',
   'creditos:ver',
   'movimientos:ver',
+  'cobranza:ver',
 ];
 const CAPS_ADMINISTRADOR = [
   'inversionista:resumen',
@@ -44,6 +45,11 @@ const CAPS_ADMINISTRADOR = [
   'creditos:ver',
   'creditos:gestionar',
   'movimientos:ver',
+  'cobranza:ver',
+  'cobranza:gestionar',
+  'promesas:ver',
+  'promesas:crear',
+  'promesas:actualizar',
   'codigos:crear',
   'dispositivos:registrar',
   'usuarios:ver',
@@ -63,6 +69,10 @@ const CAPS_COBRADOR = [
   'sync:ver',
   'clientes:ver',
   'creditos:ver',
+  'cobranza:ver',
+  'promesas:ver',
+  'promesas:crear',
+  'promesas:actualizar',
 ];
 
 interface MeBody {
