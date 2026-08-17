@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.models import Credito, Jornada, Pago, Ruta, Usuario
+from src.services.hoja_viva_service import BOGOTA_TZ, today_bogota
 
 
 def get_inversionista_summary(
@@ -28,7 +29,7 @@ def get_inversionista_summary(
     recaudo_hoy = sum(PAYMENT) - sum(REVERSAL) for today
     """
     if today is None:
-        today = date.today()
+        today = today_bogota()
 
     # Active credits count
     result = db.execute(
@@ -93,12 +94,14 @@ def get_inversionista_summary(
     cartera_neta = cartera_neta_raw if cartera_neta_raw is not None else 0
 
 # Today's collection = sum(PAYMENT) - sum(REVERSAL) for today
-    # SQLite-compatible range filter (strftime('%Y-%m-%d') no existe en Postgres):
-    # [inicio, inicio + 1d). SQLAlchemy pasa ambos como literales en el
-    # dialecto activo, asi el mismo servicio corre sobre SQLite (tests) y
-    # Postgres (produccion).
-    inicio = datetime.combine(today, time.min, tzinfo=timezone.utc)
-    fin = inicio + timedelta(days=1)
+    # Rango diario en zona de Bogota (no UTC): el "día" financiero es el
+    # día Colombia, no el día UTC. Convertimos a UTC para la consulta
+    # porque recibido_el_servidor se almacena en UTC.
+    # [00:00 Bogota, 00:00 Bogota + 1d) → [05:00 UTC, 05:00 UTC + 1d)
+    inicio_bogota = datetime.combine(today, time.min, tzinfo=BOGOTA_TZ)
+    fin_bogota = inicio_bogota + timedelta(days=1)
+    inicio = inicio_bogota.astimezone(timezone.utc)
+    fin = fin_bogota.astimezone(timezone.utc)
     result_payments = db.execute(
         select(func.coalesce(func.sum(Pago.monto), 0))
         .select_from(Pago)
