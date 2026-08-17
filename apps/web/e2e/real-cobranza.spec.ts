@@ -39,11 +39,11 @@ test.describe.serial('W6 real: Cobranza Web (FastAPI :8001 + BFF :3000)', () => 
       VALUES ('${clienteId}', '${seed.negocio_id}', 'CC', '123456789', 'Cliente E2E', 'W6', 'PROVISIONAL');
       INSERT INTO credito (id, negocio_id, cliente_id, ruta_id, monto, total, cuota, n_cuotas, estado, fecha_inicio)
       VALUES ('${creditoId}', '${seed.negocio_id}', '${clienteId}', '${seed.ruta_id}', 200000, 600000, 200000, 3, 'ACTIVO', NOW() - INTERVAL '60 days');
-      INSERT INTO cuota_programada (id, credito_id, numero, monto, fecha_vencimiento, estado)
+      INSERT INTO cuota_programada (id, negocio_id, credito_id, numero, monto, fecha_vencimiento, estado)
       VALUES
-        ('${cuota1Id}', '${creditoId}', 1, 200000, NOW() - INTERVAL '45 days', 'PENDIENTE'),
-        ('${cuota2Id}', '${creditoId}', 2, 200000, NOW() - INTERVAL '15 days', 'PENDIENTE'),
-        ('${cuota3Id}', '${creditoId}', 3, 200000, NOW() + INTERVAL '15 days', 'PENDIENTE');
+        ('${cuota1Id}', '${seed.negocio_id}', '${creditoId}', 1, 200000, NOW() - INTERVAL '45 days', 'PENDIENTE'),
+        ('${cuota2Id}', '${seed.negocio_id}', '${creditoId}', 2, 200000, NOW() - INTERVAL '15 days', 'PENDIENTE'),
+        ('${cuota3Id}', '${seed.negocio_id}', '${creditoId}', 3, 200000, NOW() + INTERVAL '15 days', 'PENDIENTE');
     `);
 
     // JWT real de COBRADOR vía flujo de dispositivo canónico.
