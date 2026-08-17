@@ -75,8 +75,9 @@ test.describe('Onboarding real (Etapa 3): /registro → BFF → FastAPI → Post
     expect(meBody.capabilities).toContain('dispositivos:registrar');
 
     // 6) /dashboard deja entrar al ADMINISTRADOR real (sin redirect al login).
+    //    W8: el dashboard de ADMIN es el Ejecutivo (el financiero es de INV, W9).
     await page.goto('/dashboard');
-    await expect(page.locator('h1')).toContainText('Dashboard financiero', { timeout: 15000 });
+    await expect(page.locator('h1')).toContainText('Dashboard ejecutivo', { timeout: 15000 });
   });
 
   test('concurrencia HTTP real: dos POST mismo NIT -> [201, 409] (uq_negocio_nit en PG)', async ({ request }) => {
