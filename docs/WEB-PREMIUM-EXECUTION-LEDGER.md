@@ -2,8 +2,8 @@
 
 **Proyecto:** daily-system
 **Rama:** `product/web-premium-v1`
-**Última actualización:** 2026-08-16
-**HEAD:** `4178378` (W4 FINAL PASS — código certificado)
+**Última actualización:** 2026-08-17
+**HEAD:** `48ead5e` (W5 FINAL PASS — código certificado)
 
 ---
 
@@ -16,7 +16,7 @@
 | **W2** | ✅ FINAL PASS | d89f736 | Todos | 426 backend + 157 E2E mock + 22 a11y + 26 real | ✅ PASS (ambos) | Listado scoped COBRADOR, 360 DTO, real E2E en PG :5432 | Ninguno |
 | **W3** | ✅ FINAL PASS | 875d506 | Todos | 452 backend + 172 E2E mock + 24 a11y + 34 real | ✅ PASS (ambos) | Autoridad financiera backend, PII por rol, sort allowlist | Ninguno |
 | **W4** | ✅ FINAL PASS | 22a710c | Todos | 472 backend + 175 E2E mock + 43 E2E real | ✅ PASS (ambos) | S4 vía BFF, JWT stale 401, negativos 403/404, cross-tenant | Ninguno |
-| **W5** | PENDIENTE | — | — | — | — | — | Depende de W4 |
+| **W5** | ✅ FINAL PASS | 48ead5e | /api/movimientos/web + /resumen | 483 backend + 182 E2E mock + 54 E2E real | ✅ PASS (ambos) | RBAC movimientos:ver 3 roles, BFF cookie auth, DTO minimizado, PII INVERSIONISTA | Ninguno |
 | **W6** | PENDIENTE | — | — | — | — | — | Depende de W5 |
 | **W7** | PENDIENTE | — | — | — | — | — | Depende de W6 |
 | **W8** | PENDIENTE | — | — | — | — | — | Depende de W7 |
@@ -236,8 +236,51 @@ Requiere regresión crítica demostrada + autorización explícita del owner.
 
 ## W5 — Centro Financiero
 
-**Estado:** PENDIENTE
+**Estado:** ✅ FINAL PASS
 **Depende de:** W4
+**Código certificado:** `aad2221` (implementación) + `48ead5e` (corrección CI)
+**Backend CI:** `31994576690` PASS
+**Web CI:** `31994576694` PASS
+
+### Scope (matriz W0.2)
+
+| Dominio | Backend | BFF | UI | Mutaciones | E2E |
+|---|---:|---:|---:|---:|---:|
+| Movimientos/Gastos | sí | auditar | no | sí | auditar |
+
+### Entregables
+
+- **Backend:** `GET /api/movimientos/web` (envelope, filtros q/tipo/naturaleza/ruta_id, sort creado_el/monto/tipo, order asc/desc, paginación limit≤100, role scoping) + `GET /api/movimientos/resumen` (total_movimientos, total_monto, gastos_por_tipo)
+- **RBAC:** `movimientos:ver` → ADMINISTRADOR + INVERSIONISTA + COBRADOR (scoped a ruta activa). `movimientos:registrar` → COBRADOR (invariante)
+- **BFF:** `/api/movimientos` (GET) + `/api/movimientos/resumen` (GET) → proxy a backend. Sort/order pass-through 422
+- **UI:** `/movimientos` — Centro Financiero: resumen cards, tabla paginada, filtros (naturaleza, ruta, búsqueda), sort, paginación. Navegación AppShell gated por `movimientos:ver`
+- **DTO minimizado:** id, tipo, naturaleza, monto, nota, creado_por_nombre, creado_el, jornada_fecha, ruta_id, ruta_nombre. INVERSIONISTA: nota=null, creado_por_nombre=null
+- **E2E mock:** 7 tests (ADMIN envelope/filtros/sort/búsqueda, INVERSIONISTA PII, COBRADOR scoped)
+- **E2E real:** 11 tests (ADMIN: envelope, resumen, filtros, búsqueda, sort, paginación, 422 sort/order; COBRADOR: JWT dispositivo, scoped, /me capabilities; INVERSIONISTA: PII/minimización)
+
+### Decisiones
+
+1. `movimientos:ver` es capability separada de `movimientos:registrar` — un COBRADOR puede ver sin registrar
+2. BFF no convierte silenciosamente sort inválido → 422 (contrato explícito)
+3. Backend valida `order` explícito (asc|desc) → 422 si no match
+4. Read-model web NO expone: negocio_id, clave_idempotencia, creado_por UUID, jornada_id
+5. INVERSIONISTA: nota=null (free-text puede contener PII)
+6. Route ordering: `/web` y `/resumen` antes de `/{movimiento_id}` en FastAPI
+7. Mobile contract: `GET /api/movimientos?jornada_id=` invariante (mobile siempre envía jornada_id)
+
+### Evidencia estable
+
+| Gate | Resultado |
+|---|---|
+| Backend pytest | 483 passed, 9 skipped |
+| E2E mock | 182 passed |
+| E2E real | 54 passed (incluye W5: 11 tests) |
+| Typecheck | PASS |
+| Lint | 0 errors, 10 warnings (preexistentes) |
+| Build | PASS |
+| api:check | PASS (OpenAPI reexportado con /web + /resumen) |
+| npm audit | 0 vulnerabilities |
+| Mobile freeze | VACÍO (0 archivos en apps/mobile/) |
 
 ---
 
