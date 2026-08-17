@@ -689,7 +689,7 @@ class TestM9toM10UpgradePG:
         from alembic.script import ScriptDirectory
         script_dir = ScriptDirectory.from_config(alembic_cfg)
         head = script_dir.get_current_head()
-        assert head == "m10_audit_documento", f"m10 es head de alembic, got {head}"
+        assert head == "m11_promesa_pago", f"m11 es head de alembic, got {head}"
 
         # Restore original API_DATABASE_URL
         if original_db_url:
