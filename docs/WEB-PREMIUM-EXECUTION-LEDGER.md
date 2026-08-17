@@ -3,7 +3,7 @@
 **Proyecto:** daily-system
 **Rama:** `product/web-premium-v1`
 **Última actualización:** 2026-08-17
-**Código certificado último vertical:** `180db73`
+**Código certificado último vertical:** `5905390`
 
 ---
 
@@ -18,7 +18,7 @@
 | **W4** | ✅ FINAL PASS | 22a710c | Todos | 472 backend + 175 E2E mock + 43 E2E real | ✅ PASS (ambos) | S4 vía BFF, JWT stale 401, negativos 403/404, cross-tenant | Ninguno |
 | **W5** | ✅ FINAL PASS | 48ead5e | /api/movimientos/web + /resumen | 483 backend + 182 E2E mock + 54 E2E real | ✅ PASS (ambos) | RBAC movimientos:ver 3 roles, BFF cookie auth, DTO minimizado, PII INVERSIONISTA | Ninguno |
 | **W6** | ✅ FINAL PASS | 180db73 | /api/cobranza/web + /resumen + /promesas + /{credito_id} | 498 backend + 194 E2E mock + 65 E2E real | ✅ PASS (ambos) | Aging server-side, worklist priorizada, Promise to Pay state machine, drill-down, RBAC cobranza:ver 3 roles, PII cobrador_nombre | Ninguno |
-| **W7** | PENDIENTE | — | — | — | — | — | Depende de W6 |
+| **W7** | ✅ FINAL PASS | 5905390 | /api/reportes/{resumen,recaudo,aging,rutas,movimientos} | 509 backend + 203 E2E mock + 75 E2E real | ✅ PASS (ambos) | Business Date Colombia, reportes:ver (ADMIN+INV), read-models server-side, UI Premium, RBAC test sync | Ninguno |
 | **W8** | PENDIENTE | — | — | — | — | — | Depende de W7 |
 | **W9** | PENDIENTE | — | — | — | — | — | Depende de W8 |
 | **W10** | PENDIENTE | — | — | — | — | — | Depende de W9 |
@@ -338,8 +338,47 @@ Requiere regresión crítica demostrada + autorización explícita del owner.
 
 ## W7 — Reportes Premium
 
-**Estado:** PENDIENTE
+**Estado:** ✅ FINAL PASS
 **Depende de:** W6
+**Commit:** `5905390`
+**CI:** Backend `32067721349` PASS · Web `32067721339` PASS
+
+### Entregables
+
+| Entrega | Estado | Detalle |
+|---|---|---|
+| Gate 1: Business Date Colombia | ✅ | `inversionista_service.py`: `today_bogota()` + rango Bogota→UTC. 11 tests frontera (`test_w7_business_date.py`) |
+| Backend: read-models reportes | ✅ | `reportes_service.py`: resumen, recaudo_diario, aging, rutas, movimientos. Reutiliza `resumen_creditos`, `_calc_aging`, `AGING_BUCKETS`, `BOGOTA_TZ` |
+| Backend: 5 endpoints typed | ✅ | `routes/reportes.py`: GET `/api/reportes/{resumen,recaudo,aging,rutas,movimientos}`. Periodos hoy/7d/30d/custom |
+| RBAC: `reportes:ver` | ✅ | ADMINISTRADOR + INVERSIONISTA. COBRADOR NO ampliado. `real-rbac.spec.ts` sincronizado |
+| OpenAPI | ✅ | 59 paths (+5 reportes). `api:check` PASS |
+| BFF: 5 proxies | ✅ | `/api/reportes/{resumen,recaudo,aging,rutas,movimientos}` con cookie HttpOnly |
+| UI: ReportesPremium | ✅ | KPIs, tendencia recaudo (barras+totales), aging (7 buckets), rutas (tabla), movimientos (tabla). Selector periodo accesible |
+| E2E mock | ✅ | `w7-reportes.spec.ts`: 12 tests (ADMIN, INVERSIONISTA PII, COBRADOR 403, periodo, KPIs, secciones) |
+| E2E real | ✅ | `real-reportes.spec.ts`: 10 tests (ADMIN BFF, INVERSIONISTA BFF, periodos 7d/30d) |
+| Gates | ✅ | Backend 509/509, E2E mock 203/203, E2E real 75/75, typecheck/lint/build PASS, npm audit 0 |
+
+### Decisiones
+
+- **Business Date:** `today_bogota()` + rango Bogota convertido a UTC para la query (SQLite no maneja timezone offsets)
+- **Read-models server-side:** agregados calculados en backend, no en React. Reutiliza `resumen_creditos()` (autoridad financiera) y `_calc_aging()` (autoridad aging)
+- **Endpoints explícitos:** 5 endpoints typed, NO endpoint gigante. Tenant desde ctx, periodo validado
+- **RBAC:** `reportes:ver` para ADMIN + INVERSIONISTA. COBRADOR mantiene scope W5/W6
+- **UI:** selector de periodo (hoy/7d/30d), KPIs con valores COP, charts con tablas de datos, WCAG 2.2 AA
+
+### Pruebas
+
+| Suite | Resultado |
+|---|---|
+| Backend | 509 passed, 9 skipped |
+| E2E mock | 203 passed |
+| E2E real | 75 passed |
+| OpenAPI | 59 paths |
+| Alembic head | `m11_promesa_pago` |
+| Typecheck | PASS |
+| Lint | 0 errors, 16 warnings preexistentes |
+| Build | PASS |
+| npm audit | 0 vulnerabilities |
 
 ---
 
