@@ -551,10 +551,12 @@ const ROL_CAPABILITIES = {
     'jornada:ver', 'jornada:abrir', 'jornada:cerrar',
     'ruta:ver', 'movimientos:ver', 'movimientos:registrar', 'pagos:registrar', 'sync:ver',
     'clientes:ver', 'creditos:ver',
+    'cobranza:ver', 'promesas:ver', 'promesas:crear', 'promesas:actualizar',
   ],
   INVERSIONISTA: [
     'inversionista:resumen', 'inversionista:suscripcion',
     'jornadas:ver', 'rutas:ver', 'creditos:ver', 'movimientos:ver',
+    'cobranza:ver',
   ],
   ADMINISTRADOR: [
     'inversionista:resumen', 'inversionista:suscripcion',
@@ -563,6 +565,8 @@ const ROL_CAPABILITIES = {
     'codigos:crear', 'dispositivos:registrar',
     'usuarios:ver', 'usuarios:gestionar', 'audit:ver',
     'clientes:ver', 'clientes:gestionar',
+    'cobranza:ver', 'cobranza:gestionar',
+    'promesas:ver', 'promesas:crear', 'promesas:actualizar',
   ],
 };
 
@@ -774,6 +778,9 @@ function parseSpki(spkiBase64) {
     type: 'spki',
   });
 }
+
+// W6: Promesas mock (module scope para persistir entre requests)
+const PROMESAS_MOCK = [];
 
 const server = http.createServer(async (req, res) => {
   console.log(`[mock-api] ${req.method} ${req.url}`);
@@ -1142,6 +1149,233 @@ const server = http.createServer(async (req, res) => {
       total_monto: totalMonto,
       gastos_por_tipo: Object.values(porTipo),
     });
+  }
+
+  // ── W6: GET /api/cobranza/web (worklist, cobranza:ver) ─────────────────────
+  const COBRANZA_FIXTURE = [
+    {
+      credito_id: 'c1', cliente_id: 'cl1', cliente_nombre: 'Juan Perez',
+      ruta_id: 'r1', ruta_nombre: 'Ruta Centro', cobrador_id: 'u2', cobrador_nombre: 'Cobrador Uno',
+      estado: 'ACTIVO', total: 1200000, saldo: 800000, cuota: 200000, n_cuotas: 6,
+      cuotas_pagadas: 2, mora_legacy: 5, days_past_due: 12,
+      overdue_installments: 2, overdue_amount: 400000, aging_bucket: '8-15',
+      oldest_unpaid_due_date: '2026-08-05',
+    },
+    {
+      credito_id: 'c2', cliente_id: 'cl2', cliente_nombre: 'Maria Gomez',
+      ruta_id: 'r1', ruta_nombre: 'Ruta Centro', cobrador_id: 'u2', cobrador_nombre: 'Cobrador Uno',
+      estado: 'ACTIVO', total: 600000, saldo: 600000, cuota: 200000, n_cuotas: 3,
+      cuotas_pagadas: 0, mora_legacy: 20, days_past_due: 25,
+      overdue_installments: 3, overdue_amount: 600000, aging_bucket: '16-30',
+      oldest_unpaid_due_date: '2026-07-15',
+    },
+    {
+      credito_id: 'c3', cliente_id: 'cl3', cliente_nombre: 'Carlos Ruiz',
+      ruta_id: 'r2', ruta_nombre: 'Ruta Sur', cobrador_id: 'u2', cobrador_nombre: 'Cobrador Uno',
+      estado: 'ACTIVO', total: 300000, saldo: 100000, cuota: 100000, n_cuotas: 3,
+      cuotas_pagadas: 2, mora_legacy: 0, days_past_due: 0,
+      overdue_installments: 0, overdue_amount: 0, aging_bucket: 'CURRENT',
+      oldest_unpaid_due_date: null,
+    },
+  ];
+
+  if (req.method === 'GET' && path === '/api/cobranza/web') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('cobranza:ver')) {
+      return json(res, 403, { detail: 'No autorizado para cobranza:ver' });
+    }
+
+    let filas = COBRANZA_FIXTURE.slice();
+    if (ses.rol === 'COBRADOR') filas = filas.filter((f) => f.ruta_id === ses.route_id);
+
+    const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '50', 10), 100);
+    const offset = parseInt(url.searchParams.get('offset') ?? '0', 10);
+    const sort = url.searchParams.get('sort') ?? 'priority';
+    const order = url.searchParams.get('order') ?? 'desc';
+    const agingBucket = url.searchParams.get('bucket') || url.searchParams.get('aging_bucket');
+    const estado = url.searchParams.get('estado');
+
+    if (agingBucket) filas = filas.filter((f) => f.aging_bucket === agingBucket);
+    if (estado) filas = filas.filter((f) => f.estado === estado);
+
+    const cmp = sort === 'saldo' ? (a, b) => a.saldo - b.saldo
+      : sort === 'days_past_due' ? (a, b) => a.days_past_due - b.days_past_due
+      : (a, b) => b.days_past_due - a.days_past_due;
+    if (order === 'asc') filas.sort(cmp); else filas.sort((a, b) => cmp(b, a));
+
+    const items = filas.slice(offset, offset + limit).map((f) => {
+      if (ses.rol === 'INVERSIONISTA') {
+        return { ...f, cliente_nombre: null, cliente_id: null, cobrador_nombre: null };
+      }
+      return f;
+    });
+
+    return json(res, 200, { items, total: filas.length, limit, offset });
+  }
+
+  // ── W6: GET /api/cobranza/resumen (KPIs, cobranza:ver) ─────────────────────
+  if (req.method === 'GET' && path === '/api/cobranza/resumen') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('cobranza:ver')) {
+      return json(res, 403, { detail: 'No autorizado para cobranza:ver' });
+    }
+
+    let filas = COBRANZA_FIXTURE.slice();
+    if (ses.rol === 'COBRADOR') filas = filas.filter((f) => f.ruta_id === ses.route_id);
+
+    const aging = {};
+    for (const b of ['CURRENT', '1-7', '8-15', '16-30', '31-60', '61-90', '90+']) aging[b] = 0;
+    for (const f of filas) aging[f.aging_bucket] = (aging[f.aging_bucket] ?? 0) + 1;
+
+    return json(res, 200, {
+      total_creditos: filas.length,
+      total_saldo: filas.reduce((a, f) => a + f.saldo, 0),
+      total_vencido: filas.reduce((a, f) => a + f.overdue_amount, 0),
+      creditos_en_mora: filas.filter((f) => f.days_past_due > 0).length,
+      aging_distribution: aging,
+    });
+  }
+
+  // ── W6: GET /api/cobranza/{credito_id} (drill-down, cobranza:ver) ──────────
+  const cobranzaMatch = path.match(/^\/api\/cobranza\/([^/]+)$/);
+  if (req.method === 'GET' && cobranzaMatch) {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('cobranza:ver')) {
+      return json(res, 403, { detail: 'No autorizado para cobranza:ver' });
+    }
+
+    const creditoId = cobranzaMatch[1];
+    const cred = COBRANZA_FIXTURE.find((f) => f.credito_id === creditoId);
+    if (!cred) return json(res, 404, { detail: 'Credito no encontrado' });
+    if (ses.rol === 'COBRADOR' && cred.ruta_id !== ses.route_id) {
+      return json(res, 404, { detail: 'Credito no encontrado' });
+    }
+
+    const result = {
+      ...cred,
+      obligaciones_vencidas: cred.overdue_installments > 0
+        ? Array.from({ length: cred.overdue_installments }, (_, i) => ({
+            numero: cred.cuotas_pagadas + i + 1,
+            fecha_vencimiento: cred.oldest_unpaid_due_date ?? '2026-08-01',
+            monto: cred.cuota,
+            estado: 'PENDIENTE',
+          }))
+        : [],
+      pagos_recientes: cred.cuotas_pagadas > 0
+        ? Array.from({ length: cred.cuotas_pagadas }, (_, i) => ({
+            id: `pay-${creditoId}-${i}`,
+            tipo: 'PAYMENT',
+            monto: cred.cuota,
+            recibido_el: '2026-07-01',
+            nota: null,
+          }))
+        : [],
+      promesas: PROMESAS_MOCK.filter((p) => p.credito_id === creditoId).map((p) => ({
+        id: p.id, amount: p.amount, promised_date: p.promised_date,
+        estado: p.estado, nota: ses.rol === 'INVERSIONISTA' ? null : p.nota,
+        creado_el: p.creado_el,
+      })),
+    };
+
+    if (ses.rol === 'INVERSIONISTA') {
+      result.cliente_nombre = null;
+      result.cliente_id = null;
+      result.cobrador_nombre = null;
+    }
+
+    return json(res, 200, result);
+  }
+
+  // ── W6: POST /api/cobranza/promesas (crear, promesas:crear) ────────────────
+  if (req.method === 'POST' && path === '/api/cobranza/promesas') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('promesas:crear')) {
+      return json(res, 403, { detail: 'No autorizado para promesas:crear' });
+    }
+
+    const { credito_id, amount, promised_date, nota, clave_idempotencia } = body;
+
+    if (!credito_id) return json(res, 422, { detail: 'credito_id requerido' });
+    if (!amount || amount <= 0) return json(res, 422, { detail: 'amount debe ser > 0' });
+    if (!promised_date) return json(res, 422, { detail: 'promised_date requerido' });
+
+    const cred = COBRANZA_FIXTURE.find((f) => f.credito_id === credito_id);
+    if (!cred) return json(res, 404, { detail: 'Credito no encontrado' });
+    if (ses.rol === 'COBRADOR' && cred.ruta_id !== ses.route_id) {
+      return json(res, 404, { detail: 'Credito no encontrado' });
+    }
+
+    const existing = PROMESAS_MOCK.find((p) => p.credito_id === credito_id && p.estado === 'ACTIVE');
+    if (existing) return json(res, 409, { detail: 'Ya existe una promesa activa para este credito' });
+
+    const promesa = {
+      id: `prom-${PROMESAS_MOCK.length + 1}`,
+      credito_id,
+      amount,
+      promised_date,
+      nota: ses.rol === 'INVERSIONISTA' ? null : nota,
+      estado: 'ACTIVE',
+      creado_el: new Date().toISOString(),
+      clave_idempotencia,
+    };
+    PROMESAS_MOCK.push(promesa);
+    return json(res, 201, { id: promesa.id, estado: promesa.estado });
+  }
+
+  // ── W6: POST /api/cobranza/promesas/{id}/cumplir ───────────────────────────
+  const promesaCumplirMatch = path.match(/^\/api\/cobranza\/promesas\/([^/]+)\/cumplir$/);
+  if (req.method === 'POST' && promesaCumplirMatch) {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('promesas:actualizar')) {
+      return json(res, 403, { detail: 'No autorizado para promesas:actualizar' });
+    }
+    const p = PROMESAS_MOCK.find((x) => x.id === promesaCumplirMatch[1]);
+    if (!p) return json(res, 404, { detail: 'Promesa no encontrada' });
+    if (p.estado !== 'ACTIVE') return json(res, 409, { detail: `Promesa en estado ${p.estado}` });
+    p.estado = 'FULFILLED';
+    return json(res, 200, { id: p.id, estado: p.estado });
+  }
+
+  // ── W6: POST /api/cobranza/promesas/{id}/incumplir ─────────────────────────
+  const promesaIncumplirMatch = path.match(/^\/api\/cobranza\/promesas\/([^/]+)\/incumplir$/);
+  if (req.method === 'POST' && promesaIncumplirMatch) {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('promesas:actualizar')) {
+      return json(res, 403, { detail: 'No autorizado para promesas:actualizar' });
+    }
+    const p = PROMESAS_MOCK.find((x) => x.id === promesaIncumplirMatch[1]);
+    if (!p) return json(res, 404, { detail: 'Promesa no encontrada' });
+    if (p.estado !== 'ACTIVE') return json(res, 409, { detail: `Promesa en estado ${p.estado}` });
+    p.estado = 'BROKEN';
+    return json(res, 200, { id: p.id, estado: p.estado });
+  }
+
+  // ── W6: POST /api/cobranza/promesas/{id}/cancelar ──────────────────────────
+  const promesaCancelarMatch = path.match(/^\/api\/cobranza\/promesas\/([^/]+)\/cancelar$/);
+  if (req.method === 'POST' && promesaCancelarMatch) {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('promesas:actualizar')) {
+      return json(res, 403, { detail: 'No autorizado para promesas:actualizar' });
+    }
+    const p = PROMESAS_MOCK.find((x) => x.id === promesaCancelarMatch[1]);
+    if (!p) return json(res, 404, { detail: 'Promesa no encontrada' });
+    if (p.estado !== 'ACTIVE') return json(res, 409, { detail: `Promesa en estado ${p.estado}` });
+    p.estado = 'CANCELLED';
+    return json(res, 200, { id: p.id, estado: p.estado });
   }
 
   // ── POST /api/onboarding/negocios (publico, pre-sesion, Etapa 3) ──────────
