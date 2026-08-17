@@ -1,14 +1,14 @@
 import { AppShell } from '@/components/AppShell';
 import { Forbidden } from '@/components/Forbidden';
-import { Reportes as ReportesComp } from '@/components/Reportes';
+import { ReportesPremium } from '@/components/ReportesPremium';
 import { hasCapability, requireSession } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
-/** /reportes: resumen financiero. INVERSIONISTA | ADMINISTRADOR -> 403 otherwise. */
+/** /reportes: Reportes Premium. ADMINISTRADOR | INVERSIONISTA → 403 otherwise. */
 export default async function ReportesPage() {
   const session = await requireSession();
-  if (!hasCapability(session, 'inversionista:resumen')) {
+  if (!hasCapability(session, 'reportes:ver')) {
     return (
       <AppShell session={session}>
         <Forbidden rol={session.rol} />
@@ -17,7 +17,7 @@ export default async function ReportesPage() {
   }
   return (
     <AppShell session={session}>
-      <ReportesComp />
+      <ReportesPremium />
     </AppShell>
   );
 }

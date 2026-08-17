@@ -579,3 +579,73 @@ export function crearPromesa(creditoId: string, data: { amount: number; promised
     return body;
   });
 }
+
+// ─── W7: Reportes Premium ────────────────────────────────────────────────────
+
+export interface ReporteResumen {
+  periodo: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  cartera_vigente: number;
+  cartera_vencida: number;
+  pct_vencido: number;
+  recaudo_periodo: number;
+  gastos_periodo: number;
+  neto_periodo: number;
+}
+
+export interface ReporteRecaudo {
+  periodo: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  serie: { fecha: string; recaudo: number; reversal: number; neto: number }[];
+  total_recaudo: number;
+  total_reversal: number;
+  total_neto: number;
+}
+
+export interface ReporteAging {
+  fecha: string;
+  buckets: Record<string, { count: number; amount: number }>;
+}
+
+export interface ReporteRutas {
+  periodo: string;
+  rutas: { ruta_id: string; ruta_nombre: string; cartera: number; vencido: number; creditos: number }[];
+}
+
+export interface ReporteMovimientos {
+  periodo: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  total_gastos: number;
+  total_recibido: number;
+  por_tipo: { tipo: string; total: number; count: number; naturalezas: Record<string, number> }[];
+}
+
+function reporteParams(periodo: string, fecha_inicio?: string, fecha_fin?: string): string {
+  let p = `periodo=${encodeURIComponent(periodo)}`;
+  if (fecha_inicio) p += `&fecha_inicio=${encodeURIComponent(fecha_inicio)}`;
+  if (fecha_fin) p += `&fecha_fin=${encodeURIComponent(fecha_fin)}`;
+  return p;
+}
+
+export function fetchReporteResumen(periodo = 'hoy', fecha_inicio?: string, fecha_fin?: string): Promise<ReporteResumen> {
+  return fetch(`/api/reportes/resumen?${reporteParams(periodo, fecha_inicio, fecha_fin)}`, { cache: 'no-store' }).then((r) => parseJson<ReporteResumen>(r));
+}
+
+export function fetchReporteRecaudo(periodo = '7d', fecha_inicio?: string, fecha_fin?: string): Promise<ReporteRecaudo> {
+  return fetch(`/api/reportes/recaudo?${reporteParams(periodo, fecha_inicio, fecha_fin)}`, { cache: 'no-store' }).then((r) => parseJson<ReporteRecaudo>(r));
+}
+
+export function fetchReporteAging(): Promise<ReporteAging> {
+  return fetch('/api/reportes/aging', { cache: 'no-store' }).then((r) => parseJson<ReporteAging>(r));
+}
+
+export function fetchReporteRutas(periodo = 'hoy', fecha_inicio?: string, fecha_fin?: string): Promise<ReporteRutas> {
+  return fetch(`/api/reportes/rutas?${reporteParams(periodo, fecha_inicio, fecha_fin)}`, { cache: 'no-store' }).then((r) => parseJson<ReporteRutas>(r));
+}
+
+export function fetchReporteMovimientos(periodo = 'hoy', fecha_inicio?: string, fecha_fin?: string): Promise<ReporteMovimientos> {
+  return fetch(`/api/reportes/movimientos?${reporteParams(periodo, fecha_inicio, fecha_fin)}`, { cache: 'no-store' }).then((r) => parseJson<ReporteMovimientos>(r));
+}

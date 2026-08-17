@@ -556,7 +556,7 @@ const ROL_CAPABILITIES = {
   INVERSIONISTA: [
     'inversionista:resumen', 'inversionista:suscripcion',
     'jornadas:ver', 'rutas:ver', 'creditos:ver', 'movimientos:ver',
-    'cobranza:ver',
+    'cobranza:ver', 'reportes:ver',
   ],
   ADMINISTRADOR: [
     'inversionista:resumen', 'inversionista:suscripcion',
@@ -567,6 +567,7 @@ const ROL_CAPABILITIES = {
     'clientes:ver', 'clientes:gestionar',
     'cobranza:ver', 'cobranza:gestionar',
     'promesas:ver', 'promesas:crear', 'promesas:actualizar',
+    'reportes:ver',
   ],
 };
 
@@ -1376,6 +1377,116 @@ const server = http.createServer(async (req, res) => {
     if (p.estado !== 'ACTIVE') return json(res, 409, { detail: `Promesa en estado ${p.estado}` });
     p.estado = 'CANCELLED';
     return json(res, 200, { id: p.id, estado: p.estado });
+  }
+
+  // ── W7: GET /api/reportes/resumen (reportes:ver) ───────────────────────────
+  if (req.method === 'GET' && path === '/api/reportes/resumen') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('reportes:ver')) {
+      return json(res, 403, { detail: 'No autorizado para reportes:ver' });
+    }
+    const periodo = new URL(req.url, 'http://localhost').searchParams.get('periodo') ?? 'hoy';
+    return json(res, 200, {
+      periodo,
+      fecha_inicio: '2026-08-17',
+      fecha_fin: '2026-08-17',
+      cartera_vigente: 15000000,
+      cartera_vencida: 2500000,
+      pct_vencido: 16.7,
+      recaudo_periodo: 3500000,
+      gastos_periodo: 450000,
+      neto_periodo: 3050000,
+    });
+  }
+
+  // ── W7: GET /api/reportes/recaudo (reportes:ver) ───────────────────────────
+  if (req.method === 'GET' && path === '/api/reportes/recaudo') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('reportes:ver')) {
+      return json(res, 403, { detail: 'No autorizado para reportes:ver' });
+    }
+    const periodo = new URL(req.url, 'http://localhost').searchParams.get('periodo') ?? '7d';
+    const serie = [
+      { fecha: '2026-08-11', recaudo: 500000, reversal: 50000, neto: 450000 },
+      { fecha: '2026-08-12', recaudo: 600000, reversal: 30000, neto: 570000 },
+      { fecha: '2026-08-13', recaudo: 450000, reversal: 0, neto: 450000 },
+      { fecha: '2026-08-14', recaudo: 700000, reversal: 100000, neto: 600000 },
+      { fecha: '2026-08-15', recaudo: 550000, reversal: 20000, neto: 530000 },
+      { fecha: '2026-08-16', recaudo: 650000, reversal: 0, neto: 650000 },
+      { fecha: '2026-08-17', recaudo: 550000, reversal: 0, neto: 550000 },
+    ];
+    const total_recaudo = serie.reduce((s, x) => s + x.recaudo, 0);
+    const total_reversal = serie.reduce((s, x) => s + x.reversal, 0);
+    const total_neto = serie.reduce((s, x) => s + x.neto, 0);
+    return json(res, 200, { periodo, fecha_inicio: '2026-08-11', fecha_fin: '2026-08-17', serie, total_recaudo, total_reversal, total_neto });
+  }
+
+  // ── W7: GET /api/reportes/aging (reportes:ver) ─────────────────────────────
+  if (req.method === 'GET' && path === '/api/reportes/aging') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('reportes:ver')) {
+      return json(res, 403, { detail: 'No autorizado para reportes:ver' });
+    }
+    return json(res, 200, {
+      fecha: '2026-08-17',
+      buckets: {
+        CURRENT: { count: 12, amount: 0 },
+        '1-7': { count: 3, amount: 500000 },
+        '8-15': { count: 2, amount: 350000 },
+        '16-30': { count: 1, amount: 200000 },
+        '31-60': { count: 1, amount: 150000 },
+        '61-90': { count: 0, amount: 0 },
+        '90+': { count: 0, amount: 0 },
+      },
+    });
+  }
+
+  // ── W7: GET /api/reportes/rutas (reportes:ver) ─────────────────────────────
+  if (req.method === 'GET' && path === '/api/reportes/rutas') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('reportes:ver')) {
+      return json(res, 403, { detail: 'No autorizado para reportes:ver' });
+    }
+    const periodo = new URL(req.url, 'http://localhost').searchParams.get('periodo') ?? 'hoy';
+    return json(res, 200, {
+      periodo,
+      rutas: [
+        { ruta_id: 'r1', ruta_nombre: 'Ruta Centro', cartera: 5000000, vencido: 800000, creditos: 8 },
+        { ruta_id: 'r2', ruta_nombre: 'Ruta Norte', cartera: 4500000, vencido: 600000, creditos: 6 },
+        { ruta_id: 'r3', ruta_nombre: 'Ruta Sur', cartera: 5500000, vencido: 1100000, creditos: 7 },
+      ],
+    });
+  }
+
+  // ── W7: GET /api/reportes/movimientos (reportes:ver) ───────────────────────
+  if (req.method === 'GET' && path === '/api/reportes/movimientos') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('reportes:ver')) {
+      return json(res, 403, { detail: 'No autorizado para reportes:ver' });
+    }
+    const periodo = new URL(req.url, 'http://localhost').searchParams.get('periodo') ?? 'hoy';
+    return json(res, 200, {
+      periodo,
+      fecha_inicio: '2026-08-17',
+      fecha_fin: '2026-08-17',
+      total_gastos: 450000,
+      total_recibido: 3500000,
+      por_tipo: [
+        { tipo: 'TRANSPORTE', total: 150000, count: 3, naturalezas: { GASTO: 150000 } },
+        { tipo: 'MATERIALES', total: 100000, count: 2, naturalezas: { GASTO: 100000 } },
+        { tipo: 'PAGO', total: 3500000, count: 12, naturalezas: { RECIBIDO: 3500000 } },
+      ],
+    });
   }
 
   // ── POST /api/onboarding/negocios (publico, pre-sesion, Etapa 3) ──────────
