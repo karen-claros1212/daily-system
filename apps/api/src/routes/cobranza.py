@@ -245,6 +245,14 @@ def crear_promesa(
     except (ValueError, TypeError):
         raise HTTPException(status_code=422, detail="promised_date debe ser ISO format (YYYY-MM-DD)")
 
+    existing = db.query(PromesaPago).filter(
+        PromesaPago.negocio_id == ctx.negocio_id,
+        PromesaPago.credito_id == UUID(credito_id),
+        PromesaPago.estado == "ACTIVE",
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Ya existe una promesa ACTIVE para este credito")
+
     promesa = PromesaPago(
         negocio_id=ctx.negocio_id,
         credito_id=UUID(credito_id),
