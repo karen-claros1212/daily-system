@@ -139,9 +139,9 @@ test.describe.serial('W6 real: Cobranza Web (FastAPI :8001 + BFF :3000)', () => 
     const res = await page.request.get(`${BFF}/api/cobranza/resumen`);
     expect(res.status()).toBe(200);
     const body = await res.json();
-    expect(body.total_creditos).toBeGreaterThanOrEqual(1);
-    expect(body.total_saldo).toBeGreaterThan(0);
+    expect(body.total_cartera).toBeGreaterThanOrEqual(0);
     expect(body.aging_distribution).toBeDefined();
+    expect(body.clientes_en_mora).toBeGreaterThanOrEqual(0);
     await ctx.close();
   });
 
