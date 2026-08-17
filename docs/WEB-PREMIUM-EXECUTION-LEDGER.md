@@ -3,7 +3,7 @@
 **Proyecto:** daily-system
 **Rama:** `product/web-premium-v1`
 **Última actualización:** 2026-08-17
-**HEAD:** `50eee2f` (W6 FINAL PASS — código certificado)
+**HEAD:** `180db73` (W6 FINAL PASS — código certificado)
 
 ---
 
@@ -288,9 +288,11 @@ Requiere regresión crítica demostrada + autorización explícita del owner.
 
 **Estado:** ✅ FINAL PASS
 **Depende de:** W5
-**Código certificado:** `f56969c` (implementación) + `18a4a85` (RBAC E2E) + `5425d2f` (drill-down + Promise UI) + `50eee2f` (OpenAPI drift)
-**Backend CI:** `32047580981` PASS
-**Web CI:** `32047580954` PASS
+**Código certificado:** `f56969c` (implementación) + `18a4a85` (RBAC E2E) + `5425d2f` (drill-down + Promise UI) + `7e42cd0` (E2E mock+real) + `180db73` (PII fix)
+**Backend CI:** `32055132322` PASS
+**Web CI:** `32055132251` PASS
+**Gates:** 498/498 backend, 194/194 E2E mock, 54 E2E real, typecheck/lint/build PASS
+**Alembic head:** `m11_promesa_pago`
 
 ### Scope (matriz W0.2)
 
