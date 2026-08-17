@@ -22,6 +22,7 @@ const BFF = process.env.BFF_BASE ?? 'http://localhost:3000';
 
 let seed: SeedOutput;
 let jwtCobrador: string;
+let jwtCobradorNuevo: string;
 let rutaId: string;
 let bootstrapCred: string;
 let deviceId: string;
@@ -260,6 +261,7 @@ test.describe.serial('W4 real: Rutas y Reasignación S4 (FastAPI :8001 + BFF :30
     });
     expect(cs.status, 're-autenticación canje sesión').toBe(200);
     const nuevoJwt = ((await cs.json()) as { token: string }).token;
+    jwtCobradorNuevo = nuevoJwt;
 
     // Verificar que el nuevo JWT funciona y apunta a R2.
     const r = await fetch(`${API}/api/auth/me`, {
@@ -276,5 +278,101 @@ test.describe.serial('W4 real: Rutas y Reasignación S4 (FastAPI :8001 + BFF :30
 
     const rutaNuevaId = (globalThis as Record<string, unknown>).__rutaNuevaId as string;
     expect(body.route_id, 'route_id debe ser R2 (nueva ruta)').toBe(rutaNuevaId);
+  });
+
+  // ─── Negativos reales: límites de autorización por rol ─────────────────────
+
+  test('COBRADOR: POST /api/rutas → 403 y PATCH reasignar → 403', async () => {
+    // COBRADOR (JWT nuevo, post-reasignación) no tiene rutas:crear ni rutas:reasignar.
+    const post = await fetch(`${API}/api/rutas`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${jwtCobradorNuevo}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre: 'Ruta Cobrador', cobrador_id: seed.cobrador_id }),
+    });
+    expect(post.status, 'COBRADOR POST rutas → 403').toBe(403);
+
+    const rutaNuevaId = (globalThis as Record<string, unknown>).__rutaNuevaId as string;
+    const patch = await fetch(`${API}/api/rutas/${rutaNuevaId}/reasignar`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${jwtCobradorNuevo}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre: 'Ruta Cobrador Reasignada' }),
+    });
+    expect(patch.status, 'COBRADOR PATCH reasignar → 403').toBe(403);
+  });
+
+  test('INVERSIONISTA: GET /api/rutas → 200 read-only, POST → 403, PATCH → 403', async () => {
+    const invToken = seed.tokens.inversionista;
+
+    // GET: read-only (inversionista:resumen incluye rutas:ver).
+    const get = await fetch(`${API}/api/rutas?limit=50`, {
+      headers: { Authorization: `Bearer ${invToken}` },
+    });
+    expect(get.status, 'INVERSIONISTA GET rutas → 200').toBe(200);
+    const body = (await get.json()) as { items: unknown[]; total: number };
+    expect(typeof body.total).toBe('number');
+
+    // POST: no tiene rutas:crear.
+    const post = await fetch(`${API}/api/rutas`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${invToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre: 'Ruta Inversionista', cobrador_id: seed.cobrador_id }),
+    });
+    expect(post.status, 'INVERSIONISTA POST rutas → 403').toBe(403);
+
+    // PATCH: no tiene rutas:reasignar.
+    const rutaNuevaId = (globalThis as Record<string, unknown>).__rutaNuevaId as string;
+    const patch = await fetch(`${API}/api/rutas/${rutaNuevaId}/reasignar`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${invToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre: 'Ruta Inversionista Reasignada' }),
+    });
+    expect(patch.status, 'INVERSIONISTA PATCH reasignar → 403').toBe(403);
+  });
+
+  test('CROSS-TENANT: ruta de otro negocio → 404 sin revelar, no aparece en listado', async () => {
+    // Crear un segundo negocio con una ruta determinista vía SQL.
+    const nitUnico = `9${Date.now().toString().slice(-8)}`;
+    const sql = `
+      INSERT INTO negocio (id, nombre, nit, pais, moneda, zona_horaria, plan, estado_suscripcion, paid_through_at)
+      VALUES (gen_random_uuid(), 'Tenant Cross E2E', '${nitUnico}', 'CO', 'COP', 'America/Bogota', 'basic', 'al_dia', now() + interval '365 days')
+      RETURNING id;
+    `;
+    // Ejecutar SQL y capturar el ID del nuevo negocio.
+    const { execSync } = await import('node:child_process');
+    const dbUrl = process.env.REAL_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:5432/daily_web_e2e_test';
+    const out = execSync(`psql "${dbUrl}" -t -A -c "${sql.replace(/"/g, '\\"')}"`, { encoding: 'utf-8', stdio: 'pipe' }).trim();
+    // psql -t -A puede incluir "INSERT 0 1" — extraer solo el UUID.
+    const tenant2Id = out.split('\n')[0].trim();
+    expect(tenant2Id, 'tenant2 negocio creado').toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-/);
+
+    // Crear una ruta en el segundo negocio (inactiva para no violar uq_ruta_activa_cobrador).
+    const sqlRuta = `
+      INSERT INTO ruta (id, negocio_id, nombre, cobrador_id, activa, version)
+      VALUES (gen_random_uuid(), '${tenant2Id}', 'Ruta Tenant Cross', '${seed.cobrador_id}', 0, 1)
+      RETURNING id;
+    `;
+    const outRuta = execSync(`psql "${dbUrl}" -t -A -c "${sqlRuta.replace(/"/g, '\\"')}"`, { encoding: 'utf-8', stdio: 'pipe' }).trim();
+    const rutaCrossId = outRuta.split('\n')[0].trim();
+    expect(rutaCrossId, 'ruta cross-tenant creada').toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-/);
+
+    // ADMIN del tenant original NO puede ver la ruta del otro tenant → 404.
+    const detail = await fetch(`${API}/api/rutas/${rutaCrossId}`, {
+      headers: { Authorization: `Bearer ${seed.tokens.administrador}` },
+    });
+    expect(detail.status, 'GET detalle ruta ajena → 404 (no 200, no 403)').toBe(404);
+
+    // La ruta ajena NO aparece en el listado del ADMIN original.
+    const lista = await fetch(`${API}/api/rutas?limit=100`, {
+      headers: { Authorization: `Bearer ${seed.tokens.administrador}` },
+    });
+    expect(lista.status).toBe(200);
+    const listBody = (await lista.json()) as { items: Array<{ ruta_id: string }> };
+    expect(
+      listBody.items.some((r) => r.ruta_id === rutaCrossId),
+      'ruta cross-tenant NO debe aparecer en listado',
+    ).toBe(false);
+
+    // Limpiar: eliminar la ruta y el negocio cross-tenant.
+    execSync(`psql "${dbUrl}" -c "DELETE FROM ruta WHERE id='${rutaCrossId}'; DELETE FROM negocio WHERE id='${tenant2Id}';"`, { stdio: 'pipe' });
   });
 });
