@@ -393,3 +393,70 @@ export function generarCodigoActivacion(data: { usuario_id: string; expira_minut
     cache: 'no-store',
   }).then((r) => parseJson<{ codigo_id: string; token: string; prefijo: string; expira_el: string }>(r));
 }
+
+// ─── W5: Centro Financiero (Movimientos) ───
+
+export type MovimientoSort = 'creado_el' | 'monto' | 'tipo';
+
+export interface MovimientoItem {
+  id: string;
+  negocio_id: string;
+  jornada_id: string | null;
+  tipo: string;
+  naturaleza: string;
+  monto: number;
+  nota: string | null;
+  clave_idempotencia: string | null;
+  creado_por: string | null;
+  creado_por_nombre: string | null;
+  creado_el: string | null;
+  jornada_fecha: string | null;
+  ruta_id: string | null;
+  ruta_nombre: string | null;
+}
+
+export interface MovimientoListPage {
+  items: MovimientoItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface MovimientoResumen {
+  total_movimientos: number;
+  total_monto: number;
+  gastos_por_tipo: { tipo: string; total: number; count: number }[];
+}
+
+/** GET /api/movimientos via BFF (read model paginado). */
+export function fetchMovimientos(params?: {
+  q?: string;
+  tipo?: string;
+  naturaleza?: string;
+  ruta_id?: string;
+  limit?: number;
+  offset?: number;
+  sort?: MovimientoSort;
+  order?: 'asc' | 'desc';
+}): Promise<MovimientoListPage> {
+  const qs = new URLSearchParams();
+  if (params?.q) qs.set('q', params.q);
+  if (params?.tipo) qs.set('tipo', params.tipo);
+  if (params?.naturaleza) qs.set('naturaleza', params.naturaleza);
+  if (params?.ruta_id) qs.set('ruta_id', params.ruta_id);
+  if (params?.limit) qs.set('limit', String(params.limit));
+  if (params?.offset) qs.set('offset', String(params.offset));
+  if (params?.sort) qs.set('sort', params.sort);
+  if (params?.order) qs.set('order', params.order);
+  const query = qs.toString();
+  return fetch(`/api/movimientos${query ? '?' + query : ''}`, { cache: 'no-store' }).then((r) =>
+    parseJson<MovimientoListPage>(r),
+  );
+}
+
+/** GET /api/movimientos/resumen via BFF — agregados financieros. */
+export function fetchMovimientosResumen(): Promise<MovimientoResumen> {
+  return fetch('/api/movimientos/resumen', { cache: 'no-store' }).then((r) =>
+    parseJson<MovimientoResumen>(r),
+  );
+}

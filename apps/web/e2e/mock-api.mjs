@@ -554,12 +554,13 @@ const ROL_CAPABILITIES = {
   ],
   INVERSIONISTA: [
     'inversionista:resumen', 'inversionista:suscripcion',
-    'jornadas:ver', 'rutas:ver', 'creditos:ver',
+    'jornadas:ver', 'rutas:ver', 'creditos:ver', 'movimientos:ver',
   ],
   ADMINISTRADOR: [
     'inversionista:resumen', 'inversionista:suscripcion',
     'jornadas:ver', 'rutas:ver', 'rutas:crear', 'rutas:reasignar',
-    'creditos:ver', 'creditos:gestionar', 'codigos:crear', 'dispositivos:registrar',
+    'creditos:ver', 'creditos:gestionar', 'movimientos:ver',
+    'codigos:crear', 'dispositivos:registrar',
     'usuarios:ver', 'usuarios:gestionar', 'audit:ver',
     'clientes:ver', 'clientes:gestionar',
   ],
@@ -1048,6 +1049,85 @@ const server = http.createServer(async (req, res) => {
       return json(res, 404, { detail: 'Crédito no encontrado' });
     }
     return json(res, 200, { ...fila, negocio_id: 'n1' });
+  }
+
+  // ── W5: GET /api/movimientos/web (read model paginado, movimientos:ver) ────
+  const MOVIMIENTOS_MOCK = [
+    { id: 'mov-1', negocio_id: 'n1', jornada_id: 'j1', tipo: 'GASOLINA', naturaleza: 'GASTO', monto: 50000, nota: 'Gasolina ruta centro', clave_idempotencia: 'w5-1', creado_por: 'u-cob1', creado_por_nombre: 'Carlos M.', creado_el: '2026-08-16T08:00:00Z', jornada_fecha: '2026-08-16', ruta_id: 'r1', ruta_nombre: 'Ruta Centro' },
+    { id: 'mov-2', negocio_id: 'n1', jornada_id: 'j1', tipo: 'OFICINA', naturaleza: 'GASTO', monto: 20000, nota: 'Material oficina', clave_idempotencia: 'w5-2', creado_por: 'u-cob1', creado_por_nombre: 'Carlos M.', creado_el: '2026-08-16T09:00:00Z', jornada_fecha: '2026-08-16', ruta_id: 'r1', ruta_nombre: 'Ruta Centro' },
+    { id: 'mov-3', negocio_id: 'n1', jornada_id: 'j1', tipo: 'RECIBIDO', naturaleza: 'CUENTA_POR_COBRAR', monto: 100000, nota: 'Cobro cliente A', clave_idempotencia: 'w5-3', creado_por: 'u-cob1', creado_por_nombre: 'Carlos M.', creado_el: '2026-08-16T10:00:00Z', jornada_fecha: '2026-08-16', ruta_id: 'r1', ruta_nombre: 'Ruta Centro' },
+    { id: 'mov-4', negocio_id: 'n1', jornada_id: 'j2', tipo: 'COMBUSTIBLE', naturaleza: 'GASTO', monto: 35000, nota: 'Combustible ruta sur', clave_idempotencia: 'w5-4', creado_por: 'u-cob2', creado_por_nombre: 'Ana P.', creado_el: '2026-08-15T08:00:00Z', jornada_fecha: '2026-08-15', ruta_id: 'r2', ruta_nombre: 'Ruta Sur' },
+    { id: 'mov-5', negocio_id: 'n1', jornada_id: 'j2', tipo: 'RECIBIDO', naturaleza: 'CUENTA_POR_COBRAR', monto: 75000, nota: 'Cobro cliente B', clave_idempotencia: 'w5-5', creado_por: 'u-cob2', creado_por_nombre: 'Ana P.', creado_el: '2026-08-15T09:00:00Z', jornada_fecha: '2026-08-15', ruta_id: 'r2', ruta_nombre: 'Ruta Sur' },
+  ];
+  const MOV_SORTS = new Set(['creado_el', 'monto', 'tipo']);
+
+  if (req.method === 'GET' && path === '/api/movimientos/web') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('movimientos:ver') && ses.rol !== 'COBRADOR') {
+      return json(res, 403, { detail: 'No autorizado para movimientos:ver' });
+    }
+
+    const query = new URL(req.url, 'http://localhost').searchParams;
+    const q = query.get('q');
+    const tipo = query.get('tipo');
+    const naturaleza = query.get('naturaleza');
+    const ruta_id = query.get('ruta_id');
+    const limit = Math.min(parseInt(query.get('limit') || '50', 10) || 50, 100);
+    const offset = parseInt(query.get('offset') || '0', 10) || 0;
+    const sort = query.get('sort') || 'creado_el';
+    const order = query.get('order') || 'desc';
+    if (!MOV_SORTS.has(sort)) return json(res, 422, { detail: `sort no permitido: ${sort}` });
+
+    let filas = MOVIMIENTOS_MOCK.slice();
+    if (ses.rol === 'COBRADOR') filas = filas.filter((f) => f.ruta_id === ses.route_id);
+    if (q) filas = filas.filter((f) => (f.nota || '').toLowerCase().includes(q.toLowerCase()));
+    if (tipo) filas = filas.filter((f) => f.tipo === tipo);
+    if (naturaleza) filas = filas.filter((f) => f.naturaleza === naturaleza);
+    if (ruta_id) filas = filas.filter((f) => f.ruta_id === ruta_id);
+
+    const dir = order === 'desc' ? -1 : 1;
+    filas.sort((a, b) => {
+      const va = a[sort] ?? '';
+      const vb = b[sort] ?? '';
+      return va < vb ? -dir : va > vb ? dir : 0;
+    });
+
+    const total = filas.length;
+    const items = filas.slice(offset, offset + limit).map((f) => {
+      const out = { ...f };
+      if (ses.rol === 'INVERSIONISTA') out.creado_por_nombre = null;
+      return out;
+    });
+    return json(res, 200, { items, total, limit, offset });
+  }
+
+  // ── W5: GET /api/movimientos/resumen (agregados, movimientos:ver) ──────────
+  if (req.method === 'GET' && path === '/api/movimientos/resumen') {
+    const token = bearerToken(req);
+    const ses = sesionDe(token);
+    if (!ses) return json(res, 401, { detail: 'Credencial de sesion requerida' });
+    if (!capabilities(ses.rol).includes('movimientos:ver') && ses.rol !== 'COBRADOR') {
+      return json(res, 403, { detail: 'No autorizado para movimientos:ver' });
+    }
+
+    let filas = MOVIMIENTOS_MOCK.slice();
+    if (ses.rol === 'COBRADOR') filas = filas.filter((f) => f.ruta_id === ses.route_id);
+    const totalMov = filas.length;
+    const totalMonto = filas.reduce((acc, f) => acc + f.monto, 0);
+    const gastos = filas.filter((f) => f.naturaleza === 'GASTO');
+    const porTipo = {};
+    for (const g of gastos) {
+      if (!porTipo[g.tipo]) porTipo[g.tipo] = { tipo: g.tipo, total: 0, count: 0 };
+      porTipo[g.tipo].total += g.monto;
+      porTipo[g.tipo].count += 1;
+    }
+    return json(res, 200, {
+      total_movimientos: totalMov,
+      total_monto: totalMonto,
+      gastos_por_tipo: Object.values(porTipo),
+    });
   }
 
   // ── POST /api/onboarding/negocios (publico, pre-sesion, Etapa 3) ──────────
