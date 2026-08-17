@@ -69,6 +69,7 @@ CAPABILITIES_POR_ROL: Final[dict[str, tuple[str, ...]]] = {
         "clientes:gestionar",
         "creditos:gestionar",
         "reportes:ver",
+        "dashboard:ejecutivo",
     ),
     "COBRADOR": (
         "jornada:ver",

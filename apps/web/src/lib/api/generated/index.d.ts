@@ -1023,6 +1023,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/dashboard/ejecutivo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dashboard Ejecutivo Endpoint
+         * @description Centro ejecutivo de decisión: KPIs del día, tendencia 7d, riesgo, alertas.
+         */
+        get: operations["dashboard_ejecutivo_endpoint_api_dashboard_ejecutivo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/me": {
         parameters: {
             query?: never;
@@ -5027,6 +5047,41 @@ export interface operations {
                 fecha_inicio?: string | null;
                 /** @description YYYY-MM-DD (custom) */
                 fecha_fin?: string | null;
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dashboard_ejecutivo_endpoint_api_dashboard_ejecutivo_get: {
+        parameters: {
+            query?: {
                 negocio_id?: string | null;
                 role?: string | null;
                 route_id?: string | null;
