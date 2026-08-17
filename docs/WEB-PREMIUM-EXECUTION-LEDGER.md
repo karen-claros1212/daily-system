@@ -19,7 +19,7 @@
 | **W5** | ✅ FINAL PASS | 48ead5e | /api/movimientos/web + /resumen | 483 backend + 182 E2E mock + 54 E2E real | ✅ PASS (ambos) | RBAC movimientos:ver 3 roles, BFF cookie auth, DTO minimizado, PII INVERSIONISTA | Ninguno |
 | **W6** | ✅ FINAL PASS | 180db73 | /api/cobranza/web + /resumen + /promesas + /{credito_id} | 498 backend + 194 E2E mock + 65 E2E real | ✅ PASS (ambos) | Aging server-side, worklist priorizada, Promise to Pay state machine, drill-down, RBAC cobranza:ver 3 roles, PII cobrador_nombre | Ninguno |
 | **W7** | ✅ FINAL PASS | 5905390 | /api/reportes/{resumen,recaudo,aging,rutas,movimientos} | 509 backend + 203 E2E mock + 75 E2E real | ✅ PASS (ambos) | Business Date Colombia, reportes:ver (ADMIN+INV), read-models server-side, UI Premium, RBAC test sync | Ninguno |
-| **W8** | PENDIENTE | — | — | — | — | — | Depende de W7 |
+| **W8** | ✅ FINAL PASS | 299fe92+eb564ab+409590b | /api/dashboard/ejecutivo | 523 backend + 214 E2E mock + 80 E2E real | ✅ PASS (ambos) | Dashboard ejecutivo ADMIN-only, reutiliza autoridades W6/W7, read-model server-side, DashboardCobrador preservado, onboarding h1 | Ninguno |
 | **W9** | PENDIENTE | — | — | — | — | — | Depende de W8 |
 | **W10** | PENDIENTE | — | — | — | — | — | Depende de W9 |
 | **W11** | PENDIENTE | — | — | — | — | — | Depende de W10 |
@@ -384,8 +384,49 @@ Requiere regresión crítica demostrada + autorización explícita del owner.
 
 ## W8 — Dashboard Ejecutivo
 
-**Estado:** PENDIENTE
+**Estado:** ✅ FINAL PASS
 **Depende de:** W7
+**Commits:** `299fe92` (backend) · `eb564ab` (BFF+UI+E2E) · `409590b` (fix onboarding)
+**CI:** Backend `32078121575` PASS · Web `32078121578` PASS
+
+### Entregables
+
+| Entrega | Estado | Detalle |
+|---|---|---|
+| Backend: read-model ejecutivo | ✅ | `dashboard_service.py`: `dashboard_ejecutivo()` compone `resumen_cobranza()` (W6), `_recaudo_en_periodo()`/`_gastos_en_periodo()` (W7), `recaudo_diario()`, `rutas_reporte()`, conteos operativos, alertas derivadas |
+| Backend: endpoint typed | ✅ | `routes/dashboard.py`: GET `/api/dashboard/ejecutivo` (sin query params — siempre "hoy" + tendencia 7d) |
+| RBAC: `dashboard:ejecutivo` | ✅ | SOLO ADMINISTRADOR en W8. INVERSIONISTA→403 (W9 reservado), COBRADOR→403 (tiene dashboard de campo). Backend default-deny |
+| OpenAPI | ✅ | 60 paths (+1 dashboard). `api:check` PASS |
+| BFF: proxy | ✅ | `/api/dashboard/ejecutivo` con cookie HttpOnly `daily_admin_token` |
+| UI: DashboardEjecutivo | ✅ | KPIs (cartera viva/vencida, recaudo, neto), fila operativa (rutas/cobradores/créditos/jornada), tendencia 7d, aging 7 buckets, exposición por ruta, alertas con severidad |
+| Dispatch /dashboard | ✅ | `page.tsx`: COBRADOR→DashboardCobrador (preservado), ADMIN→Ejecutivo, INVERSIONISTA→Dashboard financiero (W9) |
+| E2E mock | ✅ | `w8-dashboard.spec.ts`: 11 tests (ADMIN shape/UI, INV 403, COB 403) |
+| E2E real | ✅ | `real-dashboard.spec.ts`: 5 tests (UI, shape, consistencia cobranza, 403s) |
+| Fix: onboarding real | ✅ | `real-onboarding.spec.ts`: h1 de /dashboard es "Dashboard ejecutivo" para ADMIN (antes "Dashboard financiero") |
+| Gates | ✅ | Backend 523/523, E2E mock 214/214, E2E real 80/80, typecheck/lint/build PASS, npm audit 0 |
+
+### Decisiones
+
+- **Reutiliza autoridades existentes:** W8 NO recalcula finanzas — compone `resumen_cobranza()` (W6), `_recaudo_en_periodo()`/`_gastos_en_periodo()` (W7), `recaudo_diario()`, `rutas_reporte()`. Una sola fuente de verdad para montos y aging.
+- **Read-model server-side:** KPIs, tendencia y alertas calculados en backend, no en React.
+- **RBAC ADMIN-only:** `dashboard:ejecutivo` para ADMINISTRADOR en W8. INVERSIONISTA→403 (W9 reservado), COBRADOR→403 (dashboard de campo).
+- **Sin query params:** siempre "hoy" + tendencia 7d (no es un reportador, es un snapshot ejecutivo).
+- **DashboardCobrador preservado:** el collector de campo no cambia en W8.
+- **Onboarding fix:** el test real asertaba el h1 del dashboard financiero (INV); el smoke de "ADMIN entra a /dashboard" ahora espera "Dashboard ejecutivo".
+
+### Pruebas
+
+| Suite | Resultado |
+|---|---|
+| Backend | 523 passed |
+| E2E mock | 214 passed |
+| E2E real | 80 passed |
+| OpenAPI | 60 paths |
+| Alembic head | `m11_promesa_pago` (sin cambio de schema) |
+| Typecheck | PASS |
+| Lint | 0 errors, 16 warnings preexistentes |
+| Build | PASS |
+| npm audit | 0 vulnerabilities |
 
 ---
 
