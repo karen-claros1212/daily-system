@@ -3,7 +3,7 @@
 **Proyecto:** daily-system
 **Rama:** `product/web-premium-v1`
 **Última actualización:** 2026-08-17
-**HEAD:** `48ead5e` (W5 FINAL PASS — código certificado)
+**HEAD:** `18a4a85` (W6 FINAL PASS — código certificado)
 
 ---
 
@@ -17,7 +17,7 @@
 | **W3** | ✅ FINAL PASS | 875d506 | Todos | 452 backend + 172 E2E mock + 24 a11y + 34 real | ✅ PASS (ambos) | Autoridad financiera backend, PII por rol, sort allowlist | Ninguno |
 | **W4** | ✅ FINAL PASS | 22a710c | Todos | 472 backend + 175 E2E mock + 43 E2E real | ✅ PASS (ambos) | S4 vía BFF, JWT stale 401, negativos 403/404, cross-tenant | Ninguno |
 | **W5** | ✅ FINAL PASS | 48ead5e | /api/movimientos/web + /resumen | 483 backend + 182 E2E mock + 54 E2E real | ✅ PASS (ambos) | RBAC movimientos:ver 3 roles, BFF cookie auth, DTO minimizado, PII INVERSIONISTA | Ninguno |
-| **W6** | PENDIENTE | — | — | — | — | — | Depende de W5 |
+| **W6** | ✅ FINAL PASS | 18a4a85 | /api/cobranza/web + /resumen + /promesas | 498 backend + 182 E2E mock + 54 E2E real | ✅ PASS (ambos) | Aging server-side, worklist priorizada, Promise to Pay state machine, RBAC cobranza:ver 3 roles | Ninguno |
 | **W7** | PENDIENTE | — | — | — | — | — | Depende de W6 |
 | **W8** | PENDIENTE | — | — | — | — | — | Depende de W7 |
 | **W9** | PENDIENTE | — | — | — | — | — | Depende de W8 |
@@ -286,8 +286,50 @@ Requiere regresión crítica demostrada + autorización explícita del owner.
 
 ## W6 — Cobranza y Mora
 
-**Estado:** PENDIENTE
+**Estado:** ✅ FINAL PASS
 **Depende de:** W5
+**Código certificado:** `f56969c` (implementación) + `18a4a85` (corrección RBAC E2E)
+**Backend CI:** `32045387957` PASS
+**Web CI:** `32045387924` PASS
+
+### Scope (matriz W0.2)
+
+| Dominio | Backend | BFF | UI | Mutaciones | E2E |
+|---|---:|---:|---:|---:|---:|
+| Cobranza/Mora/Aging | sí | auditar | no | sí | auditar |
+
+### Entregables
+
+- **Backend:** `cobranza_service.py` (aging buckets, days_past_due, overdue_installments, overdue_amount, priority scoring) + `GET /api/cobranza/web` (worklist paginada, filtros, sort, role scoping) + `GET /api/cobranza/resumen` (KPIs + aging distribution) + `POST /api/cobranza/promesas` + state machine (cumplir/incumplir/cancelar)
+- **Modelo:** `PromesaPago` (estado ACTIVE/FULFILLED/BROKEN/CANCELLED, idempotencia, tenant isolation)
+- **RBAC:** `cobranza:ver` (3 roles), `cobranza:gestionar` (ADMIN), `promesas:ver/crear/actualizar` (ADMIN+COBRADOR)
+- **BFF:** `/api/cobranza` (GET) + `/api/cobranza/resumen` (GET) → proxy a backend
+- **UI:** `/cobranza` — Centro de Cobranza: KPIs, aging distribution, worklist priorizada, filtros (bucket, prioridad, búsqueda), sort. AppShell nav gated por `cobranza:ver`
+- **E2E:** 15 tests backend (test_w6.py), real-rbac actualizado con nuevas capabilities
+
+### Decisiones
+
+1. Aging buckets: CURRENT, 1-7, 8-15, 16-30, 31-60, 61-90, 90+ (fuente única en `AGING_BUCKETS`)
+2. `days_past_due` = (report_date - oldest_unpaid_due_date).days — no hardcode en frontend
+3. `overdue_amount` ≠ `total_outstanding` — vencido vs. saldo total vivo
+4. Priority scoring: heurístico determinista (no ML), explicable con `priority_factors`
+5. Promise to Pay: state machine estricta (ACTIVE → FULFILLED/BROKEN/CANCELLED, sin re-apertura)
+6. `CuotaProgramada.estado` nunca se actualiza — la verdad financiera está en `Pago` rows
+7. INVERSIONISTA: PII minimizada (cliente_nombre=null, cliente_id=null)
+
+### Evidencia estable
+
+| Gate | Resultado |
+|---|---|
+| Backend pytest | 498 passed, 9 skipped |
+| E2E mock | 182 passed |
+| E2E real | 54 passed (incluye real-rbac actualizado) |
+| Typecheck | PASS |
+| Lint | 0 errors, 14 warnings (preexistentes) |
+| Build | PASS |
+| api:check | PASS (OpenAPI 53 paths, +6 cobranza) |
+| npm audit | 0 vulnerabilities |
+| Mobile freeze | VACÍO (0 archivos en apps/mobile/) |
 
 ---
 
