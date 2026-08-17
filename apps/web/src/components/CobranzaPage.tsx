@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -214,7 +215,11 @@ export function CobranzaPage({ session: _session }: { session: import("@/lib/rba
               ) : (
                 page.items.map((item) => (
                   <tr key={item.credito_id} className="border-b last:border-0 hover:bg-muted/30">
-                    <td className="px-4 py-3">{item.cliente_nombre || '—'}</td>
+                    <td className="px-4 py-3">
+                      <Link href={`/cobranza/${item.credito_id}`} className="text-blue-600 hover:underline">
+                        {item.cliente_nombre || '—'}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3">{item.ruta_nombre || '—'}</td>
                     <td className="px-4 py-3 text-right font-mono">{money.format(item.saldo)}</td>
                     <td className="px-4 py-3 text-right font-mono text-red-600">{money.format(item.overdue_amount)}</td>

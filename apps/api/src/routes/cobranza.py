@@ -97,6 +97,124 @@ def resumen_cobranza_endpoint(
     )
 
 
+@router.get("/{credito_id}")
+def detalle_cobranza(
+    credito_id: UUID,
+    ctx: RequestContext = Depends(get_request_context),
+    db: Session = Depends(get_db),
+):
+    """Drill-down por crédito: resumen, obligaciones vencidas, pagos, promesas."""
+    if not tiene_capability(ctx.role, "cobranza:ver"):
+        raise HTTPException(status_code=403, detail="Forbidden: sin capability de cobranza")
+
+    from src.models import Credito, CuotaProgramada, Pago, Cliente, Ruta, Usuario
+    from src.services.hoja_viva_service import resumen_creditos, today_bogota
+    from src.services.cobranza_service import _calc_aging, aging_bucket
+
+    credito = db.query(Credito).filter(
+        Credito.id == credito_id,
+        Credito.negocio_id == ctx.negocio_id,
+    ).first()
+    if not credito:
+        raise HTTPException(status_code=404, detail="Crédito no encontrado")
+
+    # COBRADOR: fuera de su ruta → 404
+    if ctx.is_cobrador() and credito.ruta_id != ctx.route_id:
+        raise HTTPException(status_code=404, detail="Crédito no encontrado")
+
+    report_date = today_bogota()
+    mostrar_pii = ctx.role in ("ADMINISTRADOR", "COBRADOR")
+
+    # Financiero
+    resumen = resumen_creditos(db, [credito])
+    fin = resumen[credito.id]
+    aging = _calc_aging(db, [credito], report_date)
+    ag = aging[credito.id]
+
+    # Obligaciones vencidas
+    cuotas_vencidas = (
+        db.query(CuotaProgramada)
+        .filter(
+            CuotaProgramada.credito_id == credito_id,
+            CuotaProgramada.fecha_vencimiento < report_date,
+            CuotaProgramada.estado != "PAGADO",
+        )
+        .order_by(CuotaProgramada.numero)
+        .all()
+    )
+
+    # Pagos relevantes (últimos 10)
+    pagos = (
+        db.query(Pago)
+        .filter(Pago.credito_id == credito_id)
+        .order_by(Pago.recibido_el_servidor.desc())
+        .limit(10)
+        .all()
+    )
+
+    # Promesas
+    promesas = (
+        db.query(PromesaPago)
+        .filter(PromesaPago.credito_id == credito_id)
+        .order_by(PromesaPago.creado_el.desc())
+        .all()
+    )
+
+    # Nombres
+    cliente = db.query(Cliente).filter(Cliente.id == credito.cliente_id).first() if credito.cliente_id else None
+    ruta = db.query(Ruta).filter(Ruta.id == credito.ruta_id).first() if credito.ruta_id else None
+    cobrador = db.query(Usuario).filter(Usuario.id == ruta.cobrador_id).first() if ruta and ruta.cobrador_id else None
+
+    return {
+        "credito_id": str(credito.id),
+        "cliente_nombre": " ".join(x for x in (cliente.nombres, cliente.primer_apellido, cliente.segundo_apellido) if x).strip() if (cliente and mostrar_pii) else None,
+        "ruta_nombre": ruta.nombre if ruta else None,
+        "cobrador_nombre": cobrador.nombre if cobrador else None,
+        "estado": credito.estado,
+        "total": credito.total,
+        "saldo": fin["saldo"],
+        "cuota": credito.cuota,
+        "n_cuotas": credito.n_cuotas,
+        "cuotas_pagadas": fin["cuotas_pagadas"],
+        "mora_legacy": fin["mora_legacy"],
+        "days_past_due": ag["days_past_due"],
+        "overdue_installments": ag["overdue_installments"],
+        "overdue_amount": ag["overdue_amount"],
+        "aging_bucket": aging_bucket(ag["days_past_due"]),
+        "oldest_unpaid_due_date": ag["oldest_unpaid_due_date"].isoformat() if ag["oldest_unpaid_due_date"] else None,
+        "obligaciones_vencidas": [
+            {
+                "numero": c.numero,
+                "fecha_vencimiento": c.fecha_vencimiento.isoformat(),
+                "monto": c.monto,
+                "estado": c.estado,
+            }
+            for c in cuotas_vencidas
+        ],
+        "pagos_recientes": [
+            {
+                "id": str(p.id),
+                "tipo": p.tipo,
+                "monto": p.monto,
+                "recibido_el": p.recibido_el_servidor.isoformat() if p.recibido_el_servidor else None,
+                "nota": p.nota if mostrar_pii else None,
+            }
+            for p in pagos
+        ],
+        "promesas": [
+            {
+                "id": str(p.id),
+                "amount": p.amount,
+                "promised_date": p.promised_date.isoformat(),
+                "estado": p.estado,
+                "nota": p.nota if mostrar_pii else None,
+                "creado_el": p.creado_el.isoformat() if p.creado_el else None,
+            }
+            for p in promesas
+        ],
+    }
+
+
 # ─── Promise to Pay ───────────────────────────────────────────────────────────
 
 

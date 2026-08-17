@@ -538,3 +538,44 @@ export function fetchCobranzaResumen(): Promise<CobranzaResumen> {
     parseJson<CobranzaResumen>(r),
   );
 }
+
+export interface CobranzaDetalle {
+  credito_id: string;
+  cliente_nombre: string | null;
+  ruta_nombre: string | null;
+  cobrador_nombre: string | null;
+  estado: string;
+  total: number;
+  saldo: number;
+  cuota: number;
+  n_cuotas: number;
+  cuotas_pagadas: number;
+  mora_legacy: number;
+  days_past_due: number;
+  overdue_installments: number;
+  overdue_amount: number;
+  aging_bucket: string;
+  oldest_unpaid_due_date: string | null;
+  obligaciones_vencidas: { numero: number; fecha_vencimiento: string; monto: number; estado: string }[];
+  pagos_recientes: { id: string; tipo: string; monto: number; recibido_el: string | null; nota: string | null }[];
+  promesas: { id: string; amount: number; promised_date: string; estado: string; nota: string | null; creado_el: string | null }[];
+}
+
+export function fetchCobranzaDetalle(creditoId: string): Promise<CobranzaDetalle> {
+  return fetch(`/api/cobranza/${encodeURIComponent(creditoId)}`, { cache: 'no-store' }).then((r) =>
+    parseJson<CobranzaDetalle>(r),
+  );
+}
+
+export function crearPromesa(creditoId: string, data: { amount: number; promised_date: string; nota?: string }): Promise<{ id: string; estado: string }> {
+  return fetch('/api/cobranza/promesas', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ credito_id: creditoId, ...data, clave_idempotencia: crypto.randomUUID() }),
+    cache: 'no-store',
+  }).then(async (r) => {
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(body.detail || `Error ${r.status}`);
+    return body;
+  });
+}
