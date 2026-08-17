@@ -27,15 +27,18 @@ test.describe.serial('W6 real: Cobranza Web (FastAPI :8001 + BFF :3000)', () => 
   test.beforeAll(async ({ browser }) => {
     seed = seedActivacion();
 
-    // Insertar crédito con cuotas vencidas en PG.
+    // Insertar cliente + crédito con cuotas vencidas en PG.
     creditoId = crypto.randomUUID();
+    const clienteId = crypto.randomUUID();
     const cuota1Id = crypto.randomUUID();
     const cuota2Id = crypto.randomUUID();
     const cuota3Id = crypto.randomUUID();
 
     await runSql(`
+      INSERT INTO cliente (id, negocio_id, nombre, documento, estado)
+      VALUES ('${clienteId}', '${seed.negocio_id}', 'Cliente E2E W6', '123456789', 'ACTIVO');
       INSERT INTO credito (id, negocio_id, cliente_id, ruta_id, monto, total, cuota, n_cuotas, estado, fecha_inicio)
-      VALUES ('${creditoId}', '${seed.negocio_id}', '${seed.inversionista_id}', '${seed.ruta_id}', 200000, 600000, 200000, 3, 'ACTIVO', NOW() - INTERVAL '60 days');
+      VALUES ('${creditoId}', '${seed.negocio_id}', '${clienteId}', '${seed.ruta_id}', 200000, 600000, 200000, 3, 'ACTIVO', NOW() - INTERVAL '60 days');
       INSERT INTO cuota_programada (id, credito_id, numero, monto, fecha_vencimiento, estado)
       VALUES
         ('${cuota1Id}', '${creditoId}', 1, 200000, NOW() - INTERVAL '45 days', 'PENDIENTE'),
