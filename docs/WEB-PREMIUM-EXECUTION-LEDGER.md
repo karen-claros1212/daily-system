@@ -202,9 +202,11 @@ Requiere regresión crítica demostrada + autorización explícita del owner.
 **Estado:** ✅ FINAL PASS
 **Depende de:** W3
 **Código certificado:** `22a710c` (real-rutas completo con negativos)
-**HEAD documental:** `22a710c` (mismo SHA — sin commit documental adicional)
-**Backend CI:** `31989064613` PASS
-**Web CI:** `31989064602` PASS (43/43 E2E real incluyendo negativos)
+**HEAD documental:** `279f81d` (ledger final)
+**Backend CI (HEAD):** `31989324968` PASS
+**Web CI (HEAD):** `31989324906` PASS (43/43 E2E real incluyendo negativos)
+**Backend CI (código):** `31989064613` PASS
+**Web CI (código):** `31989064602` PASS
 
 **Backend:** GET `/api/rutas` (envelope `{items,total,limit,offset}`, filtros `q`/`activa`/`cobrador_id`, sort `nombre|creado_el|version` + order `asc|desc` → inválido 422, paginación `limit<=100`/`offset`), GET `/api/rutas/{id}` (detalle; inexistente → 404), POST `/api/rutas` (SOLO `rutas:crear` → 403; body allowlist → 422; nombre duplicado activo → 409; cobrador inexistente → 404; auditoría `RUTA_CREADA`), PATCH `/api/rutas/{id}/reasignar` (S4: crea ruta nueva para mismo cobrador, ruta anterior → inactiva, bump version, invalidate sesión móvil; nombre duplicado activo → 409; auditoría `RUTA_REASIGNADA`), GET `/api/rutas/resumen` (agregados: total/activas/inactivas/con_cobrador; COBRADOR scoped); capabilities `rutas:ver` (ADMIN+COBRADOR), `rutas:crear` (ADMIN), `rutas:reasignar` (ADMIN); `ruta_service.py`, `test_w4.py` (20 tests); OpenAPI regenerado
 
