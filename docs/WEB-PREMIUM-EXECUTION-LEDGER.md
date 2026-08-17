@@ -15,7 +15,7 @@
 | **W1** | ✅ FINAL PASS | 355cdb3 | Todos | 399 backend + 136 E2E mock + 41 a11y | ✅ PASS (ambos) | Git repair, BFF PATCH, m10, UI completa, PG migration gate real en CI | Ninguno |
 | **W2** | ✅ FINAL PASS | d89f736 | Todos | 426 backend + 157 E2E mock + 22 a11y + 26 real | ✅ PASS (ambos) | Listado scoped COBRADOR, 360 DTO, real E2E en PG :5432 | Ninguno |
 | **W3** | ✅ FINAL PASS | 875d506 | Todos | 452 backend + 172 E2E mock + 24 a11y + 34 real | ✅ PASS (ambos) | Autoridad financiera backend, PII por rol, sort allowlist | Ninguno |
-| **W4** | ✅ FINAL PASS | ba7cf24 | Todos | 472 backend + 175 E2E mock + 40 E2E real | ✅ PASS (ambos) | S4 reasignación preserva contrato Android, COBRADOR scoped, JWT stale 401 | Ninguno |
+| **W4** | ✅ FINAL PASS | 22a710c | Todos | 472 backend + 175 E2E mock + 43 E2E real | ✅ PASS (ambos) | S4 vía BFF, JWT stale 401, negativos 403/404, cross-tenant | Ninguno |
 | **W5** | PENDIENTE | — | — | — | — | — | Depende de W4 |
 | **W6** | PENDIENTE | — | — | — | — | — | Depende de W5 |
 | **W7** | PENDIENTE | — | — | — | — | — | Depende de W6 |
@@ -201,9 +201,10 @@ Requiere regresión crítica demostrada + autorización explícita del owner.
 
 **Estado:** ✅ FINAL PASS
 **Depende de:** W3
-**Código certificado:** `4178378c05c3d1a9dc43fe60df1ff6d8f4da8a0d`
-**Backend CI:** `31979575521` PASS
-**Web CI:** `31979575498` PASS
+**Código certificado:** `22a710c` (real-rutas completo con negativos)
+**HEAD documental:** `22a710c` (mismo SHA — sin commit documental adicional)
+**Backend CI:** `31989064613` PASS
+**Web CI:** `31989064602` PASS (43/43 E2E real incluyendo negativos)
 
 **Backend:** GET `/api/rutas` (envelope `{items,total,limit,offset}`, filtros `q`/`activa`/`cobrador_id`, sort `nombre|creado_el|version` + order `asc|desc` → inválido 422, paginación `limit<=100`/`offset`), GET `/api/rutas/{id}` (detalle; inexistente → 404), POST `/api/rutas` (SOLO `rutas:crear` → 403; body allowlist → 422; nombre duplicado activo → 409; cobrador inexistente → 404; auditoría `RUTA_CREADA`), PATCH `/api/rutas/{id}/reasignar` (S4: crea ruta nueva para mismo cobrador, ruta anterior → inactiva, bump version, invalidate sesión móvil; nombre duplicado activo → 409; auditoría `RUTA_REASIGNADA`), GET `/api/rutas/resumen` (agregados: total/activas/inactivas/con_cobrador; COBRADOR scoped); capabilities `rutas:ver` (ADMIN+COBRADOR), `rutas:crear` (ADMIN), `rutas:reasignar` (ADMIN); `ruta_service.py`, `test_w4.py` (20 tests); OpenAPI regenerado
 
@@ -213,11 +214,11 @@ Requiere regresión crítica demostrada + autorización explícita del owner.
 
 **E2E mock:** 9 tests en `w4-rutas.spec.ts` (serial + reset-rutas; ADMIN lista/detalle/crea/409 dup/reasigna S4/cobrador scoped/creación 403/filtros/sort) + a11y scan
 
-**E2E real:** 6 tests en `real-rutas.spec.ts` contra FastAPI :8001 + Postgres + BFF :3000 — (1) COBRADOR JWT real /me 200 route_id=R1, (2) ADMIN reasigna R1→R2 **vía BFF** (no service directo), (3) PG: R1 inactiva, R2 activa, mismo cobrador, version bump, (4) AuditLog RUTA_REASIGNADA, (5) JWT ANTERIOR → **401** (version_asignacion stale), (6) JWT NUEVO (re-autenticación) → 200 route_id=R2. Suite real completa: 40/40 ✅
+**E2E real:** 9 tests en `real-rutas.spec.ts` contra FastAPI :8001 + Postgres + BFF :3000 — (1) COBRADOR JWT real /me 200 route_id=R1, (2) ADMIN reasigna R1→R2 **vía BFF** (no service directo), (3) PG: R1 inactiva, R2 activa, mismo cobrador, version bump, (4) AuditLog RUTA_REASIGNADA, (5) JWT ANTERIOR → **401** (version_asignacion stale), (6) JWT NUEVO (re-autenticación) → 200 route_id=R2, (7) COBRADOR POST/PATCH → **403**, (8) INVERSIONISTA GET 200 / POST+PATCH **403**, (9) CROSS-TENANT ruta ajena → **404** sin revelar. Suite real completa: 43/43 ✅
 
-**ANDROID / MOBILE CONTRACT FREEZE:** `git diff --name-only e6e564b..4178378 -- apps/mobile/` = **VACÍO** ✅
+**ANDROID / MOBILE CONTRACT FREEZE:** `git diff --name-only e6e564b23bcfbf780a616a16b82ba19b7c06cc20..22a710c -- apps/mobile/` = **VACÍO** ✅
 
-**Gates locales:** backend 472 passed / 9 skipped ✅, E2E mock 175/175 ✅, E2E real 40/40 ✅, lint ✅, typecheck ✅, build ✅
+**Gates locales:** backend 472 passed / 9 skipped ✅, E2E mock 175/175 ✅, E2E real 43/43 ✅, api:check ✅, lint ✅, typecheck ✅, build ✅
 
 ### Decisiones W4
 - **Reasignación S4 crea ruta nueva (no muta la existente):** `ruta_id_origen` inmutable, bump version, invalidate sesión móvil. Preserva el contrato Android (el cobrador recibe su ruta activa por bootstrap, no por mutación).
