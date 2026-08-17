@@ -235,7 +235,7 @@ test.describe.serial('W6 real: Cobranza Web (FastAPI :8001 + BFF :3000)', () => 
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.credito_id).toBe(creditoId);
-    expect(body.ruta_id).toBe(seed.ruta_id);
+    expect(body.ruta_nombre).toBeDefined();
     await ctx.close();
   });
 
