@@ -169,7 +169,7 @@ def detalle_cobranza(
         "credito_id": str(credito.id),
         "cliente_nombre": " ".join(x for x in (cliente.nombres, cliente.primer_apellido, cliente.segundo_apellido) if x).strip() if (cliente and mostrar_pii) else None,
         "ruta_nombre": ruta.nombre if ruta else None,
-        "cobrador_nombre": cobrador.nombre if cobrador else None,
+        "cobrador_nombre": cobrador.nombre if (cobrador and mostrar_pii) else None,
         "estado": credito.estado,
         "total": credito.total,
         "saldo": fin["saldo"],
