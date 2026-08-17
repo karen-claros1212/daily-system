@@ -153,7 +153,7 @@ test.describe.serial('W6 real: Cobranza Web (FastAPI :8001 + BFF :3000)', () => 
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.credito_id).toBe(creditoId);
-    expect(body.obligaciones_vencidas).toHaveLength(expect.any(Number));
+    expect(Array.isArray(body.obligaciones_vencidas)).toBe(true);
     expect(body.obligaciones_vencidas.length).toBeGreaterThanOrEqual(1);
     expect(body.promesas).toBeDefined();
     expect(body.aging_bucket).not.toBe('CURRENT');
