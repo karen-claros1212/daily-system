@@ -3,7 +3,7 @@
 **Proyecto:** daily-system
 **Rama:** `product/web-premium-v1`
 **Última actualización:** 2026-08-17
-**Código certificado último vertical:** `5905390`
+**Código certificado por vertical:** ver tabla Estado global
 
 ---
 
@@ -20,7 +20,7 @@
 | **W6** | ✅ FINAL PASS | 180db73 | /api/cobranza/web + /resumen + /promesas + /{credito_id} | 498 backend + 194 E2E mock + 65 E2E real | ✅ PASS (ambos) | Aging server-side, worklist priorizada, Promise to Pay state machine, drill-down, RBAC cobranza:ver 3 roles, PII cobrador_nombre | Ninguno |
 | **W7** | ✅ FINAL PASS | 5905390 | /api/reportes/{resumen,recaudo,aging,rutas,movimientos} | 509 backend + 203 E2E mock + 75 E2E real | ✅ PASS (ambos) | Business Date Colombia, reportes:ver (ADMIN+INV), read-models server-side, UI Premium, RBAC test sync | Ninguno |
 | **W8** | ✅ FINAL PASS | 299fe92+eb564ab+409590b | /api/dashboard/ejecutivo | 523 backend + 214 E2E mock + 80 E2E real | ✅ PASS (ambos) | Dashboard ejecutivo ADMIN-only, reutiliza autoridades W6/W7, read-model server-side, DashboardCobrador preservado, onboarding h1 | Ninguno |
-| **W9** | PENDIENTE | — | — | — | — | — | Depende de W8 |
+| **W9** | ✅ FINAL PASS | 1c38479 | /api/inversionista/resumen (W9 read-model) | 545 backend + 233 E2E mock + 94 E2E real | ✅ PASS (ambos) | Fórmula legacy eliminada (autoridad W6/W7), PII cobrador cerrada (rutas/creditos/cobranza), DashboardInversionista premium, nav por capabilities, read-only | Ninguno |
 | **W10** | PENDIENTE | — | — | — | — | — | Depende de W9 |
 | **W11** | PENDIENTE | — | — | — | — | — | Depende de W10 |
 | **W12** | PENDIENTE | — | — | — | — | — | Depende de W11 |
@@ -432,8 +432,52 @@ Requiere regresión crítica demostrada + autorización explícita del owner.
 
 ## W9 — Inversionista Final
 
-**Estado:** PENDIENTE
+**Estado:** ✅ FINAL PASS
 **Depende de:** W8
+**Commit:** `1c38479`
+**CI:** Backend `32084785594` PASS · Web `32084785516` PASS
+
+### Entregables
+
+| Entrega | Estado | Detalle |
+|---|---|---|
+| Fórmula legacy eliminada | ✅ | `inversionista_service.py`: ya NO calcula `cartera_neta` desde `Credito.monto - Pago` ni `recaudo_hoy` directo de `Pago`. Compone autoridades canónicas W6/W7 |
+| Read-model W9 (aditivo) | ✅ | `/api/inversionista/resumen`: + `negocio` (nombre/plan/moneda/fecha), + `riesgo` (mora/promesas/aging), + `tendencia_7d`, + `rutas` (exposición). `portfolio` ampliado (cartera_viva/vencida, pct, gastos, neto) |
+| Autoridad única cartera/recaudo | ✅ | `cartera_viva` = `resumen_cobranza().total_cartera` (W6); `recaudo_hoy` = `_recaudo_en_periodo()` (W7); `gastos_hoy` = `_gastos_en_periodo()` (W7); tendencia = `recaudo_diario()` (W7); rutas = `rutas_reporte()` (W7) |
+| PII: rutas | ✅ | `ruta_service._fila` + `obtener_ruta`: `cobrador_id`/`cobrador_nombre` = null para INVERSIONISTA (ADMIN/COBRADOR preservados) |
+| PII: créditos | ✅ | `credito_service._enriquecer`: `cobrador_nombre` = null para INVERSIONISTA (lista + detalle) |
+| PII: cobranza worklist | ✅ | `cobranza_service.list_cobranza`: `cobrador_nombre` = null para INVERSIONISTA (el detalle ya lo hacía) |
+| PII: movimientos/reportes | ✅ | Ya limpios (W5 null-ear creado_por_nombre+nota; W7 solo agregados) |
+| DashboardInversionista | ✅ | Reemplaza `Dashboard.tsx` legacy (6 cards). KPIs, riesgo/promesas, tendencia 7d, aging, exposición por ruta, accesos. Coherente con W8 visualmente |
+| AppShell/capabilities | ✅ | Nav Reportes por `reportes:ver` (no `inversionista:resumen`); gate Dashboard por `dashboard:ejecutivo`/`inversionista:resumen`/`jornada:ver` |
+| Suscripción | ✅ | `Suscripcion.tsx` ya read-only (estado/plan/vigencia, sin mutaciones) |
+| E2E mock | ✅ | `w9-inversionista.spec.ts`: 19 tests (dashboard premium, KPIs, tendencia, aging, rutas, PII, navegación, direct URLs 403, axe) |
+| E2E real | ✅ | `real-inversionista.spec.ts`: 14 tests (BFF→FastAPI→PG, consistencia W6/W7, PII, mutaciones 403, cross-tenant) |
+| Gates | ✅ | Backend 545/545, E2E mock 233/233, E2E real 94/94, typecheck/lint/build PASS, npm audit 0 |
+
+### Decisiones
+
+- **Una sola fórmula de cartera/recaudo:** W9 elimina la segunda autoridad (fórmula legacy basada en `Credito.monto`). Ahora cartera y recaudo salen de `resumen_cobranza()` (W6) y `_recaudo_en_periodo()` (W7), igual que W8. El campo legacy `cartera_neta` apunta a la misma autoridad (`cartera_viva`).
+- **DTO aditivo:** se conservan los campos legacy (`portfolio`, `negocio_nombre`, `plan`, `moneda`, `zona_horaria`) y se añaden `negocio`, `riesgo`, `tendencia_7d`, `rutas`. No se rompe ningún consumidor.
+- **PII por rol (no por endpoint):** el inversionista no ve identidad de cobrador ni de cliente en rutas, créditos ni cobranza. ADMIN/COBRADOR conservan.
+- **Nav por capabilities:** Reportes usa `reportes:ver` (la capability real de la superficie, no `inversionista:resumen`). El gate de Dashboard refleja las superficies reales.
+- **DashboardInversionista = snapshot:** KPIs + tendencia + riesgo + exposición + accesos. NO es Reportes (análisis histórico). Sin controles de mutación.
+- **h1 "Dashboard financiero" preservado:** para no regredir las aserciones W8 (INV ve "Dashboard financiero", no "Dashboard ejecutivo").
+
+### Pruebas
+
+| Suite | Resultado |
+|---|---|
+| Backend | 545 passed (523 + 22 W9) |
+| E2E mock | 233 passed (214 + 19 W9) |
+| E2E real | 94 passed (80 + 14 W9) |
+| OpenAPI | 60 paths |
+| Alembic head | `m11_promesa_pago` (sin cambio de schema) |
+| Typecheck | PASS |
+| Lint | 0 errors, 16 warnings preexistentes |
+| Build | PASS |
+| npm audit | 0 vulnerabilities |
+| Mobile freeze | `apps/mobile/**` = 0 cambios |
 
 ---
 
