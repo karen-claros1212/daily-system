@@ -2,7 +2,7 @@
 
 **Proyecto:** daily-system
 **Rama:** `product/web-premium-v1`
-**Última actualización:** 2026-08-17
+**Última actualización:** 2026-08-18
 **Código certificado por vertical:** ver tabla Estado global
 
 ---
@@ -21,7 +21,7 @@
 | **W7** | ✅ FINAL PASS | 5905390 | /api/reportes/{resumen,recaudo,aging,rutas,movimientos} | 509 backend + 203 E2E mock + 75 E2E real | ✅ PASS (ambos) | Business Date Colombia, reportes:ver (ADMIN+INV), read-models server-side, UI Premium, RBAC test sync | Ninguno |
 | **W8** | ✅ FINAL PASS | 299fe92+eb564ab+409590b | /api/dashboard/ejecutivo | 523 backend + 214 E2E mock + 80 E2E real | ✅ PASS (ambos) | Dashboard ejecutivo ADMIN-only, reutiliza autoridades W6/W7, read-model server-side, DashboardCobrador preservado, onboarding h1 | Ninguno |
 | **W9** | ✅ FINAL PASS | 1c38479 | /api/inversionista/resumen (W9 read-model) | 545 backend + 233 E2E mock + 94 E2E real | ✅ PASS (ambos) | Fórmula legacy eliminada (autoridad W6/W7), PII cobrador cerrada (rutas/creditos/cobranza), DashboardInversionista premium, nav por capabilities, read-only | Ninguno |
-| **W10** | PENDIENTE | — | — | — | — | — | Depende de W9 |
+| **W10** | ✅ FINAL PASS | 37bf2a9→cdd3a49 | /api/llm/* (6 admin endpoints) | 612 backend + 247 E2E mock + 104 E2E real | ✅ PASS (ambos) | Provider Gateway 6 proveedores, BYOK, SecretStore AES-GCM, RBAC llm:ver/gestionar, SSRF allowlist, BFF proxy, UI Configuración IA | Ninguno |
 | **W11** | PENDIENTE | — | — | — | — | — | Depende de W10 |
 | **W12** | PENDIENTE | — | — | — | — | — | Depende de W11 |
 | **W13** | PENDIENTE | — | — | — | — | — | Depende de W12 |
@@ -481,10 +481,89 @@ Requiere regresión crítica demostrada + autorización explícita del owner.
 
 ---
 
-## W10 — Capa Multi-LLM / BYOK
+## W10 — Capa Multi-LLM / Provider Gateway + BYOK
 
-**Estado:** PENDIENTE
+**Estado:** ✅ FINAL PASS
 **Depende de:** W9
+**Commits:** `37bf2a9` (api) → `72bf5cb` (web) → `c1c9847` (tests) → `ac2096d` (ci fix) → `cdd3a49` (ci fix 2)
+**CI:** Backend `32196544692` PASS · Web `32196544797` PASS
+
+### Entregables
+
+| Entrega | Estado | Detalle |
+|---|---|---|
+| Core types + errors | ✅ | `apps/api/src/services/llm/types.py` (6 enums, 8 TypedDict, 4 dataclass), `errors.py` (6 LLMError subclasses, HTTP mapping) |
+| Provider registry | ✅ | `registry.py`: 6 proveedores (OPENAI_NATIVE, MISTRAL_NATIVE, CEREBRAS_OPENAI_COMPATIBLE, ANTHROPIC_NATIVE, GEMINI_NATIVE, OPENAI_COMPATIBLE_GENERIC), capabilities declarativas |
+| Gateway unificado | ✅ | `gateway.py`: `LLMGateway.ask()` — resolución de proveedor por default/override, credentials, dispatch al adapter correcto, health check, test-provider |
+| Adapters | ✅ | 7 adaptadores: `base.py`, `openai_adapter.py`, `anthropic_adapter.py`, `gemini_adapter.py`, `openai_native.py`, `mistral_native.py`, `cerebras.py`, `generic_openai.py` |
+| SecretStore | ✅ | `secret_store.py`: AES-256-GCM encrypt/decrypt, master key from env (`LLM_SECRET_MASTER_KEY`), `secret_ref` opaco en DB, plaintext nunca persistido |
+| Credential resolution | ✅ | `credentials.py`: cascade TENANT_BYOK → PLATFORM_MANAGED → UNAVAILABLE, key_hint, status + capabilities |
+| RBAC | ✅ | `rbac.py`: `llm:ver` (ADMINISTRADOR), `llm:gestionar` (ADMINISTRADOR), capa por permission string |
+| SSRF protection | ✅ | `endpoint_profile` allowlist (5 profiles), rechazo de URLs directas fuera del catálogo, validación base_url contra allowlist |
+| Backend endpoints | ✅ | 6 endpoints: GET providers, GET/PUT config, PUT/DELETE credential, POST test-provider. Todas requieren `llm:gestionar` o `llm:ver` |
+| Model + Migration | ✅ | `LLMProviderConfig` (6 cols: provider PK, endpoint_profile nullable, model, enabled, is_default, created_at, updated_at). Migration `m12_llm_provider_config` |
+| Schemas | ✅ | 7 schemas Pydantic: LLMProviderRead, LLMProviderConfigUpdate, LLMCredentialPut, LLMCredentialRead, LLMTestResult, LLMProviderCatalog |
+| BFF proxy | ✅ | 5 route files: GET/PUT config, PUT/DELETE credential, POST test. Cookie auth, proxy a FastAPI :8001 |
+| Web UI | ✅ | `configuracion/ia/page.tsx`: paginación por capabilities, status dots, PUT config/credential, test-provider. Solo ADMIN |
+| AppShell nav | ✅ | "Configuración IA" por `llm:ver` capability |
+| Client API | ✅ | 5 funciones: fetchProviders, fetchProviderConfig, updateProviderConfig, updateProviderCredential, deleteProviderCredential, testProvider |
+| mock-api | ✅ | 6 endpoints mock: /api/llm/*, estado en memoria, RBAC por token |
+| E2E mock | ✅ | `w10-llm-config.spec.ts`: 14 tests (catálogo, config, credential, delete, RBAC, test-provider, axe, nav) |
+| E2E real | ✅ | `real-llm-config.spec.ts`: 11 tests (PUT config, PUT credential BYOK, SecretStore verification, RBAC 403, test-provider skip CI, DELETE→UNAVAILABLE, BFF render) |
+| Backend tests | ✅ | `test_w10.py` (33 W10-specific) + `test_w10_adapters.py` (adapter mocks). Total 612/612 |
+
+### Decisiones
+
+- **SecretStore = AES-256-GCM:** master key from `LLM_SECRET_MASTER_KEY` env var, base64-encoded 32 bytes. Ciphertext stored as opaque `secret_ref` in DB. Plaintext NEVER returned in API responses. Key hint = first 8 chars of API key.
+- **Credential cascade:** TENANT_BYOK (user-provided key) → PLATFORM_MANAGED (admin-provisioned key, env var per provider) → UNAVAILABLE. Never all null.
+- **SSRF:** Endpoint profiles hardcodean URLs permitidas. No se aceptan URLs arbitrarias. `base_url` se resuelve internamente.
+- **Test 6 skip en CI:** el fake-provider.mjs requiere `/etc/hosts` con `ollama.internal` + proceso Node en puerto 11434. En CI no existe → `test.skip()` graceful. Local: 11/11 PASS.
+- **CI fixes:** (1) `test_w1.py` migration head assertion actualizado a `m12_llm_provider_config`. (2) `web-ci.yml` genera `LLM_SECRET_MASTER_KEY` efímero para SecretStore en CI.
+- **Byok = api_key in body:** campo tipo `password` en OpenAPI, limpiado después de guardado. Nunca se devuelve en respuestas GET.
+
+### Pruebas
+
+| Suite | Resultado |
+|---|---|
+| Backend | 612 passed, 9 skipped |
+| E2E mock | 247 passed (233 W9 + 14 W10) |
+| E2E real | 104 passed + 1 skipped (94 W9 + 10 W10, test 6 skipped en CI) |
+| OpenAPI drift | PASS |
+| Alembic head | `m12_llm_provider_config` |
+| Typecheck | PASS |
+| Lint | 0 errors, 17 warnings preexistentes |
+| Build | PASS |
+| npm audit | 0 vulnerabilities |
+| Mobile freeze | `apps/mobile/**` = 0 cambios |
+
+### Archivos modificados (W10)
+
+**Backend (26 archivos, ~3923 insertions):**
+- `apps/api/src/services/llm/` — 14 archivos nuevos (types, errors, registry, gateway, credentials, secret_store, deps, 7 adapters)
+- `apps/api/src/routes/llm.py` — 6 endpoints admin
+- `apps/api/src/models/llm_provider.py` — Modelo DB
+- `apps/api/src/schemas/__init__.py` — 7 schemas
+- `apps/api/src/rbac.py` — llm:ver + llm:gestionar
+- `apps/api/migrations/versions/m12_llm_provider_config.py` — Migración
+- `apps/api/src/tests/test_w10.py` — 33 tests
+- `apps/api/src/tests/test_w10_adapters.py` — Adapter tests
+
+**Web (12 archivos, ~1039 insertions):**
+- `apps/web/src/app/configuracion/ia/page.tsx` — UI admin
+- `apps/web/src/components/LlmConfig.tsx` — Componente config
+- `apps/web/src/components/AppShell.tsx` — Nav item
+- `apps/web/src/lib/api/client.ts` — 5 funciones + interfaces
+- `apps/web/src/lib/api/gateway.ts` — proxyPut + proxyDelete
+- `apps/web/src/lib/api/generated/index.d.ts` — Tipos generados
+- `apps/web/src/app/api/llm/` — 5 BFF route files
+
+**Tests + CI (12 archivos, ~1746+ inserciones):**
+- `apps/web/e2e/w10-llm-config.spec.ts` — Mock E2E
+- `apps/web/e2e/real-llm-config.spec.ts` — Real E2E
+- `apps/web/e2e/fake-provider.mjs` — Fake OpenAI-compatible
+- `apps/web/e2e/mock-api.mjs` — Mock endpoints
+- `.github/workflows/web-ci.yml` — LLM_SECRET_MASTER_KEY
+- `apps/api/src/tests/test_w1.py` — Migration head assertion
 
 ---
 
