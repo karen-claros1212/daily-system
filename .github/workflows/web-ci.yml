@@ -149,6 +149,7 @@ jobs:
           printf 'export DAILY_ENV=%s\n' "test" >> /tmp/be.env
           printf 'export AUTH_JWT_PRIVATE_KEY="%s"\n' "$(cat /tmp/jwt_priv.pem)" >> /tmp/be.env
           printf 'export AUTH_JWT_PUBLIC_KEY="%s"\n' "$(cat /tmp/jwt_pub.pem)" >> /tmp/be.env
+          printf 'export LLM_SECRET_MASTER_KEY=%s\n' "$(python3 -c 'import base64,os; print(base64.b64encode(os.urandom(32)).decode())')" >> /tmp/be.env
 
       - name: Seed reproducible (negocio + 3 roles + ruta + codigo + JWTs reales)
         working-directory: apps/api
