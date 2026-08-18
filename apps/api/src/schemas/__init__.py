@@ -1097,3 +1097,88 @@ class AuditLogQuery(BaseModel):
     actor_id: UUID | None = None
     since: datetime | None = None
     limit: int = Field(default=50, ge=1, le=200)
+
+
+# --- LLM (W10 — Provider Gateway Multi-LLM + BYOK) ---
+
+class LLMCapabilitiesSchema(BaseModel):
+    text: bool = True
+    tools: bool = False
+    structured_output: bool = False
+    vision: bool = False
+    streaming: bool = False
+
+
+class LLMProviderStatus(BaseModel):
+    """Estado de un provider para el negocio (NUNCA incluye la clave)."""
+
+    provider: str
+    protocol: str | None = None
+    type: str | None = None
+    model: str | None = None
+    endpoint_profile: str | None = None
+    enabled: bool = False
+    is_default: bool = False
+    configured: bool = False
+    credential_source: str | None = None  # TENANT_BYOK | PLATFORM_MANAGED | None
+    available: bool = False
+    key_hint: str | None = None
+    capabilities: LLMCapabilitiesSchema = Field(default_factory=LLMCapabilitiesSchema)
+
+
+class LLMProviderListResponse(BaseModel):
+    providers: list[LLMProviderStatus]
+    endpoint_profiles: list[dict] = Field(default_factory=list)
+
+
+class LLMConfigUpdate(BaseModel):
+    """Config NO secreta (model/endpoint_profile/enabled/is_default)."""
+
+    model: str | None = Field(default=None, max_length=200)
+    endpoint_profile: str | None = Field(default=None, max_length=50)
+    enabled: int | None = Field(default=None, ge=0, le=1)
+    is_default: int | None = Field(default=None, ge=0, le=1)
+
+    @field_validator("model", "endpoint_profile", mode="before")
+    @classmethod
+    def _strip_str(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+        return v or None
+
+
+class LLMCredentialSet(BaseModel):
+    """Clave BYOK (transitoria: se cifra en el SecretStore, no se persiste en claro)."""
+
+    api_key: str = Field(..., min_length=1)
+
+    @field_validator("api_key", mode="before")
+    @classmethod
+    def _strip_key(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+        if not v:
+            raise ValueError("api_key no puede ser solo espacios")
+        return v
+
+
+class LLMCredentialStatus(BaseModel):
+    """Respuesta de credencial: configured + source + hint. NUNCA api_key."""
+
+    provider: str
+    configured: bool
+    credential_source: str | None = None  # TENANT_BYOK | PLATFORM_MANAGED | None
+    key_hint: str | None = None
+
+
+class LLMProviderTestResponse(BaseModel):
+    """Respuesta de test de conexión (sanitizada, sin texto sensible)."""
+
+    provider: str
+    status: str  # OK | AUTH_ERROR | RATE_LIMITED | TIMEOUT | ...
+    model: str | None = None
+    latency_ms: int | None = None
+    credential_source: str | None = None
+    available: bool = False
+    capabilities: LLMCapabilitiesSchema | None = None
+    detail: str | None = None

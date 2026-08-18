@@ -22,10 +22,15 @@ Verificacion en codigo (ago 2026):
    - cliente.py     : list/detail -> clientes:ver (ADMINISTRADOR | COBRADOR);
                       create/update -> clientes:gestionar (SOLO ADMINISTRADOR);
                       INVERSIONISTA no lee clientes (PII no necesaria)
-   - credito.py     : list/detail/resumen -> creditos:ver (los 3 roles; COBRADOR
-                      scoped a su ruta, INVERSIONISTA PII minimizada sin
-                      Cliente360); create -> creditos:gestionar (SOLO
-                      ADMINISTRADOR, negative 403 para COBRADOR/INVERSIONISTA)
+    - credito.py     : list/detail/resumen -> creditos:ver (los 3 roles; COBRADOR
+                       scoped a su ruta, INVERSIONISTA PII minimizada sin
+                       Cliente360); create -> creditos:gestionar (SOLO
+                       ADMINISTRADOR, negative 403 para COBRADOR/INVERSIONISTA)
+    - llm.py         : GET providers/{provider} -> llm:ver (SOLO ADMINISTRADOR);
+                       PUT config/credential + DELETE credential + POST test ->
+                       llm:gestionar (SOLO ADMINISTRADOR). COBRADOR/INVERSIONISTA
+                       no configuran LLM (negative 403). W11 añadirá la
+                       capability de USO del Assistant (separada de gestionar).
 """
 
 from typing import Final
@@ -70,6 +75,8 @@ CAPABILITIES_POR_ROL: Final[dict[str, tuple[str, ...]]] = {
         "creditos:gestionar",
         "reportes:ver",
         "dashboard:ejecutivo",
+        "llm:ver",
+        "llm:gestionar",
     ),
     "COBRADOR": (
         "jornada:ver",

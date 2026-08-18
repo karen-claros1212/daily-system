@@ -713,3 +713,4 @@ class DesafioAuth(Base):
 
 
 from src.models.promesa_pago import PromesaPago  # noqa: E402, F401
+from src.models.llm_provider import LLMProviderConfig  # noqa: E402, F401
