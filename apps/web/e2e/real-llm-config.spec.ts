@@ -193,6 +193,14 @@ test.describe.serial('W10 real: Provider Gateway Multi-LLM + BYOK (FastAPI :8001
   });
 
   test('6. ADMIN: test provider contra fake provider local (local-ollama) → OK', async () => {
+    // Skip en CI: requiere fake-provider.mjs + /etc/hosts con ollama.internal.
+    let reachable = false;
+    try {
+      const probe = await fetch('http://ollama.internal:11434/v1/models', { signal: AbortSignal.timeout(2000) });
+      reachable = probe.ok || probe.status === 404;
+    } catch { /* not reachable */ }
+    test.skip(!reachable, 'fake-provider no disponible (CI o sin /etc/hosts)');
+
     // OPENAI_COMPATIBLE_GENERIC + profile local-ollama + BYOK (fake-ollama-key).
     const cred = await fetch(`${API}/api/llm/providers/OPENAI_COMPATIBLE_GENERIC/credential`, {
       method: 'PUT',
