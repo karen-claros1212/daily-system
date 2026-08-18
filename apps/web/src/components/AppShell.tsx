@@ -20,6 +20,7 @@ import {
   IconContactos,
   IconCredito,
   IconMovimientos,
+  IconSparkle,
 } from '@/components/ui/icons';
 import { IconButton } from '@/components/ui/button';
 
@@ -48,6 +49,7 @@ const ICONS: Record<string, React.ReactNode> = {
   creditos: <IconCredito size={18} aria-hidden="true" />,
   movimientos: <IconMovimientos size={18} aria-hidden="true" />,
   cobranza: <IconMovimientos size={18} aria-hidden="true" />,
+  ia: <IconSparkle size={18} aria-hidden="true" />,
 };
 
 // Títulos humanos por ruta para breadcrumbs (label se mantiene por capabilities).
@@ -64,6 +66,8 @@ const TITLES: Record<string, string> = {
   creditos: 'Créditos',
   movimientos: 'Centro Financiero',
   cobranza: 'Centro de Cobranza',
+  // currentPage = primer segmento de la ruta; /configuracion/ia -> "configuracion".
+  configuracion: 'Configuración IA',
 };
 
 export function AppShell({ children, session = null }: AppShellProps) {
@@ -129,6 +133,11 @@ export function AppShell({ children, session = null }: AppShellProps) {
     ...(hasCapability(session, 'audit:ver')
       ? [{ id: 'auditoria', label: 'Auditoría', icon: ICONS.auditoria }]
       : []),
+    // Configuración IA (W10): SOLO ADMINISTRADOR (llm:gestionar). Superficie de
+    // gestión del Provider Gateway Multi-LLM + BYOK.
+    ...(hasCapability(session, 'llm:gestionar')
+      ? [{ id: 'configuracion/ia', label: 'Configuración IA', icon: ICONS.ia }]
+      : []),
   ];
 
   const rolLabel = session?.rol ?? '…';
@@ -161,7 +170,7 @@ export function AppShell({ children, session = null }: AppShellProps) {
               className={`nav-link mb-1 ${sidebarOpen ? '' : 'justify-center'}`}
               title={item.label}
               aria-label={item.label}
-              aria-current={currentPage === item.id ? 'page' : undefined}
+              aria-current={pathname?.startsWith(`/${item.id}`) ? 'page' : undefined}
             >
               {item.icon}
               {sidebarOpen && <span>{item.label}</span>}

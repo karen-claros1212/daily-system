@@ -1194,6 +1194,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/llm/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Providers */
+        get: operations["list_providers_api_llm_providers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/llm/providers/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Provider */
+        get: operations["get_provider_api_llm_providers__provider__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/llm/providers/{provider}/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Config */
+        put: operations["update_config_api_llm_providers__provider__config_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/llm/providers/{provider}/credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Credential */
+        put: operations["set_credential_api_llm_providers__provider__credential_put"];
+        post?: never;
+        /** Delete Credential */
+        delete: operations["delete_credential_api_llm_providers__provider__credential_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/llm/providers/{provider}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Provider */
+        post: operations["test_provider_api_llm_providers__provider__test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -2446,6 +2532,142 @@ export interface components {
             sincronizada_el: string | null;
             /** Snapshot Valido */
             snapshot_valido: boolean;
+        };
+        /** LLMCapabilitiesSchema */
+        LLMCapabilitiesSchema: {
+            /**
+             * Text
+             * @default true
+             */
+            text: boolean;
+            /**
+             * Tools
+             * @default false
+             */
+            tools: boolean;
+            /**
+             * Structured Output
+             * @default false
+             */
+            structured_output: boolean;
+            /**
+             * Vision
+             * @default false
+             */
+            vision: boolean;
+            /**
+             * Streaming
+             * @default false
+             */
+            streaming: boolean;
+        };
+        /**
+         * LLMConfigUpdate
+         * @description Config NO secreta (model/endpoint_profile/enabled/is_default).
+         */
+        LLMConfigUpdate: {
+            /** Model */
+            model?: string | null;
+            /** Endpoint Profile */
+            endpoint_profile?: string | null;
+            /** Enabled */
+            enabled?: number | null;
+            /** Is Default */
+            is_default?: number | null;
+        };
+        /**
+         * LLMCredentialSet
+         * @description Clave BYOK (transitoria: se cifra en el SecretStore, no se persiste en claro).
+         */
+        LLMCredentialSet: {
+            /** Api Key */
+            api_key: string;
+        };
+        /**
+         * LLMCredentialStatus
+         * @description Respuesta de credencial: configured + source + hint. NUNCA api_key.
+         */
+        LLMCredentialStatus: {
+            /** Provider */
+            provider: string;
+            /** Configured */
+            configured: boolean;
+            /** Credential Source */
+            credential_source?: string | null;
+            /** Key Hint */
+            key_hint?: string | null;
+        };
+        /** LLMProviderListResponse */
+        LLMProviderListResponse: {
+            /** Providers */
+            providers: components["schemas"]["LLMProviderStatus"][];
+            /** Endpoint Profiles */
+            endpoint_profiles?: Record<string, never>[];
+        };
+        /**
+         * LLMProviderStatus
+         * @description Estado de un provider para el negocio (NUNCA incluye la clave).
+         */
+        LLMProviderStatus: {
+            /** Provider */
+            provider: string;
+            /** Protocol */
+            protocol?: string | null;
+            /** Type */
+            type?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Endpoint Profile */
+            endpoint_profile?: string | null;
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Is Default
+             * @default false
+             */
+            is_default: boolean;
+            /**
+             * Configured
+             * @default false
+             */
+            configured: boolean;
+            /** Credential Source */
+            credential_source?: string | null;
+            /**
+             * Available
+             * @default false
+             */
+            available: boolean;
+            /** Key Hint */
+            key_hint?: string | null;
+            capabilities?: components["schemas"]["LLMCapabilitiesSchema"];
+        };
+        /**
+         * LLMProviderTestResponse
+         * @description Respuesta de test de conexión (sanitizada, sin texto sensible).
+         */
+        LLMProviderTestResponse: {
+            /** Provider */
+            provider: string;
+            /** Status */
+            status: string;
+            /** Model */
+            model?: string | null;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Credential Source */
+            credential_source?: string | null;
+            /**
+             * Available
+             * @default false
+             */
+            available: boolean;
+            capabilities?: components["schemas"]["LLMCapabilitiesSchema"] | null;
+            /** Detail */
+            detail?: string | null;
         };
         /** MeResponse */
         MeResponse: {
@@ -5536,6 +5758,234 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditLogResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_providers_api_llm_providers_get: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LLMProviderListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_provider_api_llm_providers__provider__get: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LLMProviderStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_config_api_llm_providers__provider__config_put: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LLMConfigUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LLMProviderStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_credential_api_llm_providers__provider__credential_put: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LLMCredentialSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LLMCredentialStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_credential_api_llm_providers__provider__credential_delete: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LLMCredentialStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_provider_api_llm_providers__provider__test_post: {
+        parameters: {
+            query?: {
+                negocio_id?: string | null;
+                role?: string | null;
+                route_id?: string | null;
+                user_id?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LLMProviderTestResponse"];
                 };
             };
             /** @description Validation Error */

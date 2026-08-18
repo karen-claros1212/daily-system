@@ -90,6 +90,54 @@ export async function proxyPostPublic(path: string, req: Request): Promise<NextR
 }
 
 /**
+ * Forward server-to-server PUT al backend, inyectando Bearer desde la cookie
+ * HttpOnly y el body (JSON) del request entrante. El browser nunca toca el
+ * backend directo; el BFF conserva la autoridad del contrato (401/403/404/409/422
+ * tal cual los emite el backend, sin maquillar).
+ */
+export async function proxyPut(path: string, req: Request): Promise<NextResponse> {
+  const token = await sessionToken();
+  if (!token) return unauthorized();
+  const body = await req.json().catch(() => ({}));
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    });
+    const resBody = await res.json().catch(() => ({}));
+    return NextResponse.json(resBody, { status: res.status });
+  } catch {
+    return NextResponse.json({ detail: 'Gateway error', status: 'error' }, { status: 502 });
+  }
+}
+
+/**
+ * Forward server-to-server DELETE al backend, inyectando Bearer desde la cookie
+ * HttpOnly. El browser nunca toca el backend directo; el BFF conserva la
+ * autoridad del contrato (401/403/404 tal cual los emite el backend).
+ */
+export async function proxyDelete(path: string): Promise<NextResponse> {
+  const token = await sessionToken();
+  if (!token) return unauthorized();
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    const resBody = await res.json().catch(() => ({}));
+    return NextResponse.json(resBody, { status: res.status });
+  } catch {
+    return NextResponse.json({ detail: 'Gateway error', status: 'error' }, { status: 502 });
+  }
+}
+
+/**
  * Forward server-to-server PATCH al backend, inyectando Bearer desde la cookie
  * HttpOnly y el body (JSON) del request entrante. El browser nunca toca el
  * backend directo; el BFF conserva la autoridad del contrato (401/403/404/409/422

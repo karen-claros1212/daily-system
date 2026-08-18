@@ -688,3 +688,96 @@ export interface DashboardEjecutivo {
 export function fetchDashboardEjecutivo(): Promise<DashboardEjecutivo> {
   return fetch('/api/dashboard/ejecutivo', { cache: 'no-store' }).then((r) => parseJson<DashboardEjecutivo>(r));
 }
+
+// ─── W10: Configuración IA (Provider Gateway Multi-LLM + BYOK) ──────────────
+
+export type LLMCapabilities = components['schemas']['LLMCapabilitiesSchema'];
+
+export interface LLMProviderStatus {
+  provider: string;
+  protocol: string | null;
+  type: string | null;
+  model: string | null;
+  endpoint_profile: string | null;
+  enabled: boolean;
+  is_default: boolean;
+  configured: boolean;
+  credential_source: 'TENANT_BYOK' | 'PLATFORM_MANAGED' | null;
+  available: boolean;
+  key_hint: string | null;
+  capabilities: LLMCapabilities;
+}
+
+export interface LLMEndpointProfile {
+  profile_id: string;
+  label: string;
+  protocol: string;
+  capabilities: LLMCapabilities;
+}
+
+export interface LLMProviderList {
+  providers: LLMProviderStatus[];
+  endpoint_profiles: LLMEndpointProfile[];
+}
+
+export interface LLMCredentialStatus {
+  provider: string;
+  configured: boolean;
+  credential_source: 'TENANT_BYOK' | 'PLATFORM_MANAGED' | null;
+  key_hint: string | null;
+}
+
+export interface LLMProviderTest {
+  provider: string;
+  status: string;
+  model: string | null;
+  latency_ms: number | null;
+  credential_source: string | null;
+  available: boolean;
+  capabilities: LLMCapabilities | null;
+  detail: string | null;
+}
+
+/** GET /api/llm/providers via BFF (llm:ver, solo ADMINISTRADOR). */
+export function fetchLlmProviders(): Promise<LLMProviderList> {
+  return fetch('/api/llm/providers', { cache: 'no-store' }).then((r) => parseJson<LLMProviderList>(r));
+}
+
+/** PUT /api/llm/providers/{provider}/config via BFF (llm:gestionar). */
+export function updateLlmConfig(
+  provider: string,
+  data: { model?: string; endpoint_profile?: string; enabled?: number; is_default?: number },
+): Promise<LLMProviderStatus> {
+  return fetch(`/api/llm/providers/${encodeURIComponent(provider)}/config`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    cache: 'no-store',
+  }).then((r) => parseJson<LLMProviderStatus>(r));
+}
+
+/** PUT /api/llm/providers/{provider}/credential via BFF (llm:gestionar). */
+export function setLlmCredential(provider: string, apiKey: string): Promise<LLMCredentialStatus> {
+  return fetch(`/api/llm/providers/${encodeURIComponent(provider)}/credential`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ api_key: apiKey }),
+    cache: 'no-store',
+  }).then((r) => parseJson<LLMCredentialStatus>(r));
+}
+
+/** DELETE /api/llm/providers/{provider}/credential via BFF (llm:gestionar). */
+export function deleteLlmCredential(provider: string): Promise<LLMCredentialStatus> {
+  return fetch(`/api/llm/providers/${encodeURIComponent(provider)}/credential`, {
+    method: 'DELETE',
+    cache: 'no-store',
+  }).then((r) => parseJson<LLMCredentialStatus>(r));
+}
+
+/** POST /api/llm/providers/{provider}/test via BFF (llm:gestionar). */
+export function testLlmProvider(provider: string): Promise<LLMProviderTest> {
+  return fetch(`/api/llm/providers/${encodeURIComponent(provider)}/test`, {
+    method: 'POST',
+    cache: 'no-store',
+  }).then((r) => parseJson<LLMProviderTest>(r));
+}
