@@ -314,7 +314,8 @@ def list_cobranza(
 
         ruta = rutas.get(c.ruta_id) if c.ruta_id else None
         ruta_nombre = ruta.nombre if ruta else None
-        cobrador_nombre = cobradores.get(ruta.cobrador_id) if ruta and ruta.cobrador_id else None
+        # W9: el INVERSIONISTA no ve la identidad del cobrador (PII).
+        cobrador_nombre = (cobradores.get(ruta.cobrador_id) if ruta and ruta.cobrador_id else None) if mostrar_pii else None
 
         dpd = ag["days_past_due"]
         bucket_name = aging_bucket(dpd)

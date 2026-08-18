@@ -49,11 +49,19 @@ def obtener_resumen_inversionista(
     if as_utc(negocio.paid_through_at) and as_utc(negocio.paid_through_at) < datetime.now(timezone.utc):
         raise HTTPException(status_code=403, detail="Suscripcion vencida")
 
-    summary = get_inversionista_summary(db, ctx.negocio_id, today)
+    summary = get_inversionista_summary(db, ctx.negocio_id, today, role=ctx.role)
     summary["negocio_nombre"] = negocio.nombre
     summary["plan"] = negocio.plan
     summary["moneda"] = negocio.moneda
     summary["zona_horaria"] = negocio.zona_horaria
+    # Sección W9 (aditiva): negocio + fecha de negocio (Business Date Colombia).
+    summary["negocio"] = {
+        "nombre": negocio.nombre,
+        "plan": negocio.plan,
+        "moneda": negocio.moneda,
+        "zona_horaria": negocio.zona_horaria,
+        "fecha": summary["fecha"],
+    }
     return summary
 
 

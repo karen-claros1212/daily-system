@@ -1,172 +1,167 @@
-"""Investor aggregates service for Etapa 3 — "que se venda".
+"""Inversionista aggregates service — read-model financiero read-only (W9).
 
-Returns read-only aggregated data without PII.
-Investor sees only totals, no individual debtor data.
+Autoridad UNICA de los montos: composición server-side de las autoridades
+canónicas W6/W7 (NO duplica fórmulas):
+
+- cobranza_service.resumen_cobranza: cartera viva, vencido, pct, mora,
+  promesas, aging_distribution (autoridad W6).
+- reportes_service._recaudo_en_periodo / _gastos_en_periodo: flujo del día
+  (autoridad W7).
+- reportes_service.recaudo_diario: tendencia 7d (autoridad W7).
+- reportes_service.rutas_reporte: exposición por ruta (autoridad W7).
+- Conteos operativos directos (Credito ACTIVO, Usuario COBRADOR activo,
+  Ruta activa, Jornada cerrada hoy) — NO son cálculo financiero.
+
+Business Date: America/Bogota (today_bogota), nunca date.today() ni UTC.
+
+W9 elimina la fórmula legacy que calculaba cartera_neta desde
+Credito.monto - Pago y recaudo_hoy directo de Pago: ahora cartera y
+recaudo salen de las mismas autoridades que W6/W7/W8 (una sola fuente de
+verdad para cartera y recaudo en toda la web).
 """
 
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, timedelta
 from uuid import UUID
 
-from sqlalchemy import case as sa_case
-from sqlalchemy import func, select
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from src.models import Credito, Jornada, Pago, Ruta, Usuario
-from src.services.hoja_viva_service import BOGOTA_TZ, today_bogota
+from src.models import Credito, Jornada, Ruta, Usuario
+from src.services.cobranza_service import resumen_cobranza
+from src.services.hoja_viva_service import today_bogota
+from src.services.reportes_service import (
+    _gastos_en_periodo,
+    _recaudo_en_periodo,
+    recaudo_diario,
+    rutas_reporte,
+)
+
+JORNADA_CERRADA_ESTADOS = ("CLOSED_LOCAL_PENDING_SYNC", "CLOSED_SYNCED")
+
+
+def _conteos_operativos(db: Session, negocio_id: UUID, rd: date) -> dict:
+    """Conteos operativos del negocio (no financiero)."""
+    creditos_activos = (
+        db.query(func.count(Credito.id))
+        .filter(Credito.negocio_id == negocio_id, Credito.estado == "ACTIVO")
+        .scalar()
+        or 0
+    )
+    cobradores_activos = (
+        db.query(func.count(Usuario.id))
+        .filter(Usuario.negocio_id == negocio_id, Usuario.rol == "COBRADOR", Usuario.activo == 1)
+        .scalar()
+        or 0
+    )
+    rutas_activas = (
+        db.query(func.count(Ruta.id))
+        .filter(Ruta.negocio_id == negocio_id, Ruta.activa == 1)
+        .scalar()
+        or 0
+    )
+    jornadas_cerradas = (
+        db.query(func.count(Jornada.id))
+        .filter(
+            Jornada.negocio_id == negocio_id,
+            Jornada.fecha == rd,
+            Jornada.estado.in_(JORNADA_CERRADA_ESTADOS),
+        )
+        .scalar()
+        or 0
+    )
+    return {
+        "total_creditos_activos": int(creditos_activos),
+        "cobradores_activos": int(cobradores_activos),
+        "rutas_activas": int(rutas_activas),
+        "jornada_cerrada_hoy": jornadas_cerradas > 0,
+    }
+
+
+def _exposicion_rutas(db: Session, negocio_id: UUID, role: str) -> list[dict]:
+    """Exposición por ruta (autoridad W7 rutas_reporte) — PII minimizada.
+
+    Solo ruta_nombre + agregados financieros (sin ruta_id ni cobrador).
+    """
+    rutas = rutas_reporte(db, negocio_id, role, periodo="hoy")["rutas"]
+    return [
+        {
+            "ruta_nombre": r["ruta_nombre"],
+            "cartera": int(r["cartera"]),
+            "vencido": int(r["vencido"]),
+            "creditos": int(r["creditos"]),
+        }
+        for r in rutas
+    ]
 
 
 def get_inversionista_summary(
     db: Session,
     negocio_id: UUID,
     today: date | None = None,
+    role: str = "INVERSIONISTA",
 ) -> dict:
-    """Get investor summary for a negocio — no PII.
+    """Read-model financiero del inversionista — no PII, read-only.
 
-    Returns aggregated portfolio data, today's collection status,
-    and active staff counts.
-
-    cartera_neta = sum of (monto - pagos + reversales) for active credits
-    recaudo_hoy = sum(PAYMENT) - sum(REVERSAL) for today
+    Composición de autoridades W6/W7 (una sola fuente de verdad para
+    cartera y recaudo). Campos legacy del `portfolio` se conservan por
+    compatibilidad y ahora salen de la misma autoridad canónica.
     """
-    if today is None:
-        today = today_bogota()
+    rd = today or today_bogota()
+    fin = rd + timedelta(days=1)
 
-    # Active credits count
-    result = db.execute(
-        select(
-            func.count(Credito.id).filter(
-                Credito.negocio_id == negocio_id,
-                Credito.estado == "ACTIVO",
-            )
-        )
-    )
-    total_creditos_activos = result.scalar() or 0
+    # Autoridad W6: cartera, vencido, pct, mora, promesas, aging.
+    cobranza = resumen_cobranza(db, negocio_id, role, route_id=None, report_date=rd)
+    cartera_viva = int(cobranza["total_cartera"])
+    cartera_vencida = int(cobranza["total_vencido"])
+    pct_vencido = float(cobranza["pct_vencido"])
 
-   # Net portfolio = sum of (monto - net_payments) for active credits
-    # net_payments = sum(PAYMENT) - sum(REVERSAL) per credito
-    # We compute: sum(credito.monto) - sum(all payment net amounts)
-    # Subquery: net payment per credito
-    net_payment_subq = (
-        select(
-            Pago.credito_id.label("credito_id"),
-            func.coalesce(
-                func.sum(
-                    sa_case(
-                        (Pago.tipo == "REVERSAL", -Pago.monto),
-                        (Pago.tipo == "PAYMENT", Pago.monto),
-                        else_=0,
-                    )
-                ),
-                0,
-            ).label("net_amount"),
-        )
-        .filter(
-            Pago.negocio_id == negocio_id,
-        )
-        .group_by(Pago.credito_id)
-        .subquery()
-    )
+    # Autoridad W7: flujo del día (recaudo neto + gastos).
+    recaudo_hoy = _recaudo_en_periodo(db, negocio_id, rd, fin)
+    gastos_hoy = _gastos_en_periodo(db, negocio_id, rd, fin)
+    neto_hoy = recaudo_hoy - gastos_hoy
 
- # Portfolio = sum(credito.monto) - sum(net_payments for active credits)
-    # net_payments per credito = sum(PAYMENT) - sum(REVERSAL)
-    # NOTA: la resta directa con un LEFT JOIN y SIN GROUP BY era invalida en Postgres
-    # (columna de subquery anon_2.net_amount sin agregar). Se agrega dentro de
-    # sum() para que el mismo SQL valga en SQLite y Postgres.
-    result = db.execute(
-        select(
-            func.sum(
-                Credito.monto
-                - func.coalesce(net_payment_subq.c.net_amount, 0)
-            )
-        )
-        .select_from(Credito)
-        .join(
-            net_payment_subq,
-            net_payment_subq.c.credito_id == Credito.id,
-            isouter=True,
-        )
-        .filter(
-            Credito.negocio_id == negocio_id,
-            Credito.estado == "ACTIVO",
-        )
-    )
-    cartera_neta_raw = result.scalar()
-    cartera_neta = cartera_neta_raw if cartera_neta_raw is not None else 0
+    # Autoridad W7: tendencia 7d.
+    tendencia = recaudo_diario(db, negocio_id, role, periodo="7d", report_date=rd)
 
-# Today's collection = sum(PAYMENT) - sum(REVERSAL) for today
-    # Rango diario en zona de Bogota (no UTC): el "día" financiero es el
-    # día Colombia, no el día UTC. Convertimos a UTC para la consulta
-    # porque recibido_el_servidor se almacena en UTC.
-    # [00:00 Bogota, 00:00 Bogota + 1d) → [05:00 UTC, 05:00 UTC + 1d)
-    inicio_bogota = datetime.combine(today, time.min, tzinfo=BOGOTA_TZ)
-    fin_bogota = inicio_bogota + timedelta(days=1)
-    inicio = inicio_bogota.astimezone(timezone.utc)
-    fin = fin_bogota.astimezone(timezone.utc)
-    result_payments = db.execute(
-        select(func.coalesce(func.sum(Pago.monto), 0))
-        .select_from(Pago)
-        .filter(
-            Pago.negocio_id == negocio_id,
-            Pago.tipo == 'PAYMENT',
-            Pago.recibido_el_servidor >= inicio,
-            Pago.recibido_el_servidor < fin,
-        )
-    )
-    total_payments = result_payments.scalar() or 0
+    # Autoridad W7: exposición por ruta (PII minimizada).
+    rutas = _exposicion_rutas(db, negocio_id, role)
 
-    result_reversals = db.execute(
-        select(func.coalesce(func.sum(Pago.monto), 0))
-        .select_from(Pago)
-        .filter(
-            Pago.negocio_id == negocio_id,
-            Pago.tipo == 'REVERSAL',
-            Pago.recibido_el_servidor >= inicio,
-            Pago.recibido_el_servidor < fin,
-        )
-    )
-    total_reversals = result_reversals.scalar() or 0
-    recaudo_hoy = total_payments - total_reversals
-
-    # Today's jornada status
-    result = db.execute(
-        select(func.count(Jornada.id)).filter(
-            Jornada.negocio_id == negocio_id,
-            Jornada.fecha == today,
-            Jornada.estado.in_(["CLOSED_LOCAL_PENDING_SYNC", "CLOSED_SYNCED"]),
-        )
-    )
-    jornadas_cerradas = result.scalar() or 0
-
-    # Active cobradores
-    result = db.execute(
-        select(func.count(Usuario.id)).filter(
-            Usuario.negocio_id == negocio_id,
-            Usuario.rol == "COBRADOR",
-            Usuario.activo == 1,
-        )
-    )
-    cobradores_activos = result.scalar() or 0
-
-    # Active routes
-    result = db.execute(
-        select(func.count(Ruta.id)).filter(
-            Ruta.negocio_id == negocio_id,
-            Ruta.activa == 1,
-        )
-    )
-    rutas_activas = result.scalar() or 0
+    # Conteos operativos (no financiero).
+    operativo = _conteos_operativos(db, negocio_id, rd)
 
     return {
         "portfolio": {
-            "total_creditos_activos": total_creditos_activos,
-            "cartera_neta": cartera_neta,
-            "recaudo_hoy": recaudo_hoy,
-            "jornada_cerrada_hoy": jornadas_cerradas > 0,
-            "cobradores_activos": cobradores_activos,
-            "rutas_activas": rutas_activas,
+            # Campos legacy (compatibilidad) — ahora de la autoridad canónica W6.
+            "total_creditos_activos": operativo["total_creditos_activos"],
+            "cartera_neta": cartera_viva,
+            "recaudo_hoy": int(recaudo_hoy),
+            "jornada_cerrada_hoy": operativo["jornada_cerrada_hoy"],
+            "cobradores_activos": operativo["cobradores_activos"],
+            "rutas_activas": operativo["rutas_activas"],
+            # Campos W9 (aditivos).
+            "cartera_viva": cartera_viva,
+            "cartera_vencida": cartera_vencida,
+            "pct_vencido": pct_vencido,
+            "gastos_hoy": int(gastos_hoy),
+            "neto_hoy": int(neto_hoy),
         },
-        "negocio_nombre": "negocio",  # filled by route
-        "plan": "basic",  # filled by route
-        "moneda": "COP",  # filled by route
-        "zona_horaria": "America/Bogota",  # filled by route
+        "riesgo": {
+            "clientes_en_mora": int(cobranza["clientes_en_mora"]),
+            "promesas_activas": int(cobranza["promesas_activas"]),
+            "promesas_incumplidas": int(cobranza["promesas_incumplidas"]),
+            "aging_distribution": cobranza["aging_distribution"],
+        },
+        "tendencia_7d": {
+            "serie": tendencia["serie"],
+            "total_recaudo": int(tendencia["total_recaudo"]),
+            "total_reversal": int(tendencia["total_reversal"]),
+            "total_neto": int(tendencia["total_neto"]),
+        },
+        "rutas": rutas,
+        # Rellenados por la route (negocio).
+        "negocio_nombre": "negocio",
+        "plan": "basic",
+        "moneda": "COP",
+        "zona_horaria": "America/Bogota",
+        "fecha": rd.isoformat(),
     }

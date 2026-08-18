@@ -11299,6 +11299,57 @@
         "title": "HojaVivaResponse",
         "description": "Respuesta de la hoja viva de una ruta."
       },
+      "InversionistaAgingBucket": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "amount": {
+            "type": "integer",
+            "title": "Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "amount"
+        ],
+        "title": "InversionistaAgingBucket"
+      },
+      "InversionistaNegocioResponse": {
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "plan": {
+            "type": "string",
+            "title": "Plan"
+          },
+          "moneda": {
+            "type": "string",
+            "title": "Moneda"
+          },
+          "zona_horaria": {
+            "type": "string",
+            "title": "Zona Horaria"
+          },
+          "fecha": {
+            "type": "string",
+            "title": "Fecha"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nombre",
+          "plan",
+          "moneda",
+          "zona_horaria",
+          "fecha"
+        ],
+        "title": "InversionistaNegocioResponse"
+      },
       "InversionistaPortfolioResponse": {
         "properties": {
           "total_creditos_activos": {
@@ -11324,6 +11375,31 @@
           "rutas_activas": {
             "type": "integer",
             "title": "Rutas Activas"
+          },
+          "cartera_viva": {
+            "type": "integer",
+            "title": "Cartera Viva",
+            "default": 0
+          },
+          "cartera_vencida": {
+            "type": "integer",
+            "title": "Cartera Vencida",
+            "default": 0
+          },
+          "pct_vencido": {
+            "type": "number",
+            "title": "Pct Vencido",
+            "default": 0
+          },
+          "gastos_hoy": {
+            "type": "integer",
+            "title": "Gastos Hoy",
+            "default": 0
+          },
+          "neto_hoy": {
+            "type": "integer",
+            "title": "Neto Hoy",
+            "default": 0
           }
         },
         "type": "object",
@@ -11335,7 +11411,68 @@
           "cobradores_activos",
           "rutas_activas"
         ],
-        "title": "InversionistaPortfolioResponse"
+        "title": "InversionistaPortfolioResponse",
+        "description": "Portafolio del inversionista.\n\nCampos legacy (W0-W8) se conservan por compatibilidad y ahora salen de la\nautoridad canónica W6 (resumen_cobranza). Campos W9 son aditivos."
+      },
+      "InversionistaRiesgoResponse": {
+        "properties": {
+          "clientes_en_mora": {
+            "type": "integer",
+            "title": "Clientes En Mora"
+          },
+          "promesas_activas": {
+            "type": "integer",
+            "title": "Promesas Activas"
+          },
+          "promesas_incumplidas": {
+            "type": "integer",
+            "title": "Promesas Incumplidas"
+          },
+          "aging_distribution": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/InversionistaAgingBucket"
+            },
+            "type": "object",
+            "title": "Aging Distribution"
+          }
+        },
+        "type": "object",
+        "required": [
+          "clientes_en_mora",
+          "promesas_activas",
+          "promesas_incumplidas",
+          "aging_distribution"
+        ],
+        "title": "InversionistaRiesgoResponse"
+      },
+      "InversionistaRutaExposicion": {
+        "properties": {
+          "ruta_nombre": {
+            "type": "string",
+            "title": "Ruta Nombre"
+          },
+          "cartera": {
+            "type": "integer",
+            "title": "Cartera"
+          },
+          "vencido": {
+            "type": "integer",
+            "title": "Vencido"
+          },
+          "creditos": {
+            "type": "integer",
+            "title": "Creditos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ruta_nombre",
+          "cartera",
+          "vencido",
+          "creditos"
+        ],
+        "title": "InversionistaRutaExposicion",
+        "description": "Exposición por ruta — PII minimizada (sin ruta_id ni cobrador)."
       },
       "InversionistaSummaryResponse": {
         "properties": {
@@ -11357,6 +11494,22 @@
           "zona_horaria": {
             "type": "string",
             "title": "Zona Horaria"
+          },
+          "negocio": {
+            "$ref": "#/components/schemas/InversionistaNegocioResponse"
+          },
+          "riesgo": {
+            "$ref": "#/components/schemas/InversionistaRiesgoResponse"
+          },
+          "tendencia_7d": {
+            "$ref": "#/components/schemas/InversionistaTendenciaResponse"
+          },
+          "rutas": {
+            "items": {
+              "$ref": "#/components/schemas/InversionistaRutaExposicion"
+            },
+            "type": "array",
+            "title": "Rutas"
           }
         },
         "type": "object",
@@ -11365,9 +11518,73 @@
           "negocio_nombre",
           "plan",
           "moneda",
-          "zona_horaria"
+          "zona_horaria",
+          "negocio",
+          "riesgo",
+          "tendencia_7d",
+          "rutas"
         ],
-        "title": "InversionistaSummaryResponse"
+        "title": "InversionistaSummaryResponse",
+        "description": "Read-model financiero del inversionista (W9).\n\nSecciones legacy (portfolio + campos top-level) se conservan por\ncompatibilidad; secciones W9 (negocio, riesgo, tendencia_7d, rutas) son\naditivas. Autoridad canónica W6/W7 para cartera y recaudo."
+      },
+      "InversionistaTendenciaDia": {
+        "properties": {
+          "fecha": {
+            "type": "string",
+            "title": "Fecha"
+          },
+          "recaudo": {
+            "type": "integer",
+            "title": "Recaudo"
+          },
+          "reversal": {
+            "type": "integer",
+            "title": "Reversal"
+          },
+          "neto": {
+            "type": "integer",
+            "title": "Neto"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fecha",
+          "recaudo",
+          "reversal",
+          "neto"
+        ],
+        "title": "InversionistaTendenciaDia"
+      },
+      "InversionistaTendenciaResponse": {
+        "properties": {
+          "serie": {
+            "items": {
+              "$ref": "#/components/schemas/InversionistaTendenciaDia"
+            },
+            "type": "array",
+            "title": "Serie"
+          },
+          "total_recaudo": {
+            "type": "integer",
+            "title": "Total Recaudo"
+          },
+          "total_reversal": {
+            "type": "integer",
+            "title": "Total Reversal"
+          },
+          "total_neto": {
+            "type": "integer",
+            "title": "Total Neto"
+          }
+        },
+        "type": "object",
+        "required": [
+          "serie",
+          "total_recaudo",
+          "total_reversal",
+          "total_neto"
+        ],
+        "title": "InversionistaTendenciaResponse"
       },
       "JornadaCierreCreate": {
         "properties": {

@@ -77,7 +77,8 @@ test.describe('RBAC: separación por rol', () => {
       await setSessionToken(page, 'test-token');
       await page.goto('/dashboard');
       await expect(page.locator('h1')).toContainText('Dashboard');
-      await expect(page.locator('.metric-card')).toHaveCount(6);
+      // W9: dashboard inversionista = 4 KPIs + 4 riesgo/promesas = 8 cards.
+      await expect(page.locator('.metric-card')).toHaveCount(8);
       await page.goto('/reportes');
       await expect(page.locator('h1')).toContainText('Reportes');
       await page.goto('/routes');

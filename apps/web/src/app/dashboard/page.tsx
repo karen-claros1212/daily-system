@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
 import { Forbidden } from '@/components/Forbidden';
-import { Dashboard as DashboardInversionista } from '@/components/Dashboard';
+import { DashboardInversionista } from '@/components/DashboardInversionista';
 import { DashboardCobrador } from '@/components/DashboardCobrador';
 import { DashboardEjecutivo } from '@/components/DashboardEjecutivo';
 import { canViewFinancial, fetchSession, hasCapability, isCobrador } from '@/lib/session';
@@ -17,9 +17,9 @@ export const dynamic = 'force-dynamic';
  *   - ADMINISTRADOR  -> Dashboard Ejecutivo (W8): KPIs del día, tendencia 7d,
  *                       concentración de riesgo, alertas. Capability
  *                       dashboard:ejecutivo (solo ADMIN en W8).
- *   - INVERSIONISTA  -> dashboard financiero (resumen de inversión). W9
- *                       completará específicamente la experiencia del
- *                       inversionista; aquí se preserva la superficie actual.
+ *   - INVERSIONISTA  -> DashboardInversionista (W9): snapshot financiero
+ *                       read-only (KPIs, tendencia 7d, riesgo, exposición por
+ *                       ruta, promesas). Capability inversionista:resumen.
  *   - Otro/desconocid-> Forbidden 403 controlado (una sesión válida con
  *                        permisos insuficientes NO es una sesión inexistente,
  *                        así que no redirige al login).

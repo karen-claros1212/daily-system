@@ -58,6 +58,15 @@ def _nombre_cobrador(ruta: Ruta) -> str | None:
     return cobrador.nombre or None
 
 
+def _sin_pii_cobrador(role: str) -> bool:
+    """W9: el INVERSIONISTA no necesita identidad del cobrador (PII).
+
+    ADMIN/COBRADOR conservan cobrador_id + cobrador_nombre; el inversionista
+    ve ruta_nombre + agregados financieros, pero no quién cobra.
+    """
+    return role == "INVERSIONISTA"
+
+
 def _base_query(db: Session, negocio_id: UUID, role: str, route_id: UUID | None):
     q = (
         db.query(Ruta)
@@ -69,7 +78,8 @@ def _base_query(db: Session, negocio_id: UUID, role: str, route_id: UUID | None)
     return q
 
 
-def _fila(ruta: Ruta) -> dict:
+def _fila(ruta: Ruta, role: str = "ADMINISTRADOR") -> dict:
+    sin_pii = _sin_pii_cobrador(role)
     return {
         "ruta_id": ruta.id,
         "negocio_id": ruta.negocio_id,
@@ -77,8 +87,8 @@ def _fila(ruta: Ruta) -> dict:
         "activa": ruta.activa,
         "version": ruta.version,
         "creado_el": ruta.creado_el,
-        "cobrador_id": ruta.cobrador_id,
-        "cobrador_nombre": _nombre_cobrador(ruta),
+        "cobrador_id": None if sin_pii else ruta.cobrador_id,
+        "cobrador_nombre": None if sin_pii else _nombre_cobrador(ruta),
     }
 
 
@@ -119,7 +129,7 @@ def listar_rutas(
 
     total = q.count()
     rutas = q.all()
-    filas = [_fila(r) for r in rutas]
+    filas = [_fila(r, role) for r in rutas]
 
     rev = order == "desc"
     filas.sort(key=lambda r: (r[sort] is None, r[sort]), reverse=rev)
@@ -168,12 +178,13 @@ def obtener_ruta(
         raise HTTPException(status_code=404, detail="Ruta no encontrada")
     if role == "COBRADOR" and (ruta_id != route_id or ruta.activa != 1):
         raise HTTPException(status_code=404, detail="Ruta no encontrada")
+    sin_pii = _sin_pii_cobrador(role)
     return {
         "id": ruta.id,
         "negocio_id": ruta.negocio_id,
         "nombre": ruta.nombre,
-        "cobrador_id": ruta.cobrador_id,
-        "cobrador_nombre": _nombre_cobrador(ruta),
+        "cobrador_id": None if sin_pii else ruta.cobrador_id,
+        "cobrador_nombre": None if sin_pii else _nombre_cobrador(ruta),
         "activa": ruta.activa,
         "version": ruta.version,
         "creado_el": ruta.creado_el,

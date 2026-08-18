@@ -2161,7 +2161,33 @@ export interface components {
             /** Efectivo Esperado */
             efectivo_esperado: number;
         };
-        /** InversionistaPortfolioResponse */
+        /** InversionistaAgingBucket */
+        InversionistaAgingBucket: {
+            /** Count */
+            count: number;
+            /** Amount */
+            amount: number;
+        };
+        /** InversionistaNegocioResponse */
+        InversionistaNegocioResponse: {
+            /** Nombre */
+            nombre: string;
+            /** Plan */
+            plan: string;
+            /** Moneda */
+            moneda: string;
+            /** Zona Horaria */
+            zona_horaria: string;
+            /** Fecha */
+            fecha: string;
+        };
+        /**
+         * InversionistaPortfolioResponse
+         * @description Portafolio del inversionista.
+         *
+         *     Campos legacy (W0-W8) se conservan por compatibilidad y ahora salen de la
+         *     autoridad canónica W6 (resumen_cobranza). Campos W9 son aditivos.
+         */
         InversionistaPortfolioResponse: {
             /** Total Creditos Activos */
             total_creditos_activos: number;
@@ -2175,8 +2201,67 @@ export interface components {
             cobradores_activos: number;
             /** Rutas Activas */
             rutas_activas: number;
+            /**
+             * Cartera Viva
+             * @default 0
+             */
+            cartera_viva: number;
+            /**
+             * Cartera Vencida
+             * @default 0
+             */
+            cartera_vencida: number;
+            /**
+             * Pct Vencido
+             * @default 0
+             */
+            pct_vencido: number;
+            /**
+             * Gastos Hoy
+             * @default 0
+             */
+            gastos_hoy: number;
+            /**
+             * Neto Hoy
+             * @default 0
+             */
+            neto_hoy: number;
         };
-        /** InversionistaSummaryResponse */
+        /** InversionistaRiesgoResponse */
+        InversionistaRiesgoResponse: {
+            /** Clientes En Mora */
+            clientes_en_mora: number;
+            /** Promesas Activas */
+            promesas_activas: number;
+            /** Promesas Incumplidas */
+            promesas_incumplidas: number;
+            /** Aging Distribution */
+            aging_distribution: {
+                [key: string]: components["schemas"]["InversionistaAgingBucket"];
+            };
+        };
+        /**
+         * InversionistaRutaExposicion
+         * @description Exposición por ruta — PII minimizada (sin ruta_id ni cobrador).
+         */
+        InversionistaRutaExposicion: {
+            /** Ruta Nombre */
+            ruta_nombre: string;
+            /** Cartera */
+            cartera: number;
+            /** Vencido */
+            vencido: number;
+            /** Creditos */
+            creditos: number;
+        };
+        /**
+         * InversionistaSummaryResponse
+         * @description Read-model financiero del inversionista (W9).
+         *
+         *     Secciones legacy (portfolio + campos top-level) se conservan por
+         *     compatibilidad; secciones W9 (negocio, riesgo, tendencia_7d, rutas) son
+         *     aditivas. Autoridad canónica W6/W7 para cartera y recaudo.
+         */
         InversionistaSummaryResponse: {
             portfolio: components["schemas"]["InversionistaPortfolioResponse"];
             /** Negocio Nombre */
@@ -2187,6 +2272,33 @@ export interface components {
             moneda: string;
             /** Zona Horaria */
             zona_horaria: string;
+            negocio: components["schemas"]["InversionistaNegocioResponse"];
+            riesgo: components["schemas"]["InversionistaRiesgoResponse"];
+            tendencia_7d: components["schemas"]["InversionistaTendenciaResponse"];
+            /** Rutas */
+            rutas: components["schemas"]["InversionistaRutaExposicion"][];
+        };
+        /** InversionistaTendenciaDia */
+        InversionistaTendenciaDia: {
+            /** Fecha */
+            fecha: string;
+            /** Recaudo */
+            recaudo: number;
+            /** Reversal */
+            reversal: number;
+            /** Neto */
+            neto: number;
+        };
+        /** InversionistaTendenciaResponse */
+        InversionistaTendenciaResponse: {
+            /** Serie */
+            serie: components["schemas"]["InversionistaTendenciaDia"][];
+            /** Total Recaudo */
+            total_recaudo: number;
+            /** Total Reversal */
+            total_reversal: number;
+            /** Total Neto */
+            total_neto: number;
         };
         /** JornadaCierreCreate */
         JornadaCierreCreate: {

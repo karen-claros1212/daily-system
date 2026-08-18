@@ -927,20 +927,84 @@ class SuscripcionStatusResponse(BaseModel):
 # === Inversionista — Aggregates ===
 
 class InversionistaPortfolioResponse(BaseModel):
+    """Portafolio del inversionista.
+
+    Campos legacy (W0-W8) se conservan por compatibilidad y ahora salen de la
+    autoridad canónica W6 (resumen_cobranza). Campos W9 son aditivos.
+    """
     total_creditos_activos: int
     cartera_neta: int
     recaudo_hoy: int
     jornada_cerrada_hoy: bool
     cobradores_activos: int
     rutas_activas: int
+    # W9 (aditivos) — misma autoridad canónica W6/W7.
+    cartera_viva: int = 0
+    cartera_vencida: int = 0
+    pct_vencido: float = 0
+    gastos_hoy: int = 0
+    neto_hoy: int = 0
+
+
+class InversionistaAgingBucket(BaseModel):
+    count: int
+    amount: int
+
+
+class InversionistaRiesgoResponse(BaseModel):
+    clientes_en_mora: int
+    promesas_activas: int
+    promesas_incumplidas: int
+    aging_distribution: dict[str, InversionistaAgingBucket]
+
+
+class InversionistaTendenciaDia(BaseModel):
+    fecha: str
+    recaudo: int
+    reversal: int
+    neto: int
+
+
+class InversionistaTendenciaResponse(BaseModel):
+    serie: list[InversionistaTendenciaDia]
+    total_recaudo: int
+    total_reversal: int
+    total_neto: int
+
+
+class InversionistaRutaExposicion(BaseModel):
+    """Exposición por ruta — PII minimizada (sin ruta_id ni cobrador)."""
+    ruta_nombre: str
+    cartera: int
+    vencido: int
+    creditos: int
+
+
+class InversionistaNegocioResponse(BaseModel):
+    nombre: str
+    plan: str
+    moneda: str
+    zona_horaria: str
+    fecha: str
 
 
 class InversionistaSummaryResponse(BaseModel):
+    """Read-model financiero del inversionista (W9).
+
+    Secciones legacy (portfolio + campos top-level) se conservan por
+    compatibilidad; secciones W9 (negocio, riesgo, tendencia_7d, rutas) son
+    aditivas. Autoridad canónica W6/W7 para cartera y recaudo.
+    """
     portfolio: InversionistaPortfolioResponse
     negocio_nombre: str
     plan: str
     moneda: str
     zona_horaria: str
+    # W9 (aditivas).
+    negocio: InversionistaNegocioResponse
+    riesgo: InversionistaRiesgoResponse
+    tendencia_7d: InversionistaTendenciaResponse
+    rutas: list[InversionistaRutaExposicion]
 
 
 # === Sync del movil (Bloque offline sync, S2) ===

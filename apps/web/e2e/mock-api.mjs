@@ -605,6 +605,82 @@ function sesionDe(token) {
   return SESIONES.get(token) ?? null;
 }
 
+/** Shape W9 de /api/inversionista/resumen (read-model aditivo, PII minimizada). */
+function resumenInversionistaW9(opts = {}) {
+  const {
+    nombre = 'Test Negocio',
+    carteraViva = 5000000,
+    carteraVencida = 500000,
+    pctVencido = 10,
+    recaudoHoy = 800000,
+    gastosHoy = 100000,
+    creditosActivos = 50,
+    cobradores = 2,
+    rutasActivas = 3,
+    jornadaCerrada = true,
+    clientesMora = 5,
+    promesasActivas = 3,
+    promesasIncumplidas = 1,
+    rutas = [
+      { ruta_nombre: 'Ruta Norte', cartera: 3000000, vencido: 300000, creditos: 30 },
+      { ruta_nombre: 'Ruta Sur', cartera: 2000000, vencido: 200000, creditos: 20 },
+    ],
+  } = opts;
+  const hoy = new Date().toISOString().slice(0, 10);
+  const serie = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const fecha = d.toISOString().slice(0, 10);
+    const recaudo = i === 0 ? recaudoHoy : 100000 + i * 10000;
+    const reversal = i === 0 ? 0 : 5000;
+    serie.push({ fecha, recaudo, reversal, neto: recaudo - reversal });
+  }
+  const totalRecaudo = serie.reduce((s, d) => s + d.recaudo, 0);
+  const totalReversal = serie.reduce((s, d) => s + d.reversal, 0);
+  return {
+    portfolio: {
+      total_creditos_activos: creditosActivos,
+      cartera_neta: carteraViva,
+      recaudo_hoy: recaudoHoy,
+      jornada_cerrada_hoy: jornadaCerrada,
+      cobradores_activos: cobradores,
+      rutas_activas: rutasActivas,
+      cartera_viva: carteraViva,
+      cartera_vencida: carteraVencida,
+      pct_vencido: pctVencido,
+      gastos_hoy: gastosHoy,
+      neto_hoy: recaudoHoy - gastosHoy,
+    },
+    negocio: { nombre, plan: 'basic', moneda: 'COP', zona_horaria: 'America/Bogota', fecha: hoy },
+    riesgo: {
+      clientes_en_mora: clientesMora,
+      promesas_activas: promesasActivas,
+      promesas_incumplidas: promesasIncumplidas,
+      aging_distribution: {
+        CURRENT: { count: Math.max(creditosActivos - clientesMora, 0), amount: 0 },
+        '1-7': { count: 5, amount: 100000 },
+        '8-15': { count: 3, amount: 150000 },
+        '16-30': { count: 2, amount: 250000 },
+        '31-60': { count: 0, amount: 0 },
+        '61-90': { count: 0, amount: 0 },
+        '90+': { count: 0, amount: 0 },
+      },
+    },
+    tendencia_7d: {
+      serie,
+      total_recaudo: totalRecaudo,
+      total_reversal: totalReversal,
+      total_neto: totalRecaudo - totalReversal,
+    },
+    rutas,
+    negocio_nombre: nombre,
+    plan: 'basic',
+    moneda: 'COP',
+    zona_horaria: 'America/Bogota',
+  };
+}
+
 function randomToken() {
   return crypto.randomBytes(32).toString('base64url');
 }
@@ -828,10 +904,21 @@ const server = http.createServer(async (req, res) => {
     if (!capabilities(sesion.rol).includes('inversionista:resumen')) {
       return json(res, 403, { detail: 'Forbidden: el rol COBRADOR no puede ver el resumen de inversion' });
     }
-    if (token === 'mock-empty') return json(res, 200, { portfolio: {}, negocio_nombre: 'Empty', plan: 'basic', moneda: 'COP' });
     if (token === 'mock-error') return json(res, 500, { detail: 'Mock internal error' });
-    if (token === 'mock-custom') return json(res, 200, { portfolio: { rutas_activas: 5, cobradores_activos: 2, total_creditos_activos: 50, cartera_neta: 10000000, recaudo_hoy: 800000, jornada_cerrada_hoy: true }, negocio_nombre: 'Test Negocio', plan: 'basic', moneda: 'COP' });
-    return json(res, 200, { portfolio: { rutas_activas: 3, cobradores_activos: 2, total_creditos_activos: 50, cartera_neta: 5000000, recaudo_hoy: 800000, jornada_cerrada_hoy: true }, negocio_nombre: 'Test Negocio', plan: 'basic', moneda: 'COP' });
+    if (token === 'mock-empty') {
+      return json(res, 200, resumenInversionistaW9({
+        nombre: 'Empty', carteraViva: 0, carteraVencida: 0, pctVencido: 0, recaudoHoy: 0,
+        gastosHoy: 0, creditosActivos: 0, cobradores: 0, rutasActivas: 0, jornadaCerrada: false,
+        clientesMora: 0, promesasActivas: 0, promesasIncumplidas: 0, rutas: [],
+      }));
+    }
+    if (token === 'mock-custom') {
+      return json(res, 200, resumenInversionistaW9({
+        nombre: 'Test Negocio', carteraViva: 10000000, carteraVencida: 1000000, pctVencido: 10,
+        recaudoHoy: 800000, gastosHoy: 100000, creditosActivos: 50, cobradores: 2, rutasActivas: 5,
+      }));
+    }
+    return json(res, 200, resumenInversionistaW9());
   }
 
   // ── GET /api/inversionista/suscripcion (Etapa 3, contrato real) ───────────

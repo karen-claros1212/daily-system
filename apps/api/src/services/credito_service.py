@@ -78,7 +78,8 @@ def _enriquecer(db: Session, creditos: list[Credito], role: str) -> list[dict]:
             "cliente_nombre": _nombre_cliente(c.cliente) if mostrar_pii else None,
             "ruta_id": c.ruta_id,
             "ruta_nombre": c.ruta.nombre if c.ruta else "",
-            "cobrador_nombre": c.ruta.cobrador.nombre if (c.ruta and c.ruta.cobrador) else None,
+            # W9: el INVERSIONISTA no ve la identidad del cobrador (PII).
+            "cobrador_nombre": (c.ruta.cobrador.nombre if (c.ruta and c.ruta.cobrador) else None) if mostrar_pii else None,
             "estado": c.estado,
             "cuota": c.cuota,
             "n_cuotas": c.n_cuotas,

@@ -13,14 +13,18 @@ test.describe('Dashboard', () => {
     await setToken(page, TOKEN);
     await page.goto('/dashboard');
     await expect(page.locator('h1')).toContainText('Dashboard');
-    await expect(page.locator('.metric-card')).toHaveCount(6);
+    // W9: 4 KPIs financieros + 4 de riesgo/promesas = 8 cards.
+    await expect(page.locator('.metric-card')).toHaveCount(8);
   });
 
   test('dashboard shows correct values', async ({ page }) => {
     await setToken(page, 'mock-custom');
     await page.goto('/dashboard');
-    await expect(page.locator('.metric-value').first()).toContainText('5');
+    // W9: primer KPI es Cartera viva (autoridad W6). mock-custom = 10.000.000.
     await expect(page.locator('.metric-value.money').first()).toContainText('10.000.000');
+    // Tendencia 7d y exposición por ruta presentes (superficies W9).
+    await expect(page.getByRole('heading', { name: 'Tendencia de recaudo (7 días)' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Exposición por ruta' })).toBeVisible();
   });
 
   test('dashboard handles empty portfolio', async ({ page }) => {

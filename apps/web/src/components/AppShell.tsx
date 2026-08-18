@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { SessionUser } from '@/lib/rbac';
-import { hasCapability } from '@/lib/rbac';
+import { hasAnyCapability, hasCapability } from '@/lib/rbac';
 import { SessionRenewer } from '@/lib/auth/useSessionRenewer';
 import {
   IconDashboard,
@@ -89,7 +89,10 @@ export function AppShell({ children, session = null }: AppShellProps) {
   // (ver src/rbac.py). Default-deny: sin capability, el ítem no aparece.
   // El backend conserva la autoridad: esto solo refleja la superficie.
   const navItems: NavItem[] = [
-    ...(hasCapability(session, 'jornada:ver') || hasCapability(session, 'jornadas:ver')
+    // Dashboard: refleja las superficies reales (W9). COBRADOR → jornada:ver
+    // (dashboard de campo), INVERSIONISTA → inversionista:resumen (financiero),
+    // ADMINISTRADOR → dashboard:ejecutivo. Sin inventar acceso.
+    ...(hasAnyCapability(session, ['dashboard:ejecutivo', 'inversionista:resumen', 'jornada:ver'])
       ? [{ id: 'dashboard', label: 'Dashboard', icon: ICONS.dashboard }]
       : []),
     ...(hasCapability(session, 'ruta:ver') || hasCapability(session, 'rutas:ver')
@@ -98,7 +101,8 @@ export function AppShell({ children, session = null }: AppShellProps) {
     ...(hasCapability(session, 'jornada:ver')
       ? [{ id: 'caja', label: 'Caja', icon: ICONS.caja }]
       : []),
-    ...(hasCapability(session, 'inversionista:resumen')
+    // Reportes: capability real de la superficie (W7), no inversionista:resumen.
+    ...(hasCapability(session, 'reportes:ver')
       ? [{ id: 'reportes', label: 'Reportes', icon: ICONS.reportes }]
       : []),
     ...(hasCapability(session, 'inversionista:suscripcion')
