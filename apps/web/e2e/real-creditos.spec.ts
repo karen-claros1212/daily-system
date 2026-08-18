@@ -125,7 +125,7 @@ test.describe.serial('W3 real: Cartera y Créditos (FastAPI :8001)', () => {
         cuota: 20000,
         n_cuotas: 5,
         monto: 100000,
-        fecha_inicio: '2026-08-16',
+        fecha_inicio: new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10),
         periodicidad: 'DIARIO',
       }),
     });
@@ -161,7 +161,7 @@ test.describe.serial('W3 real: Cartera y Créditos (FastAPI :8001)', () => {
         cuota: 1000,
         n_cuotas: 10,
         monto: 10000,
-        fecha_inicio: '2026-08-16',
+        fecha_inicio: new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10),
       }),
     });
     expect(res.status).toBe(403);
@@ -177,7 +177,7 @@ test.describe.serial('W3 real: Cartera y Créditos (FastAPI :8001)', () => {
         cuota: 1000,
         n_cuotas: 10,
         monto: 10000,
-        fecha_inicio: '2026-08-16',
+        fecha_inicio: new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10),
       }),
     });
     expect(res.status).toBe(403);

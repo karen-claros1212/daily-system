@@ -25,8 +25,8 @@ test.describe.serial('W7 real: Reportes Premium (FastAPI :8001 + BFF :3000)', ()
     const ctx = await browser.newContext();
     await ctx.addCookies([{ name: 'daily_admin_token', value: seed.tokens.administrador, url: BFF }]);
     const page = await ctx.newPage();
-    await page.goto('/reportes');
-    await expect(page.getByRole('heading', { name: 'Reportes' })).toBeVisible();
+    await page.goto(`${BFF}/reportes`, { waitUntil: 'networkidle' });
+    await expect(page.getByRole('heading', { name: 'Reportes' })).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('Cartera vigente')).toBeVisible();
     await expect(page.getByText('Cartera vencida')).toBeVisible();
     await expect(page.getByText('Recaudo del periodo')).toBeVisible();
@@ -109,8 +109,8 @@ test.describe.serial('W7 real: Reportes Premium (FastAPI :8001 + BFF :3000)', ()
     const ctx = await browser.newContext();
     await ctx.addCookies([{ name: 'daily_admin_token', value: seed.tokens.inversionista, url: BFF }]);
     const page = await ctx.newPage();
-    await page.goto('/reportes');
-    await expect(page.getByRole('heading', { name: 'Reportes' })).toBeVisible();
+    await page.goto(`${BFF}/reportes`, { waitUntil: 'networkidle' });
+    await expect(page.getByRole('heading', { name: 'Reportes' })).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('Cartera vigente')).toBeVisible();
     await ctx.close();
   });

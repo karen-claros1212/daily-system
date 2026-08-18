@@ -26,7 +26,14 @@ test.describe.serial('W5 real: Movimientos Web (FastAPI :8001 + BFF :3000)', () 
   test.beforeAll(async ({ browser }) => {
     seed = seedActivacion();
 
-    // Insertar jornada + movimientos en PG.
+    // Limpiar datos previos de ejecuciones anteriores (fixture idempotente).
+    await runSql(`
+      DELETE FROM movimiento_caja WHERE negocio_id = '${seed.negocio_id}';
+      DELETE FROM jornada WHERE negocio_id = '${seed.negocio_id}';
+    `);
+
+    // Insertar jornada + movimientos en PG con claves únicas por ejecución.
+    const runId = Date.now();
     const jornadaId = crypto.randomUUID();
     const mov1Id = crypto.randomUUID();
     const mov2Id = crypto.randomUUID();
@@ -37,9 +44,9 @@ test.describe.serial('W5 real: Movimientos Web (FastAPI :8001 + BFF :3000)', () 
       VALUES ('${jornadaId}', '${seed.negocio_id}', '${seed.ruta_id}', 'OPEN', 1000, NOW());
       INSERT INTO movimiento_caja (id, negocio_id, jornada_id, tipo, naturaleza, monto, nota, clave_idempotencia, creado_por)
       VALUES
-        ('${mov1Id}', '${seed.negocio_id}', '${jornadaId}', 'GASOLINA', 'GASTO', 50000, 'Gasolina e2e', 'w5-real-1', '${seed.cobrador_id}'),
-        ('${mov2Id}', '${seed.negocio_id}', '${jornadaId}', 'OFICINA', 'GASTO', 20000, 'Material e2e', 'w5-real-2', '${seed.cobrador_id}'),
-        ('${mov3Id}', '${seed.negocio_id}', '${jornadaId}', 'RECIBIDO', 'CUENTA_POR_COBRAR', 100000, 'Cobro e2e', 'w5-real-3', '${seed.cobrador_id}');
+        ('${mov1Id}', '${seed.negocio_id}', '${jornadaId}', 'GASOLINA', 'GASTO', 50000, 'Gasolina e2e', 'w5-real-${runId}-1', '${seed.cobrador_id}'),
+        ('${mov2Id}', '${seed.negocio_id}', '${jornadaId}', 'OFICINA', 'GASTO', 20000, 'Material e2e', 'w5-real-${runId}-2', '${seed.cobrador_id}'),
+        ('${mov3Id}', '${seed.negocio_id}', '${jornadaId}', 'RECIBIDO', 'CUENTA_POR_COBRAR', 100000, 'Cobro e2e', 'w5-real-${runId}-3', '${seed.cobrador_id}');
     `);
 
     // JWT real de COBRADOR vía flujo de dispositivo canónico.

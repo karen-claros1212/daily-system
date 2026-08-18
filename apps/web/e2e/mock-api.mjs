@@ -568,6 +568,7 @@ const ROL_CAPABILITIES = {
     'cobranza:ver', 'cobranza:gestionar',
     'promesas:ver', 'promesas:crear', 'promesas:actualizar',
     'reportes:ver', 'dashboard:ejecutivo',
+    'llm:ver', 'llm:gestionar',
   ],
 };
 
@@ -858,6 +859,9 @@ function parseSpki(spkiBase64) {
 
 // W6: Promesas mock (module scope para persistir entre requests)
 const PROMESAS_MOCK = [];
+
+// W10: Estado LLM/BYOK (module scope para persistir entre requests del mock)
+const llmState = {};
 
 const server = http.createServer(async (req, res) => {
   console.log(`[mock-api] ${req.method} ${req.url}`);
@@ -2411,6 +2415,137 @@ const server = http.createServer(async (req, res) => {
     if (body.ocupacion !== undefined) c.ocupacion = trim(body.ocupacion);
 
     return json(res, 200, clienteResponseDTO(c));
+  }
+
+  // ── W10: Configuración IA (Provider Gateway Multi-LLM + BYOK) ─────────────
+  // Replica el contrato real de routes/llm.py: 6 providers, credential_source
+  // (TENANT_BYOK | PLATFORM_MANAGED | null), key_hint (nunca la clave), RBAC
+  // llm:ver/llm:gestionar SOLO ADMINISTRADOR.
+  const LLM_PROVIDERS = [
+    { provider: 'OPENAI_NATIVE', protocol: 'openai', type: 'openai-compatible', model: 'gpt-4o', caps: { text: true, tools: true, structured_output: true, vision: true, streaming: true } },
+    { provider: 'MISTRAL_NATIVE', protocol: 'openai', type: 'openai-compatible', model: 'mistral-large-latest', caps: { text: true, tools: true, structured_output: true, vision: true, streaming: true } },
+    { provider: 'CEREBRAS_OPENAI_COMPATIBLE', protocol: 'openai', type: 'openai-compatible', model: 'llama3.1-70b', caps: { text: true, tools: false, structured_output: false, vision: false, streaming: true } },
+    { provider: 'ANTHROPIC_NATIVE', protocol: 'anthropic', type: 'anthropic', model: 'claude-sonnet-4-20250514', caps: { text: true, tools: true, structured_output: true, vision: true, streaming: true } },
+    { provider: 'GEMINI_NATIVE', protocol: 'gemini', type: 'gemini', model: 'gemini-1.5-pro', caps: { text: true, tools: true, structured_output: true, vision: true, streaming: true } },
+    { provider: 'OPENAI_COMPATIBLE_GENERIC', protocol: 'openai', type: 'openai-compatible', model: 'gpt-4o-mini', caps: { text: true, tools: false, structured_output: false, vision: false, streaming: true } },
+  ];
+  const LLM_ENDPOINT_PROFILES = [
+    { profile_id: 'openrouter', label: 'OpenRouter', protocol: 'openai', capabilities: { text: true, tools: true, structured_output: true, vision: true, streaming: true } },
+    { profile_id: 'groq', label: 'Groq', protocol: 'openai', capabilities: { text: true, tools: true, structured_output: true, vision: false, streaming: true } },
+    { profile_id: 'local-ollama', label: 'Ollama (local)', protocol: 'openai', capabilities: { text: true, tools: true, structured_output: false, vision: false, streaming: true } },
+  ];
+  // (llmState vive en module scope, arriba: persiste entre requests del mock.)
+  const llmSpec = (name) => LLM_PROVIDERS.find((p) => p.provider === name);
+
+  const llmStatus = (name) => {
+    const spec = llmSpec(name);
+    if (!spec) return null;
+    const st = llmState[name] ?? {};
+    const byok = !!st.byok;
+    const source = byok ? 'TENANT_BYOK' : 'PLATFORM_MANAGED';
+    // OPENAI_COMPATIBLE_GENERIC con profile: capacidades del profile.
+    let caps = spec.caps;
+    if (name === 'OPENAI_COMPATIBLE_GENERIC' && st.endpoint_profile) {
+      const prof = LLM_ENDPOINT_PROFILES.find((p) => p.profile_id === st.endpoint_profile);
+      if (prof) caps = prof.capabilities;
+    }
+    return {
+      provider: name,
+      protocol: spec.protocol,
+      type: spec.type,
+      model: st.model || spec.model,
+      endpoint_profile: st.endpoint_profile ?? null,
+      enabled: !!st.enabled || byok,
+      is_default: false,
+      configured: byok,
+      credential_source: source,
+      available: true,
+      key_hint: st.key_hint ?? null,
+      capabilities: caps,
+    };
+  };
+
+  const llmRequire = (req, res, sesion, cap) => {
+    if (!sesion) return json(res, 401, { detail: 'Unauthorized' });
+    if (!capabilities(sesion.rol).includes(cap)) {
+      return json(res, 403, { detail: `Forbidden: el rol ${sesion.rol} no tiene ${cap}` });
+    }
+    return null;
+  };
+
+  if (req.method === 'GET' && path === '/api/llm/providers') {
+    const err = llmRequire(req, res, sesionDe(bearerToken(req)), 'llm:ver');
+    if (err) return err;
+    return json(res, 200, {
+      providers: LLM_PROVIDERS.map((p) => llmStatus(p.provider)),
+      endpoint_profiles: LLM_ENDPOINT_PROFILES,
+    });
+  }
+
+  const llmProviderMatch = path.match(/^\/api\/llm\/providers\/([^/]+)(\/(config|credential|test))?$/);
+  if (llmProviderMatch) {
+    const name = decodeURIComponent(llmProviderMatch[1]);
+    const sub = llmProviderMatch[3]; // 'config' | 'credential' | 'test' | undefined
+    const spec = llmSpec(name);
+    if (!spec) return json(res, 404, { detail: `provider desconocido: ${name}` });
+    const sesion = sesionDe(bearerToken(req));
+
+    if (req.method === 'GET' && !sub) {
+      const err = llmRequire(req, res, sesion, 'llm:ver');
+      if (err) return err;
+      return json(res, 200, llmStatus(name));
+    }
+
+    if (req.method === 'PUT' && sub === 'config') {
+      const err = llmRequire(req, res, sesion, 'llm:gestionar');
+      if (err) return err;
+      const st = (llmState[name] = llmState[name] ?? {});
+      if (body.model !== undefined) st.model = body.model;
+      if (body.endpoint_profile !== undefined) {
+        if (name !== 'OPENAI_COMPATIBLE_GENERIC') return json(res, 422, { detail: `${name} no usa endpoint_profile` });
+        if (!LLM_ENDPOINT_PROFILES.some((p) => p.profile_id === body.endpoint_profile)) {
+          return json(res, 422, { detail: `endpoint_profile fuera de allowlist: ${body.endpoint_profile}` });
+        }
+        st.endpoint_profile = body.endpoint_profile;
+      }
+      if (body.enabled !== undefined) st.enabled = !!body.enabled;
+      return json(res, 200, llmStatus(name));
+    }
+
+    if (req.method === 'PUT' && sub === 'credential') {
+      const err = llmRequire(req, res, sesion, 'llm:gestionar');
+      if (err) return err;
+      const key = (body.api_key ?? '').trim();
+      if (!key) return json(res, 422, { detail: 'api_key vacía' });
+      const st = (llmState[name] = llmState[name] ?? {});
+      st.byok = true;
+      st.enabled = true;
+      // key_hint: prefijo 3 + … + sufijo 4 (nunca la clave completa).
+      st.key_hint = key.length > 7 ? `${key.slice(0, 3)}…${key.slice(-4)}` : `…${key.slice(-4)}`;
+      return json(res, 200, { provider: name, configured: true, credential_source: 'TENANT_BYOK', key_hint: st.key_hint });
+    }
+
+    if (req.method === 'DELETE' && sub === 'credential') {
+      const err = llmRequire(req, res, sesion, 'llm:gestionar');
+      if (err) return err;
+      const st = (llmState[name] = llmState[name] ?? {});
+      st.byok = false;
+      st.key_hint = null;
+      // Tras eliminar BYOK, cae a PLATFORM_MANAGED (mock: siempre disponible).
+      return json(res, 200, { provider: name, configured: true, credential_source: 'PLATFORM_MANAGED', key_hint: null });
+    }
+
+    if (req.method === 'POST' && sub === 'test') {
+      const err = llmRequire(req, res, sesion, 'llm:gestionar');
+      if (err) return err;
+      const st = llmState[name] ?? {};
+      // mock: OK si hay credencial (BYOK o platform). Token especial para fallar.
+      const token = bearerToken(req);
+      if (token === 'mock-llm-auth-error') {
+        return json(res, 200, { provider: name, status: 'AUTH_ERROR', model: st.model || spec.model, latency_ms: null, credential_source: st.byok ? 'TENANT_BYOK' : 'PLATFORM_MANAGED', available: true, capabilities: null, detail: '401 upstream' });
+      }
+      return json(res, 200, { provider: name, status: 'OK', model: st.model || spec.model, latency_ms: 42, credential_source: st.byok ? 'TENANT_BYOK' : 'PLATFORM_MANAGED', available: true, capabilities: llmStatus(name).capabilities, detail: null });
+    }
   }
 
   return json(res, 404, { detail: 'Not found in mock API' });
